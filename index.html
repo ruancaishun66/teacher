@@ -318,13 +318,19 @@
     }
 
     .brand-role {
-      margin-top: 3px;
+      margin-top: 4px;
       color: var(--ink-soft);
-      font-family: var(--latin);
-      font-size: 0.53rem;
+      font-family: var(--round);
+      font-size: 0.62rem;
       font-weight: 700;
-      letter-spacing: 0.11em;
-      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .brand-x {
+      margin: 0 3px;
+      color: var(--red);
+      font-family: var(--latin);
+      letter-spacing: 0;
     }
 
     .site-nav {
@@ -1217,6 +1223,89 @@
       height: 28px;
       color: var(--gold);
       opacity: 0.42;
+    }
+
+    .planning-note {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 22px;
+      overflow: hidden;
+      margin-top: clamp(30px, 4.5vw, 48px);
+      padding: 24px 28px;
+      border: 1px solid rgba(49, 95, 140, 0.16);
+      border-left: 4px solid var(--gold);
+      border-radius: 22px 26px 26px 22px;
+      background:
+        radial-gradient(circle at 92% 4%, rgba(214, 167, 75, 0.16), transparent 44%),
+        linear-gradient(135deg, var(--blue-pale), var(--paper) 68%);
+      box-shadow: 0 22px 42px -42px rgba(27, 52, 77, 0.45);
+    }
+
+    .planning-icon {
+      display: grid;
+      width: 52px;
+      height: 52px;
+      place-items: center;
+      border: 1px solid rgba(214, 167, 75, 0.5);
+      border-radius: 50%;
+      color: var(--blue);
+      background: var(--paper);
+      box-shadow: 0 0 0 5px rgba(255, 250, 242, 0.5);
+    }
+
+    .planning-icon .icon {
+      width: 23px;
+      height: 23px;
+    }
+
+    .planning-kicker {
+      color: var(--red-deep);
+      font-family: var(--latin);
+      font-size: 0.55rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .planning-kicker span {
+      margin-left: 5px;
+      color: var(--ink-soft);
+      font-family: var(--round);
+      font-size: 0.66rem;
+      letter-spacing: 0.04em;
+      text-transform: none;
+    }
+
+    .planning-title {
+      margin-top: 6px;
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 1.3rem;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+
+    .planning-text {
+      max-width: 58rem;
+      margin-top: 7px;
+      color: var(--ink-soft);
+      font-size: 0.86rem;
+      line-height: 1.95;
+    }
+
+    .planning-tag {
+      align-self: center;
+      padding: 7px 12px;
+      border: 1px solid rgba(196, 84, 77, 0.25);
+      border-radius: 999px;
+      color: var(--red-deep);
+      background: rgba(255, 250, 242, 0.7);
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
     }
 
     /* ==========================================================================
@@ -2188,7 +2277,7 @@
       }
 
       .brand-role {
-        font-size: 0.49rem;
+        font-size: 0.56rem;
       }
 
       .header-cta {
@@ -2434,6 +2523,27 @@
 
       .about-quote blockquote {
         font-size: 0.96rem;
+      }
+
+      .planning-note {
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 15px 16px;
+        margin-top: 26px;
+        padding: 20px 18px;
+      }
+
+      .planning-tag {
+        grid-column: 2;
+        justify-self: start;
+      }
+
+      .planning-title {
+        font-size: 1.14rem;
+      }
+
+      .planning-text {
+        font-size: 0.82rem;
+        line-height: 1.88;
       }
 
       .method {
@@ -2798,6 +2908,20 @@
         font-size: 1.58rem;
       }
 
+      .planning-note {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .planning-icon {
+        width: 44px;
+        height: 44px;
+      }
+
+      .planning-tag {
+        grid-column: 1;
+      }
+
       .footer-title {
         font-size: 2.28rem;
       }
@@ -2908,11 +3032,11 @@
        ======================================================================== -->
   <header class="site-header">
     <div class="container nav">
-      <a class="brand" href="#top" aria-label="阮蔡顺，回到顶部">
-        <span class="brand-mark" aria-hidden="true">英</span>
+      <a class="brand" href="#top" aria-label="阮蔡顺，英语教学与心理视角，回到顶部">
+        <span class="brand-mark" aria-hidden="true">阮</span>
         <span class="brand-copy">
           <span class="brand-name">阮蔡顺</span>
-          <span class="brand-role">初高中英语 · 一对一</span>
+          <span class="brand-role">英语教学 <span class="brand-x">×</span> 心理视角</span>
         </span>
       </a>
 
@@ -3193,6 +3317,20 @@
             </figure>
           </div>
         </div>
+
+        <aside class="planning-note reveal" aria-labelledby="planning-title">
+          <span class="planning-icon" aria-hidden="true">
+            <svg class="icon"><use href="#i-compass"/></svg>
+          </span>
+          <div class="planning-copy">
+            <p class="planning-kicker">Learning Map <span>/ 学习地图</span></p>
+            <h3 class="planning-title" id="planning-title">不只盯着一门课。</h3>
+            <p class="planning-text">
+              英语从来不是孤岛。面对一张课表、一份成绩单、一段被安排得很满的时间，我更愿意先陪学生看清全局：哪一科要先行，哪一科可缓行，哪些时间能彼此借力，哪一段该留白。学科不同，方法相通——<span class="nowrap">先看清地图，再决定脚步。</span>
+            </p>
+          </div>
+          <span class="planning-tag">全科学习规划</span>
+        </aside>
       </div>
     </section>
 
