@@ -2105,6 +2105,41 @@
       letter-spacing: 0.05em;
     }
 
+    .workbench-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 11px;
+      border: 1px solid rgba(255, 250, 241, 0.16);
+      border-radius: 999px;
+      color: rgba(255, 250, 241, 0.7);
+      font-size: 0.64rem;
+      letter-spacing: 0.05em;
+      transition: color 0.22s ease, border-color 0.22s ease, background 0.22s ease;
+    }
+
+    .workbench-link .icon {
+      width: 14px;
+      height: 14px;
+      color: var(--gold);
+    }
+
+    .workbench-link em {
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(214, 167, 75, 0.16);
+      color: rgba(247, 212, 137, 0.92);
+      font-size: 0.54rem;
+      font-style: normal;
+      letter-spacing: 0.08em;
+    }
+
+    .workbench-link:hover {
+      color: #fffaf1;
+      border-color: rgba(214, 167, 75, 0.5);
+      background: rgba(214, 167, 75, 0.08);
+    }
+
     .back-top {
       display: inline-flex;
       align-items: center;
@@ -3543,6 +3578,11 @@
       <div class="footer-bottom">
         <p>© <span id="year">2026</span> 阮蔡顺</p>
         <p class="footer-credit">耐心 · 方法 · 信心</p>
+        <a class="workbench-link" href="library.html" rel="nofollow" aria-label="进入教师工作台，教学资料只保存在这台电脑的浏览器里">
+          <svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>
+          <span>教师工作台</span>
+          <em>本机</em>
+        </a>
         <a class="back-top" href="#top">
           回到顶部
           <svg class="icon" aria-hidden="true"><use href="#i-arrow-up"/></svg>

@@ -1,0 +1,2256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#f7f1e6">
+  <title>教师工作台｜阮蔡顺</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23c4544d'/%3E%3Ctext x='32' y='44' font-family='sans-serif' font-size='34' font-weight='700' fill='%23fffaf2' text-anchor='middle'%3E%E9%98%AE%3C/text%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #f7f1e6;
+      --paper: #fffaf2;
+      --blue: #315f8c;
+      --blue-deep: #254563;
+      --blue-dark: #1b344d;
+      --blue-soft: #dae8f2;
+      --blue-pale: #eef4f8;
+      --red: #c4544d;
+      --red-action: #b84b45;
+      --red-deep: #9e3f3c;
+      --red-soft: #f2dad5;
+      --gold: #d6a74b;
+      --gold-soft: #f2e6c9;
+      --sage: #7f9d87;
+      --sage-soft: #dfe9df;
+      --ink: #2b3a44;
+      --ink-soft: #67727a;
+      --line: rgba(49, 95, 140, 0.16);
+      --round: "YouYuan", "幼圆", "Yuanti SC", "STYuanti",
+        "Hiragino Maru Gothic ProN", "Arial Rounded MT Bold", "Microsoft YaHei", sans-serif;
+      --latin: "Century Gothic", "Trebuchet MS", "Avenir Next", "Segoe UI", sans-serif;
+      --old: "Palatino Linotype", "Book Antiqua", Palatino, Georgia, "Songti SC", serif;
+      --shadow: 0 20px 45px -38px rgba(27, 52, 77, 0.48);
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--bg);
+      font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    h1, h2, h3, h4, p {
+      margin: 0;
+    }
+
+    ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .icon {
+      width: 1em;
+      height: 1em;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex: none;
+    }
+
+    .icon-fill {
+      fill: currentColor;
+      stroke: none;
+    }
+
+    .container {
+      width: min(1280px, calc(100% - 64px));
+      margin: 0 auto;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      border-bottom: 1px solid var(--line);
+      background: rgba(247, 241, 230, 0.92);
+      -webkit-backdrop-filter: blur(16px);
+      backdrop-filter: blur(16px);
+    }
+
+    .app-header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      width: min(1280px, calc(100% - 64px));
+      min-height: 72px;
+      margin: 0 auto;
+    }
+
+    .app-brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-width: 0;
+    }
+
+    .app-seal {
+      display: grid;
+      width: 38px;
+      height: 38px;
+      flex: none;
+      place-items: center;
+      border-radius: 11px;
+      color: var(--cream, #fffaf2);
+      background: var(--red);
+      font-family: var(--round);
+      font-size: 1rem;
+      font-weight: 700;
+      line-height: 1;
+      transform: rotate(-4deg);
+      box-shadow: 0 0 0 3px rgba(196, 84, 77, 0.1);
+    }
+
+    .app-brand-copy {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      line-height: 1.3;
+    }
+
+    .app-brand-copy strong {
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 1.02rem;
+      letter-spacing: 0.04em;
+    }
+
+    .app-brand-copy small {
+      color: var(--ink-soft);
+      font-size: 0.63rem;
+      letter-spacing: 0.06em;
+    }
+
+    .app-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .local-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 11px;
+      border: 1px solid rgba(127, 157, 135, 0.34);
+      border-radius: 999px;
+      color: #4f715c;
+      background: rgba(223, 233, 223, 0.55);
+      font-size: 0.66rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .local-pill i {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--sage);
+      box-shadow: 0 0 0 3px rgba(127, 157, 135, 0.16);
+    }
+
+    .home-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--blue);
+      font-size: 0.74rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .home-link:hover {
+      color: var(--red-deep);
+    }
+
+    .home-link .icon {
+      width: 13px;
+      height: 13px;
+    }
+
+    .app-notice {
+      border-bottom: 1px solid rgba(49, 95, 140, 0.1);
+      color: #4a6070;
+      background: var(--blue-pale);
+      font-size: 0.72rem;
+    }
+
+    .app-notice-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 40px;
+      padding: 7px 0;
+    }
+
+    .app-notice p {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .app-notice .icon {
+      width: 14px;
+      height: 14px;
+      flex: none;
+      color: var(--blue);
+    }
+
+    .app-notice .text-btn {
+      flex: none;
+      border: 0;
+      color: var(--red-deep);
+      background: none;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 212px minmax(0, 1fr);
+      gap: 30px;
+      padding-top: 30px;
+      padding-bottom: 72px;
+    }
+
+    .app-nav {
+      position: sticky;
+      top: 96px;
+      align-self: start;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255, 250, 242, 0.58);
+    }
+
+    .app-nav button {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 10px 12px;
+      border: 0;
+      border-radius: 12px;
+      color: var(--ink-soft);
+      background: transparent;
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-align: left;
+      transition: 0.2s ease;
+    }
+
+    .app-nav button .icon {
+      width: 17px;
+      height: 17px;
+      color: var(--blue);
+    }
+
+    .app-nav button:hover {
+      color: var(--blue-deep);
+      background: rgba(255, 250, 242, 0.8);
+    }
+
+    .app-nav button.active {
+      color: var(--blue-deep);
+      background: var(--paper);
+      box-shadow: 0 8px 20px -18px rgba(27, 52, 77, 0.55);
+    }
+
+    .app-nav button.active .icon {
+      color: var(--red);
+    }
+
+    .nav-count {
+      margin-left: auto;
+      padding: 1px 7px;
+      border-radius: 999px;
+      color: var(--blue);
+      background: var(--blue-soft);
+      font-size: 0.6rem;
+      font-weight: 700;
+    }
+
+    .app-nav-note {
+      margin: 8px 5px 2px;
+      padding-top: 12px;
+      border-top: 1px dashed rgba(49, 95, 140, 0.16);
+      color: rgba(103, 114, 122, 0.8);
+      font-size: 0.62rem;
+      line-height: 1.7;
+    }
+
+    .app-main {
+      min-width: 0;
+    }
+
+    .view {
+      display: none;
+      animation: view-in 0.28s ease both;
+    }
+
+    .view.active {
+      display: block;
+    }
+
+    @keyframes view-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .view-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    .eyebrow {
+      color: var(--red-deep);
+      font-family: var(--latin);
+      font-size: 0.55rem;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow span {
+      margin-left: 6px;
+      color: var(--ink-soft);
+      font-family: var(--round);
+      font-size: 0.68rem;
+      letter-spacing: 0.04em;
+      text-transform: none;
+    }
+
+    .view-head h1 {
+      margin-top: 5px;
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: clamp(1.7rem, 3vw, 2.25rem);
+      font-weight: 700;
+      line-height: 1.35;
+      text-wrap: balance;
+    }
+
+    .view-head p {
+      max-width: 44rem;
+      margin-top: 6px;
+      color: var(--ink-soft);
+      font-size: 0.82rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 38px;
+      padding: 8px 15px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      line-height: 1.2;
+      white-space: nowrap;
+      transition: 0.22s ease;
+    }
+
+    .btn .icon {
+      width: 15px;
+      height: 15px;
+    }
+
+    .btn-primary {
+      border-color: var(--red-action);
+      color: #fffaf2;
+      background: var(--red-action);
+      box-shadow: 3px 3px 0 var(--gold-soft);
+    }
+
+    .btn-primary:hover {
+      border-color: var(--red-deep);
+      background: var(--red-deep);
+      transform: translate(-1px, -1px);
+      box-shadow: 4px 4px 0 var(--gold-soft);
+    }
+
+    .btn-blue {
+      border-color: var(--blue);
+      color: #fffaf2;
+      background: var(--blue);
+    }
+
+    .btn-blue:hover {
+      border-color: var(--blue-deep);
+      background: var(--blue-deep);
+    }
+
+    .btn-outline {
+      border-color: rgba(49, 95, 140, 0.25);
+      color: var(--blue);
+      background: transparent;
+    }
+
+    .btn-outline:hover {
+      border-color: var(--blue);
+      background: var(--blue-pale);
+    }
+
+    .btn-ghost {
+      border-color: transparent;
+      color: var(--ink-soft);
+      background: transparent;
+    }
+
+    .btn-ghost:hover {
+      color: var(--blue-deep);
+      background: rgba(49, 95, 140, 0.07);
+    }
+
+    .btn-danger {
+      border-color: rgba(196, 84, 77, 0.3);
+      color: var(--red-deep);
+      background: transparent;
+    }
+
+    .btn-danger:hover {
+      border-color: var(--red);
+      background: var(--red-soft);
+    }
+
+    .btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .stat {
+      position: relative;
+      overflow: hidden;
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .stat::after {
+      content: "";
+      position: absolute;
+      top: -28px;
+      right: -24px;
+      width: 82px;
+      height: 82px;
+      border-radius: 50%;
+      background: var(--blue-soft);
+      opacity: 0.45;
+    }
+
+    .stat:nth-child(2)::after {
+      background: var(--gold-soft);
+    }
+
+    .stat:nth-child(3)::after {
+      background: var(--red-soft);
+    }
+
+    .stat-label {
+      color: var(--ink-soft);
+      font-size: 0.64rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+    }
+
+    .stat-value {
+      position: relative;
+      z-index: 1;
+      margin-top: 3px;
+      color: var(--blue-deep);
+      font-family: var(--latin);
+      font-size: 1.55rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .stat-value small {
+      color: var(--ink-soft);
+      font-size: 0.66rem;
+      font-weight: 400;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 14px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255, 250, 242, 0.66);
+    }
+
+    .search-box {
+      position: relative;
+      flex: 1 1 200px;
+      min-width: 150px;
+    }
+
+    .search-box .icon {
+      position: absolute;
+      top: 50%;
+      left: 12px;
+      width: 15px;
+      height: 15px;
+      color: var(--ink-soft);
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+
+    .input, .select {
+      width: 100%;
+      min-height: 38px;
+      padding: 8px 11px;
+      border: 1px solid rgba(49, 95, 140, 0.18);
+      border-radius: 10px;
+      color: var(--ink);
+      background: var(--paper);
+      font-size: 0.76rem;
+      outline: none;
+      transition: 0.2s ease;
+    }
+
+    .input:focus, .select:focus, textarea:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(49, 95, 140, 0.1);
+    }
+
+    .search-box .input {
+      padding-left: 34px;
+    }
+
+    .toolbar .select {
+      width: auto;
+      min-width: 108px;
+    }
+
+    .material-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .material-card {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 14px;
+      padding: 15px 16px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--paper);
+      box-shadow: 0 15px 30px -30px rgba(27, 52, 77, 0.5);
+      transition: 0.2s ease;
+    }
+
+    .material-card:hover {
+      border-color: rgba(49, 95, 140, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .type-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 54px;
+      padding: 6px 9px;
+      border-radius: 9px;
+      color: var(--blue-deep);
+      background: var(--blue-soft);
+      font-size: 0.65rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .type-badge[data-type="single"] { color: #244b6d; background: #dbe9f5; }
+    .type-badge[data-type="cloze"] { color: #7a5b1b; background: var(--gold-soft); }
+    .type-badge[data-type="reading"] { color: #4f715c; background: var(--sage-soft); }
+    .type-badge[data-type="five"] { color: #7c4b46; background: var(--red-soft); }
+    .type-badge[data-type="grammar"] { color: #4a5a86; background: #e3e5f2; }
+    .type-badge[data-type="writing"] { color: #85542d; background: #f5e4d3; }
+    .type-badge[data-type="listening"] { color: #5a547a; background: #e8e2f0; }
+    .type-badge[data-type="paper"] { color: #7a5b1b; background: var(--gold-soft); }
+    .type-badge[data-type="other"] { color: #67727a; background: #ecebe6; }
+
+    .material-main {
+      min-width: 0;
+    }
+
+    .material-title {
+      overflow: hidden;
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-wrap: balance;
+    }
+
+    .material-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 5px 9px;
+      margin-top: 4px;
+      color: var(--ink-soft);
+      font-size: 0.66rem;
+    }
+
+    .material-meta .dot {
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.45;
+    }
+
+    .material-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 6px;
+    }
+
+    .mini-tag {
+      padding: 2px 7px;
+      border: 1px solid rgba(49, 95, 140, 0.14);
+      border-radius: 999px;
+      color: var(--ink-soft);
+      background: rgba(255, 255, 255, 0.45);
+      font-size: 0.58rem;
+    }
+
+    .material-actions {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .icon-btn {
+      display: grid;
+      width: 32px;
+      height: 32px;
+      place-items: center;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      color: var(--ink-soft);
+      background: transparent;
+      transition: 0.18s ease;
+    }
+
+    .icon-btn .icon {
+      width: 15px;
+      height: 15px;
+    }
+
+    .icon-btn:hover {
+      border-color: var(--line);
+      color: var(--blue-deep);
+      background: var(--blue-pale);
+    }
+
+    .icon-btn.danger:hover {
+      border-color: rgba(196, 84, 77, 0.22);
+      color: var(--red-deep);
+      background: var(--red-soft);
+    }
+
+    .empty-state {
+      display: grid;
+      justify-items: center;
+      padding: 46px 20px;
+      border: 1px dashed rgba(49, 95, 140, 0.24);
+      border-radius: 20px;
+      color: var(--ink-soft);
+      background: rgba(255, 250, 242, 0.5);
+      text-align: center;
+    }
+
+    .empty-state .empty-icon {
+      display: grid;
+      width: 58px;
+      height: 58px;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--blue);
+      background: var(--blue-soft);
+    }
+
+    .empty-state .empty-icon .icon {
+      width: 25px;
+      height: 25px;
+    }
+
+    .empty-state h3 {
+      margin-top: 13px;
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 1.05rem;
+    }
+
+    .empty-state p {
+      max-width: 32rem;
+      margin-top: 5px;
+      font-size: 0.76rem;
+      line-height: 1.8;
+    }
+
+    .empty-state .empty-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .section-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 28px 0 11px;
+    }
+
+    .section-title-row h2 {
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 1.02rem;
+    }
+
+    .section-title-row span {
+      color: var(--ink-soft);
+      font-size: 0.66rem;
+    }
+
+    .paper-history {
+      display: grid;
+      gap: 8px;
+    }
+
+    .paper-history-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: rgba(255, 250, 242, 0.7);
+    }
+
+    .paper-history-item strong {
+      display: block;
+      overflow: hidden;
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 0.82rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .paper-history-item small {
+      color: var(--ink-soft);
+      font-size: 0.62rem;
+    }
+
+    .upload-panel {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .dropzone {
+      display: grid;
+      justify-items: center;
+      padding: 46px 22px;
+      border: 1.5px dashed rgba(49, 95, 140, 0.3);
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(238, 244, 248, 0.8), rgba(255, 250, 242, 0.8));
+      text-align: center;
+      transition: 0.2s ease;
+    }
+
+    .dropzone.is-dragging {
+      border-color: var(--red);
+      background: var(--red-soft);
+      transform: scale(0.995);
+    }
+
+    .dropzone-icon {
+      display: grid;
+      width: 58px;
+      height: 58px;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--blue);
+      background: var(--paper);
+      box-shadow: 0 0 0 6px rgba(49, 95, 140, 0.06);
+    }
+
+    .dropzone-icon .icon {
+      width: 26px;
+      height: 26px;
+    }
+
+    .dropzone h2 {
+      margin-top: 14px;
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 1.18rem;
+    }
+
+    .dropzone p {
+      max-width: 35rem;
+      margin-top: 5px;
+      color: var(--ink-soft);
+      font-size: 0.76rem;
+      line-height: 1.8;
+    }
+
+    .dropzone .btn {
+      margin-top: 16px;
+    }
+
+    .upload-secondary {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .upload-secondary .btn {
+      min-height: 34px;
+      padding: 6px 12px;
+      font-size: 0.7rem;
+    }
+
+    .upload-hint {
+      color: var(--ink-soft);
+      font-size: 0.66rem;
+    }
+
+    .queue {
+      display: grid;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .queue-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 13px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--paper);
+      font-size: 0.73rem;
+    }
+
+    .queue-item .status {
+      margin-left: auto;
+      color: var(--ink-soft);
+      font-size: 0.66rem;
+    }
+
+    .queue-item.is-done .status { color: #4f715c; }
+    .queue-item.is-error .status { color: var(--red-deep); }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--blue-soft);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    .pipeline-step {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 250, 242, 0.6);
+    }
+
+    .pipeline-step span {
+      color: var(--red-deep);
+      font-family: var(--latin);
+      font-size: 0.58rem;
+      font-weight: 700;
+    }
+
+    .pipeline-step strong {
+      display: block;
+      margin-top: 4px;
+      color: var(--blue-deep);
+      font-size: 0.72rem;
+    }
+
+    .pipeline-step p {
+      margin-top: 2px;
+      color: var(--ink-soft);
+      font-size: 0.61rem;
+      line-height: 1.6;
+    }
+
+    .command-card {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background:
+        radial-gradient(circle at 96% 0%, rgba(214, 167, 75, 0.13), transparent 42%),
+        var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .command-label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--red-deep);
+      font-family: var(--latin);
+      font-size: 0.56rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .command-label span {
+      color: var(--ink-soft);
+      font-family: var(--round);
+      font-size: 0.68rem;
+      letter-spacing: 0.03em;
+      text-transform: none;
+    }
+
+    .command-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .command-input {
+      flex: 1;
+      min-width: 0;
+      min-height: 44px;
+      padding: 10px 14px;
+      border: 1px solid rgba(49, 95, 140, 0.22);
+      border-radius: 12px;
+      color: var(--ink);
+      background: #fff;
+      font-size: 0.8rem;
+      outline: none;
+    }
+
+    .command-input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(49, 95, 140, 0.1);
+    }
+
+    .command-row .btn {
+      min-height: 44px;
+      padding: 9px 18px;
+    }
+
+    .command-examples {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .example-chip {
+      padding: 5px 10px;
+      border: 1px solid rgba(49, 95, 140, 0.16);
+      border-radius: 999px;
+      color: var(--ink-soft);
+      background: rgba(255, 255, 255, 0.5);
+      font-size: 0.65rem;
+      transition: 0.18s ease;
+    }
+
+    .example-chip:hover {
+      border-color: var(--blue);
+      color: var(--blue-deep);
+      background: var(--blue-pale);
+    }
+
+    .command-result {
+      display: none;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-top: 13px;
+      padding-top: 13px;
+      border-top: 1px dashed rgba(49, 95, 140, 0.18);
+    }
+
+    .command-result.is-visible {
+      display: flex;
+    }
+
+    .command-result > span:first-child {
+      margin-right: 3px;
+      color: var(--ink-soft);
+      font-size: 0.65rem;
+    }
+
+    .result-chip {
+      padding: 4px 9px;
+      border-radius: 999px;
+      color: var(--blue-deep);
+      background: var(--blue-soft);
+      font-size: 0.64rem;
+      font-weight: 700;
+    }
+
+    .result-chip em {
+      margin-left: 3px;
+      color: var(--red-deep);
+      font-style: normal;
+    }
+
+    .result-warning {
+      flex-basis: 100%;
+      color: var(--red-deep);
+      font-size: 0.66rem;
+    }
+
+    .paper-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 24px 0 10px;
+    }
+
+    .paper-toolbar h2 {
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 1.02rem;
+    }
+
+    .paper-toolbar p {
+      color: var(--ink-soft);
+      font-size: 0.66rem;
+    }
+
+    .paper-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .paper-actions .btn {
+      min-height: 34px;
+      padding: 6px 11px;
+      font-size: 0.68rem;
+    }
+
+    .paper-preview-wrap {
+      overflow: auto;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background:
+        radial-gradient(circle at 1px 1px, rgba(49, 95, 140, 0.08) 1px, transparent 0) 0 0 / 18px 18px,
+        #e9e4d8;
+    }
+
+    .sheet {
+      position: relative;
+      overflow: hidden;
+      width: min(820px, 100%);
+      min-height: 600px;
+      margin: 0 auto;
+      padding: 42px 46px 54px;
+      color: #1f2b33;
+      background: #fffdf8;
+      box-shadow: 0 12px 34px -22px rgba(27, 52, 77, 0.5);
+      font-family: "Songti SC", "SimSun", "Microsoft YaHei", serif;
+      font-size: 14px;
+      line-height: 1.9;
+    }
+
+    .watermark-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-auto-rows: 150px;
+      gap: 8px;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .watermark-layer span {
+      align-self: center;
+      justify-self: center;
+      color: rgba(27, 52, 77, 0.075);
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      font-size: 12px;
+      line-height: 1;
+      white-space: nowrap;
+      transform: rotate(-28deg);
+    }
+
+    .sheet > *:not(.watermark-layer) {
+      position: relative;
+      z-index: 1;
+    }
+
+    .paper-head {
+      padding-bottom: 14px;
+      border-bottom: 2px solid #1b344d;
+      text-align: center;
+    }
+
+    .paper-head .paper-kicker {
+      color: #9e3f3c;
+      font-family: var(--latin);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+
+    .paper-head h1 {
+      margin-top: 4px;
+      color: #1b344d;
+      font-family: var(--round);
+      font-size: 24px;
+      line-height: 1.4;
+    }
+
+    .paper-meta {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 4px 18px;
+      margin-top: 8px;
+      color: #5d666c;
+      font-size: 11px;
+    }
+
+    .paper-section {
+      margin-top: 22px;
+    }
+
+    .paper-section-title {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #c9c2b2;
+    }
+
+    .paper-section-title strong {
+      color: #1b344d;
+      font-family: var(--round);
+      font-size: 15px;
+    }
+
+    .paper-section-title span {
+      color: #7b8185;
+      font-size: 10px;
+    }
+
+    .paper-section-note {
+      margin-top: 7px;
+      color: #5d666c;
+      font-size: 11px;
+    }
+
+    .paper-question {
+      margin-top: 12px;
+      break-inside: avoid;
+    }
+
+    .paper-question .q-num {
+      color: #9e3f3c;
+      font-weight: 700;
+    }
+
+    .paper-text p {
+      margin: 5px 0 0;
+    }
+
+    .paper-text .blank-line {
+      display: block;
+      height: 26px;
+      border-bottom: 1px solid #d2cbbd;
+    }
+
+    .writing-lines {
+      margin-top: 10px;
+      padding: 8px 0;
+    }
+
+    .writing-lines i {
+      display: block;
+      height: 26px;
+      border-bottom: 1px solid #ddd6c8;
+    }
+
+    .paper-foot {
+      margin-top: 30px;
+      padding-top: 10px;
+      border-top: 1px solid #c9c2b2;
+      color: #8a8f92;
+      font-size: 10px;
+      text-align: center;
+    }
+
+    .practice-empty {
+      display: grid;
+      justify-items: center;
+      padding: 46px 20px;
+      border: 1px dashed rgba(49, 95, 140, 0.24);
+      border-radius: 18px;
+      color: var(--ink-soft);
+      background: rgba(255, 250, 242, 0.55);
+      text-align: center;
+    }
+
+    .practice-empty .icon {
+      width: 34px;
+      height: 34px;
+      color: var(--blue);
+    }
+
+    .practice-empty h3 {
+      margin-top: 10px;
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 1rem;
+    }
+
+    .practice-empty p {
+      max-width: 30rem;
+      margin-top: 4px;
+      font-size: 0.74rem;
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .settings-card {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .settings-card h2 {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 0.98rem;
+    }
+
+    .settings-card h2 .icon {
+      width: 17px;
+      height: 17px;
+      color: var(--red);
+    }
+
+    .settings-card > p {
+      margin-top: 5px;
+      color: var(--ink-soft);
+      font-size: 0.7rem;
+      line-height: 1.8;
+    }
+
+    .storage-bar {
+      height: 9px;
+      margin-top: 14px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: var(--blue-soft);
+    }
+
+    .storage-bar i {
+      display: block;
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--blue), var(--sage));
+      transition: width 0.4s ease;
+    }
+
+    .storage-text {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 7px;
+      color: var(--ink-soft);
+      font-size: 0.64rem;
+    }
+
+    .settings-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 14px;
+    }
+
+    .settings-actions .btn {
+      min-height: 34px;
+      padding: 6px 11px;
+      font-size: 0.69rem;
+    }
+
+    .field {
+      display: grid;
+      gap: 5px;
+      margin-top: 12px;
+    }
+
+    .field label {
+      color: var(--ink-soft);
+      font-size: 0.66rem;
+      font-weight: 700;
+    }
+
+    .field .input, .field .select, .field textarea {
+      min-height: 38px;
+      padding: 8px 11px;
+      border: 1px solid rgba(49, 95, 140, 0.18);
+      border-radius: 10px;
+      color: var(--ink);
+      background: #fff;
+      font-size: 0.76rem;
+      outline: none;
+    }
+
+    .field textarea {
+      min-height: 84px;
+      resize: vertical;
+      line-height: 1.7;
+    }
+
+    .settings-card.danger {
+      border-color: rgba(196, 84, 77, 0.22);
+      background: rgba(242, 218, 213, 0.35);
+    }
+
+    .settings-card.danger h2 {
+      color: var(--red-deep);
+    }
+
+    .help-list {
+      display: grid;
+      gap: 7px;
+      margin-top: 10px;
+    }
+
+    .help-list li {
+      display: flex;
+      gap: 7px;
+      color: var(--ink-soft);
+      font-size: 0.68rem;
+      line-height: 1.75;
+    }
+
+    .help-list li::before {
+      content: "·";
+      color: var(--red);
+      font-weight: 700;
+    }
+
+    .app-dialog {
+      width: min(580px, calc(100% - 28px));
+      padding: 0;
+      border: 1px solid rgba(49, 95, 140, 0.2);
+      border-radius: 20px;
+      color: var(--ink);
+      background: var(--paper);
+      box-shadow: 0 30px 80px -30px rgba(27, 52, 77, 0.55);
+    }
+
+    .app-dialog::backdrop {
+      background: rgba(27, 52, 77, 0.42);
+      -webkit-backdrop-filter: blur(3px);
+      backdrop-filter: blur(3px);
+    }
+
+    .dialog-form {
+      padding: 22px;
+    }
+
+    .dialog-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .dialog-head h2 {
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 1.16rem;
+    }
+
+    .dialog-close {
+      display: grid;
+      width: 30px;
+      height: 30px;
+      place-items: center;
+      border: 0;
+      border-radius: 50%;
+      color: var(--ink-soft);
+      background: transparent;
+      font-size: 1.2rem;
+      line-height: 1;
+    }
+
+    .dialog-close:hover {
+      color: var(--red-deep);
+      background: var(--red-soft);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .dialog-form .field:first-of-type {
+      margin-top: 0;
+    }
+
+    .dialog-form .field textarea[readonly] {
+      color: var(--ink-soft);
+      background: #fbf8f1;
+      font-family: "SimSun", serif;
+      font-size: 0.73rem;
+    }
+
+    .form-note {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      color: #7a5b1b;
+      background: var(--gold-soft);
+      font-size: 0.66rem;
+      line-height: 1.7;
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 7px;
+      margin-top: 18px;
+    }
+
+    .toast-stack {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 200;
+      display: grid;
+      gap: 8px;
+      width: min(360px, calc(100% - 36px));
+      pointer-events: none;
+    }
+
+    .toast {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 11px 13px;
+      border: 1px solid rgba(49, 95, 140, 0.18);
+      border-radius: 12px;
+      color: var(--blue-deep);
+      background: var(--paper);
+      box-shadow: 0 18px 40px -24px rgba(27, 52, 77, 0.5);
+      font-size: 0.73rem;
+      line-height: 1.6;
+      pointer-events: auto;
+      animation: toast-in 0.25s ease both;
+    }
+
+    .toast.is-error {
+      border-color: rgba(196, 84, 77, 0.28);
+      color: var(--red-deep);
+      background: #fff6f2;
+    }
+
+    .toast .icon {
+      width: 15px;
+      height: 15px;
+      margin-top: 2px;
+      color: var(--sage);
+    }
+
+    .toast.is-error .icon {
+      color: var(--red);
+    }
+
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    @media (max-width: 980px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+        gap: 18px;
+        padding-top: 20px;
+      }
+
+      .app-nav {
+        position: static;
+        flex-direction: row;
+        overflow-x: auto;
+        padding: 6px;
+        border-radius: 15px;
+      }
+
+      .app-nav button {
+        width: auto;
+        flex: none;
+        padding: 8px 11px;
+        font-size: 0.74rem;
+      }
+
+      .app-nav-note {
+        display: none;
+      }
+
+      .nav-count {
+        margin-left: 2px;
+      }
+
+      .settings-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .container, .app-header-inner {
+        width: min(100% - 32px, 1280px);
+      }
+
+      .app-header-inner {
+        min-height: 64px;
+      }
+
+      .local-pill {
+        display: none;
+      }
+
+      .app-notice-inner {
+        align-items: flex-start;
+      }
+
+      .app-notice p {
+        display: block;
+      }
+
+      .app-notice .icon {
+        display: none;
+      }
+
+      .view-head {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .view-head > .btn {
+        align-self: flex-start;
+      }
+
+      .stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .stat {
+        padding: 12px 13px;
+      }
+
+      .stat-value {
+        font-size: 1.25rem;
+      }
+
+      .material-card {
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 10px 12px;
+      }
+
+      .material-actions {
+        grid-column: 2;
+        justify-self: end;
+      }
+
+      .material-title {
+        white-space: normal;
+      }
+
+      .dropzone {
+        padding: 34px 16px;
+      }
+
+      .pipeline {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .sheet {
+        padding: 28px 24px 38px;
+        font-size: 13px;
+      }
+
+      .paper-head h1 {
+        font-size: 20px;
+      }
+
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .app-nav {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 4px;
+        overflow: visible;
+        padding: 5px;
+      }
+
+      .app-nav button {
+        flex-direction: column;
+        justify-content: center;
+        gap: 4px;
+        min-width: 0;
+        padding: 8px 2px;
+        font-size: 0.64rem;
+        line-height: 1.2;
+        text-align: center;
+      }
+
+      .app-nav button .icon {
+        width: 18px;
+        height: 18px;
+      }
+
+      .nav-count {
+        display: none;
+      }
+
+      .app-brand-copy small {
+        display: none;
+      }
+
+      .home-link span {
+        display: none;
+      }
+
+      .home-link .icon {
+        width: 17px;
+        height: 17px;
+      }
+
+      .app-shell {
+        padding-bottom: 48px;
+      }
+
+      .stats {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .stat:nth-child(3) {
+        grid-column: 1 / -1;
+      }
+
+      .command-row {
+        flex-direction: column;
+      }
+
+      .command-row .btn {
+        width: 100%;
+      }
+
+      .material-actions {
+        gap: 0;
+      }
+
+      .paper-preview-wrap {
+        padding: 8px;
+      }
+
+      .sheet {
+        padding: 22px 16px 30px;
+      }
+
+      .paper-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .dialog-form {
+        padding: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg class="visually-hidden" aria-hidden="true" focusable="false">
+    <symbol id="i-library" viewBox="0 0 24 24">
+      <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17.5H6.5A2.5 2.5 0 0 0 4 23z"/>
+      <path d="M4 18.5A2.5 2.5 0 0 1 6.5 16H20M8 7h8M8 11h6"/>
+    </symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24">
+      <path d="M12 16V4M7 9l5-5 5 5"/>
+      <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>
+    </symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24">
+      <path d="M12 2c.8 6.2 3.8 9.2 10 10-6.2.8-9.2 3.8-10 10-.8-6.2-3.8-9.2-10-10 6.2-.8 9.2-3.8 10-10Z"/>
+    </symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="3.2"/>
+      <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.1A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.14.37.36.7.66.96.3.26.68.4 1.08.4H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5.64Z"/>
+    </symbol>
+    <symbol id="i-search" viewBox="0 0 24 24">
+      <circle cx="10.5" cy="10.5" r="6.5"/>
+      <path d="m15.4 15.4 4.6 4.6"/>
+    </symbol>
+    <symbol id="i-download" viewBox="0 0 24 24">
+      <path d="M12 4v12M7 11l5 5 5-5M4 20h16"/>
+    </symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24">
+      <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>
+    </symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24">
+      <path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4ZM13.5 6.5l4 4"/>
+    </symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24">
+      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/>
+      <circle cx="12" cy="12" r="2.6"/>
+    </symbol>
+    <symbol id="i-close" viewBox="0 0 24 24">
+      <path d="m6 6 12 12M18 6 6 18"/>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="m8 12 2.6 2.6L16.5 8.8"/>
+    </symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24">
+      <path d="M12 3 2.8 20h18.4L12 3Z"/>
+      <path d="M12 9v5M12 17.5v.1"/>
+    </symbol>
+    <symbol id="i-cloud" viewBox="0 0 48 32">
+      <path d="M11 25c-4.8 0-7.6-4.2-5.2-8.2-2.9-2.6-1-7.5 2.8-7.2.5-5.1 7-7.3 10.6-3.6C22.1 2.3 29 4 30.2 8.6c4.6-1.1 8.8 2.1 8.2 6.4 4.1 1.2 4.2 7.1.1 8.3-.5.1-1 .2-1.5.2H11Z"/>
+      <path d="M7 17.5c1.3-2.7 5.2-2.6 6.4.2M25 11c1.1-2.3 4.4-2.2 5.5 0"/>
+    </symbol>
+    <symbol id="i-compose" viewBox="0 0 24 24">
+      <path d="M4 20h16M7 16V4h10v12M10 8h4M10 12h4"/>
+    </symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24">
+      <path d="M20 7v5h-5M4 17v-5h5"/>
+      <path d="M6.1 8a7 7 0 0 1 11.5-1L20 9M4 15l2.4 2A7 7 0 0 0 18 16"/>
+    </symbol>
+    <symbol id="i-database" viewBox="0 0 24 24">
+      <ellipse cx="12" cy="5.5" rx="8" ry="3"/>
+      <path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>
+    </symbol>
+    <symbol id="i-file" viewBox="0 0 24 24">
+      <path d="M6 3h8l4 4v14H6V3Z"/>
+      <path d="M14 3v5h4M9 13h6M9 17h6"/>
+    </symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24">
+      <rect x="3" y="5" width="18" height="16" rx="2.5"/>
+      <path d="M8 3v4M16 3v4M3 10h18"/>
+    </symbol>
+    <symbol id="i-flash" viewBox="0 0 24 24">
+      <path d="M13 2 5 13h6l-1 9 8-11h-6l1-9Z"/>
+    </symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24">
+      <path d="M4 12h15M13 6l6 6-6 6"/>
+    </symbol>
+  </svg>
+
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a class="app-brand" href="index.html" aria-label="返回阮蔡顺的个人主页">
+        <span class="app-seal" aria-hidden="true">阮</span>
+        <span class="app-brand-copy">
+          <strong>教师工作台</strong>
+          <small>阮蔡顺 · 初高中英语</small>
+        </span>
+      </a>
+      <div class="app-header-actions">
+        <span class="local-pill"><i aria-hidden="true"></i>本机资料库</span>
+        <a class="home-link" href="index.html" aria-label="返回个人主页">
+          <span>返回主页</span>
+          <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-notice">
+    <div class="container app-notice-inner">
+      <p>
+        <svg class="icon" aria-hidden="true"><use href="#i-database"/></svg>
+        资料只保存在当前浏览器，不会上传到 GitHub。换电脑或清理浏览器数据会看不到，请定期导出备份。
+      </p>
+      <button class="text-btn" type="button" data-action="backup">立即备份</button>
+    </div>
+  </div>
+
+  <div class="app-shell container">
+    <aside class="app-nav" aria-label="工作台导航">
+      <button type="button" class="active" data-view="library">
+        <svg class="icon" aria-hidden="true"><use href="#i-library"/></svg>
+        资料库
+        <span class="nav-count" data-count="materials">0</span>
+      </button>
+      <button type="button" data-view="upload">
+        <svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg>
+        上传资料
+      </button>
+      <button type="button" data-view="practice">
+        <svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>
+        每日练习
+      </button>
+      <button type="button" data-view="settings">
+        <svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg>
+        备份与设置
+      </button>
+      <p class="app-nav-note">资料在本地浏览器里。上传 Word / PDF / TXT，自动识别题型、提取内容并生成带水印的整理版。</p>
+    </aside>
+
+    <main class="app-main">
+      <section class="view active" id="view-library" aria-labelledby="library-title">
+        <div class="view-head">
+          <div>
+            <p class="eyebrow">Library <span>/ 资料库</span></p>
+            <h1 id="library-title">把资料，收进一个地方。</h1>
+            <p>按题型和年级整理，随时检索、下载；生成的练习卷也会保存在这里。</p>
+          </div>
+          <button class="btn btn-primary" type="button" data-view="upload">
+            <svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg>
+            上传资料
+          </button>
+        </div>
+
+        <div class="stats">
+          <div class="stat">
+            <p class="stat-label">资料总数</p>
+            <p class="stat-value"><span data-stat="materials">0</span> <small>份</small></p>
+          </div>
+          <div class="stat">
+            <p class="stat-label">可抽取题组</p>
+            <p class="stat-value"><span data-stat="items">0</span> <small>组</small></p>
+          </div>
+          <div class="stat">
+            <p class="stat-label">生成的练习</p>
+            <p class="stat-value"><span data-stat="papers">0</span> <small>份</small></p>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div class="search-box">
+            <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+            <input class="input" id="library-search" type="search" placeholder="搜索标题、内容或标签…" aria-label="搜索资料">
+          </div>
+          <select class="select" id="filter-type" aria-label="按题型筛选">
+            <option value="">全部题型</option>
+          </select>
+          <select class="select" id="filter-grade" aria-label="按年级筛选">
+            <option value="">全部年级</option>
+          </select>
+          <select class="select" id="sort-materials" aria-label="排序方式">
+            <option value="newest">最近上传</option>
+            <option value="oldest">最早上传</option>
+            <option value="title">按标题</option>
+          </select>
+        </div>
+
+        <div id="material-list" class="material-list" aria-live="polite"></div>
+
+        <div class="section-title-row">
+          <h2>生成的练习卷</h2>
+          <span id="paper-count-label">0 份</span>
+        </div>
+        <div id="paper-history" class="paper-history" aria-live="polite"></div>
+      </section>
+
+      <section class="view" id="view-upload" aria-labelledby="upload-title">
+        <div class="view-head">
+          <div>
+            <p class="eyebrow">Upload <span>/ 上传资料</span></p>
+            <h1 id="upload-title">把资料交给我，剩下的我来整理。</h1>
+            <p>支持 Word (.docx)、PDF、TXT；自动识别题型、提取文字，并生成带水印的整理版。原文件会完整保留。</p>
+          </div>
+        </div>
+
+        <div class="upload-panel">
+          <div class="dropzone" id="dropzone">
+            <span class="dropzone-icon" aria-hidden="true">
+              <svg class="icon"><use href="#i-upload"/></svg>
+            </span>
+            <h2>拖进来，或者点一下选择文件</h2>
+            <p>可以一次选择多份。识别结果会自动入库，之后仍可修改标题、题型和年级。</p>
+            <button class="btn btn-primary" type="button" id="pick-files">
+              <svg class="icon" aria-hidden="true"><use href="#i-file"/></svg>
+              选择文件
+            </button>
+            <input class="visually-hidden" id="file-input" type="file" multiple accept=".docx,.pdf,.txt,.md,.doc,.png,.jpg,.jpeg">
+          </div>
+
+          <div class="upload-secondary">
+            <button class="btn btn-outline" type="button" data-action="paste">
+              <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
+              粘贴文本
+            </button>
+            <button class="btn btn-ghost" type="button" data-action="samples">
+              <svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>
+              载入示例资料
+            </button>
+            <span class="upload-hint">PDF 若为扫描图片，文字提取可能为空，原文件仍可下载。</span>
+          </div>
+
+          <div class="queue" id="upload-queue" aria-live="polite"></div>
+
+          <div class="pipeline" aria-label="处理流程">
+            <div class="pipeline-step"><span>01</span><strong>读取文件</strong><p>解析 Word / PDF 文字，保留原文件。</p></div>
+            <div class="pipeline-step"><span>02</span><strong>识别题型</strong><p>单选、完形、阅读、五选五、语法、作文等。</p></div>
+            <div class="pipeline-step"><span>03</span><strong>整理入库</strong><p>抽取题组，生成带水印的整理版。</p></div>
+            <div class="pipeline-step"><span>04</span><strong>随时组卷</strong><p>一句指令随机选题，导出 Word / PDF。</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-practice" aria-labelledby="practice-title">
+        <div class="view-head">
+          <div>
+            <p class="eyebrow">Daily Practice <span>/ 每日练习</span></p>
+            <h1 id="practice-title">用一句话，组一份练习。</h1>
+            <p>告诉我年级、题型和数量，随机抽题、自动排版、加水印。生成的卷子可下载 Word 或打印为 PDF。</p>
+          </div>
+        </div>
+
+        <div class="command-card">
+          <p class="command-label">Command <span>/ 今日指令</span></p>
+          <div class="command-row">
+            <input class="command-input" id="command-input" type="text" value="今日练习 单选5道 阅读理解1篇 语法填空1篇" aria-label="输入组卷指令" autocomplete="off">
+            <button class="btn btn-primary" type="button" id="generate-paper">
+              <svg class="icon" aria-hidden="true"><use href="#i-flash"/></svg>
+              生成练习
+            </button>
+          </div>
+          <div class="command-examples" aria-label="指令示例">
+            <button class="example-chip" type="button" data-command="今日练习 单选5道 阅读理解1篇 语法填空1篇">今日练习 · 标准组合</button>
+            <button class="example-chip" type="button" data-command="随机 10 道单选 高一">10 道单选</button>
+            <button class="example-chip" type="button" data-command="完形填空1篇 阅读理解2篇">完形 + 阅读</button>
+            <button class="example-chip" type="button" data-command="书面表达1篇 高一">作文练习</button>
+          </div>
+          <div class="command-result" id="command-result"></div>
+        </div>
+
+        <div class="paper-toolbar">
+          <div>
+            <h2>练习预览</h2>
+            <p id="paper-meta-label">生成后会在这里排版预览。</p>
+          </div>
+          <div class="paper-actions">
+            <button class="btn btn-outline" type="button" data-action="reshuffle" disabled>
+              <svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>
+              换一组
+            </button>
+            <button class="btn btn-blue" type="button" data-action="download-word" disabled>
+              <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
+              下载 Word
+            </button>
+            <button class="btn btn-outline" type="button" data-action="print-pdf" disabled>
+              <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
+              导出 PDF
+            </button>
+            <button class="btn btn-primary" type="button" data-action="save-paper" disabled>
+              <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>
+              存入练习卷
+            </button>
+          </div>
+        </div>
+
+        <div id="paper-preview" class="paper-preview-wrap">
+          <div class="practice-empty">
+            <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
+            <h3>还没有生成练习</h3>
+            <p>在上面的指令框里写下年级、题型和数量，或者点一个示例开始。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-settings" aria-labelledby="settings-title">
+        <div class="view-head">
+          <div>
+            <p class="eyebrow">Backup &amp; Settings <span>/ 备份与设置</span></p>
+            <h1 id="settings-title">把重要的东西，留一份底。</h1>
+            <p>资料存在本机浏览器里。定期导出备份，换电脑或清理浏览器时才不会措手不及。</p>
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <article class="settings-card">
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-database"/></svg>本机存储</h2>
+            <p>浏览器为当前网站分配的空间。文件越多，占用越大；到 80% 以上时建议导出备份并清理不再使用的资料。</p>
+            <div class="storage-bar" aria-hidden="true"><i id="storage-fill"></i></div>
+            <div class="storage-text">
+              <span id="storage-usage">正在读取…</span>
+              <span id="storage-status">检查中</span>
+            </div>
+            <div class="settings-actions">
+              <button class="btn btn-outline" type="button" data-action="persist">申请长期保存</button>
+            </div>
+          </article>
+
+          <article class="settings-card">
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>备份与恢复</h2>
+            <p>导出一个 ZIP，包含所有资料的原文件、整理版、题组和练习卷。建议每周备份一次，放在网盘或移动硬盘里。</p>
+            <div class="settings-actions">
+              <button class="btn btn-primary" type="button" data-action="backup">导出备份</button>
+              <button class="btn btn-outline" type="button" data-action="restore">导入备份</button>
+              <input class="visually-hidden" id="restore-input" type="file" accept=".zip,application/zip">
+            </div>
+          </article>
+
+          <article class="settings-card">
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg>水印与默认年级</h2>
+            <p>生成的整理版和练习卷会带上这行水印。默认年级用于自动分类时没有识别到年级的资料。</p>
+            <div class="field">
+              <label for="watermark-input">水印文字</label>
+              <input class="input" id="watermark-input" type="text" maxlength="40" value="阮蔡顺 · 初高中英语 · 仅供学习">
+            </div>
+            <div class="field">
+              <label for="default-grade">默认年级</label>
+              <select class="select" id="default-grade">
+                <option value="">不设置</option>
+                <option>七年级</option><option>八年级</option><option>九年级</option>
+                <option>高一</option><option>高二</option><option>高三</option>
+                <option>中考</option><option>高考</option>
+              </select>
+            </div>
+            <div class="settings-actions">
+              <button class="btn btn-blue" type="button" data-action="save-settings">保存设置</button>
+            </div>
+          </article>
+
+          <article class="settings-card">
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg>识别说明</h2>
+            <ul class="help-list">
+              <li>题型根据文件名、标题和正文关键词自动判断；识别不准确时，可在资料卡上手动修改。</li>
+              <li>Word 会提取文字，表格和图片的版式会简化；原文件始终保留。</li>
+              <li>PDF 仅提取可复制的文字；扫描版、图片和手写内容暂不支持 OCR。</li>
+              <li>旧版 .doc、图片会完整存档，但需要手动选择题型、补充文字。</li>
+            </ul>
+          </article>
+
+          <article class="settings-card danger">
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg>清空资料库</h2>
+            <p>删除当前浏览器里的全部资料、题组和练习卷。这个操作不可撤销，请先导出备份。</p>
+            <div class="settings-actions">
+              <button class="btn btn-danger" type="button" data-action="clear-all">清空全部资料</button>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog class="app-dialog" id="edit-dialog">
+    <form class="dialog-form" id="edit-form" method="dialog">
+      <div class="dialog-head">
+        <h2>资料信息</h2>
+        <button class="dialog-close" type="submit" value="cancel" aria-label="关闭">×</button>
+      </div>
+      <input type="hidden" id="edit-id">
+      <div class="field">
+        <label for="edit-title">标题</label>
+        <input class="input" id="edit-title" type="text" required maxlength="80">
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="edit-type">题型</label>
+          <select class="select" id="edit-type"></select>
+        </div>
+        <div class="field">
+          <label for="edit-grade">年级</label>
+          <select class="select" id="edit-grade">
+            <option value="">未标注</option>
+            <option>七年级</option><option>八年级</option><option>九年级</option>
+            <option>高一</option><option>高二</option><option>高三</option>
+            <option>中考</option><option>高考</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="edit-tags">标签（用逗号分隔）</label>
+        <input class="input" id="edit-tags" type="text" maxlength="120">
+      </div>
+      <div class="field">
+        <label for="edit-text">提取内容（可直接修改）</label>
+        <textarea id="edit-text" rows="9"></textarea>
+      </div>
+      <p class="form-note" id="edit-note"></p>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" type="submit" value="cancel">取消</button>
+        <button class="btn btn-primary" type="submit" value="save">保存修改</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="app-dialog" id="paste-dialog">
+    <form class="dialog-form" id="paste-form" method="dialog">
+      <div class="dialog-head">
+        <h2>粘贴文本</h2>
+        <button class="dialog-close" type="submit" value="cancel" aria-label="关闭">×</button>
+      </div>
+      <div class="field">
+        <label for="paste-title">标题</label>
+        <input class="input" id="paste-title" type="text" required maxlength="80" placeholder="例如：高一英语 · 期中单项选择题">
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="paste-type">题型</label>
+          <select class="select" id="paste-type"></select>
+        </div>
+        <div class="field">
+          <label for="paste-grade">年级</label>
+          <select class="select" id="paste-grade">
+            <option value="">未标注</option>
+            <option>七年级</option><option>八年级</option><option>九年级</option>
+            <option>高一</option><option>高二</option><option>高三</option>
+            <option>中考</option><option>高考</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="paste-text">正文</label>
+        <textarea id="paste-text" required placeholder="把题目或文章粘贴到这里…"></textarea>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" type="submit" value="cancel">取消</button>
+        <button class="btn btn-primary" type="submit" value="save">整理入库</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="app-dialog" id="confirm-dialog">
+    <form class="dialog-form" method="dialog">
+      <div class="dialog-head">
+        <h2 id="confirm-title">确认操作</h2>
+        <button class="dialog-close" type="submit" value="cancel" aria-label="关闭">×</button>
+      </div>
+      <p id="confirm-message" style="color: var(--ink-soft); font-size: 0.78rem; line-height: 1.85;"></p>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" type="submit" value="cancel">取消</button>
+        <button class="btn btn-danger" type="submit" value="confirm" id="confirm-ok">确认</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+
+  <script src="vendor/jszip.min.js"></script>
+  <script src="library.js"></script>
+</body>
+</html>
