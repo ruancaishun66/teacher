@@ -3459,12 +3459,9 @@
     const stem = String(question.stem || '').trim();
     // 完形填空的小题题干为空，空格在短文里；这时不要再印一条空白横线。
     const stemHtml = stem ? escapeHtml(stem).replace(/\n/g, '<br>') : '';
-    const level = Number(question.difficulty);
-    const levelTag = state.settings.showDifficulty && level
-      ? `<span class="question-level" title="难度 ${level}/10（按词汇、句长、从句与设问方式综合估算）">难度${level}</span>`
-      : '';
+    // 难度只放在答案与解析区，题面保持和正式试卷一样干净。
     return `<div class="question-block">` +
-      `<div class="question-stem"><span class="question-number">${escapeHtml(number)}.</span>${levelTag}${stemHtml ? ` ${stemHtml}` : ''}</div>` +
+      `<div class="question-stem"><span class="question-number">${escapeHtml(number)}.</span>${stemHtml ? ` ${stemHtml}` : ''}</div>` +
       renderOptionTable(question.options || []) +
       `</div>`;
   }
@@ -3973,14 +3970,11 @@
       const count = sectionQuestionCount(section);
       const countText = section.type === 'writing' ? '共 1 篇' : `共 ${count} 小题`;
       const note = SECTION_NOTES[section.type] || '';
-      const difficulty = state.settings.showDifficulty && section.difficultyRange
-        ? `<span class="section-level">难度 ${escapeHtml(section.difficultyRange)}</span>`
-        : '';
       const items = section.items.map((item, itemIndex) => renderPaperItem(item, section, itemIndex)).join('');
       return `<section class="exam-section">` +
         `<div class="section-heading">` +
         `<h2><span class="section-index">${cnSectionNumber(index)}、</span>${escapeHtml(paperSectionLabel(section))}` +
-        `<em>（${countText}）</em></h2>${difficulty}</div>` +
+        `<em>（${countText}）</em></h2></div>` +
         (note ? `<p class="section-note">${escapeHtml(note)}</p>` : '') +
         items +
         `</section>`;
@@ -4059,7 +4053,6 @@
       .section-heading h2 { margin: 0; color: #111; font-family: "SimHei", "Microsoft YaHei", Arial, sans-serif; font-size: 12.5pt; line-height: 1.45; }
       .section-heading h2 em { font-style: normal; font-weight: 400; font-size: 9.5pt; }
       .section-index { display: inline-block; margin-right: 6px; }
-      .section-level { color: #666; font-size: 8.5pt; white-space: nowrap; }
       .section-note { margin: 5px 0 0; color: #333; font-size: 9pt; line-height: 1.65; }
 
       .passage-block { position: relative; margin-top: 9px; }
@@ -4071,7 +4064,6 @@
       .question-block { margin-top: 8px; break-inside: avoid; page-break-inside: avoid; }
       .question-stem { text-align: justify; text-justify: inter-word; }
       .question-number { font-weight: 700; }
-      .question-level { display: inline-block; margin: 0 6px 0 4px; color: #777; font-size: 7.5pt; font-weight: 400; vertical-align: 1px; }
       .blank-line { display: inline-block; min-width: 55mm; border-bottom: 1px solid #111; height: 1em; }
       .option-table { width: 100%; margin: 2px 0 0 0; border-collapse: collapse; table-layout: fixed; }
       .option-table td { padding: 1px 8px 1px 0; vertical-align: top; line-height: 1.55; }
@@ -4148,7 +4140,6 @@
         .exam-fields i { width: 22mm; }
         .section-heading { flex-wrap: wrap; gap: 0 8px; }
         .section-heading h2 { font-size: 11.5pt; }
-        .section-level { font-size: 8pt; }
         .option-table.cols-2 td, .option-table.cols-4 td { display: block; width: 100%; padding-right: 0; }
         .option-table.cols-4 td { padding-bottom: 0; }
         .choice-box-item { width: 100%; }
