@@ -1133,14 +1133,158 @@
       font-size: 0.68rem;
     }
 
+    .paper-actions-secondary {
+      flex-basis: 100%;
+      justify-content: flex-end;
+      padding-top: 2px;
+    }
+
+    .paper-actions-secondary .btn {
+      border-style: dashed;
+    }
+
     .paper-preview-wrap {
-      overflow: auto;
-      padding: 16px;
+      overflow: hidden;
+      padding: 14px;
       border: 1px solid var(--line);
       border-radius: 18px;
       background:
         radial-gradient(circle at 1px 1px, rgba(49, 95, 140, 0.08) 1px, transparent 0) 0 0 / 18px 18px,
         #e9e4d8;
+    }
+
+    .paper-frame {
+      display: block;
+      width: 100%;
+      min-height: 620px;
+      border: 0;
+      border-radius: 8px;
+      background: #eceff2;
+    }
+
+    .check-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px 12px;
+      margin-top: 12px;
+    }
+
+    .check-line {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+      color: var(--ink);
+      font-size: 0.72rem;
+      line-height: 1.55;
+      cursor: pointer;
+    }
+
+    .check-line input {
+      width: 16px;
+      height: 16px;
+      margin: 2px 0 0;
+      accent-color: var(--blue);
+      flex: none;
+    }
+
+    .ai-prompt {
+      width: 100%;
+      min-height: 150px;
+      padding: 10px 12px;
+      border: 1px solid rgba(49, 95, 140, 0.18);
+      border-radius: 10px;
+      color: var(--ink-soft);
+      background: #fbf8f1;
+      font-family: "SimHei", "Microsoft YaHei", sans-serif;
+      font-size: 0.7rem;
+      line-height: 1.7;
+      resize: vertical;
+    }
+
+    .ai-paste {
+      width: 100%;
+      min-height: 170px;
+      padding: 10px 12px;
+      border: 1px solid rgba(49, 95, 140, 0.24);
+      border-radius: 10px;
+      color: var(--ink);
+      background: #fff;
+      font-size: 0.76rem;
+      line-height: 1.65;
+      resize: vertical;
+    }
+
+    .ai-hint {
+      margin-top: 7px;
+      color: var(--ink-soft);
+      font-size: 0.66rem;
+      line-height: 1.7;
+    }
+
+    .guide-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .guide-card {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .guide-card h2 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 1.02rem;
+    }
+
+    .guide-card h2 .num {
+      display: grid;
+      width: 24px;
+      height: 24px;
+      place-items: center;
+      border-radius: 7px;
+      color: #fffaf2;
+      background: var(--red);
+      font-family: var(--latin);
+      font-size: 0.7rem;
+    }
+
+    .guide-card p, .guide-card li {
+      color: var(--ink-soft);
+      font-size: 0.76rem;
+      line-height: 1.85;
+    }
+
+    .guide-card p {
+      margin-top: 7px;
+    }
+
+    .guide-card ol, .guide-card ul {
+      margin: 7px 0 0 1.1em;
+      padding: 0;
+    }
+
+    .guide-card li + li {
+      margin-top: 4px;
+    }
+
+    .guide-code {
+      display: block;
+      margin-top: 8px;
+      padding: 9px 11px;
+      border-radius: 9px;
+      color: var(--blue-deep);
+      background: var(--blue-pale);
+      font-family: "Consolas", "Courier New", monospace;
+      font-size: 0.7rem;
+      line-height: 1.7;
+      white-space: pre-wrap;
     }
 
     .sheet {
@@ -1623,7 +1767,7 @@
 
     @media (max-width: 720px) {
       .container, .app-header-inner {
-        width: min(100% - 32px, 1280px);
+        width: min(100% - 28px, 1280px);
       }
 
       .app-header-inner {
@@ -1632,6 +1776,43 @@
 
       .local-pill {
         display: none;
+      }
+
+      input, select, textarea, .input, .select, .command-input, .ai-paste, .ai-prompt {
+        font-size: 16px !important;
+      }
+
+      .app-shell {
+        padding-bottom: calc(48px + env(safe-area-inset-bottom));
+      }
+
+      .paper-actions {
+        width: 100%;
+      }
+
+      .paper-actions .btn {
+        flex: 1 1 calc(50% - 6px);
+      }
+
+      .paper-actions-secondary {
+        justify-content: flex-start;
+      }
+
+      .paper-actions-secondary .btn {
+        flex-basis: calc(50% - 6px);
+      }
+
+      .check-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .paper-preview-wrap {
+        padding: 8px;
+        border-radius: 12px;
+      }
+
+      .guide-card {
+        padding: 16px;
       }
 
       .app-notice-inner {
@@ -1708,7 +1889,7 @@
     @media (max-width: 480px) {
       .app-nav {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(5, minmax(0, 1fr));
         gap: 4px;
         overflow: visible;
         padding: 5px;
@@ -1912,9 +2093,13 @@
       </button>
       <button type="button" data-view="settings">
         <svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg>
-        备份与设置
+        设置
       </button>
-      <p class="app-nav-note">资料在本地浏览器里。上传 Word / PDF / TXT，自动识别题型、提取内容并生成带水印的整理版。</p>
+      <button type="button" data-view="guide">
+        <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
+        使用指南
+      </button>
+      <p class="app-nav-note">资料在本地浏览器里。上传 Word / PDF / 图片，自动识别题型、提取内容、定级并生成带水印的练习卷。</p>
     </aside>
 
     <main class="app-main">
@@ -2024,7 +2209,7 @@
           <div>
             <p class="eyebrow">Daily Practice <span>/ 每日练习</span></p>
             <h1 id="practice-title">用一句话，组一份练习。</h1>
-            <p>告诉我年级、题型和数量，随机抽题、自动排版、加水印。生成的卷子可下载 Word 或打印为 PDF。</p>
+            <p>告诉我年级、题型、数量和难度，自动抽取题目、逐题定级，按正式试卷版式排版，并同时生成答案与解析、词汇背诵表和默写表。</p>
           </div>
         </div>
 
@@ -2038,10 +2223,11 @@
             </button>
           </div>
           <div class="command-examples" aria-label="指令示例">
-            <button class="example-chip" type="button" data-command="今日练习 单选5道 阅读理解1篇 语法填空1篇">今日练习 · 标准组合</button>
-            <button class="example-chip" type="button" data-command="随机 10 道单选 高一">10 道单选</button>
-            <button class="example-chip" type="button" data-command="完形填空1篇 阅读理解2篇">完形 + 阅读</button>
-            <button class="example-chip" type="button" data-command="书面表达1篇 高一">作文练习</button>
+            <button class="example-chip" type="button" data-command="今日练习 单选5道 阅读理解1篇 语法填空1篇 难度5-7">标准组合 · 难度5-7</button>
+            <button class="example-chip" type="button" data-command="随机 10 道单选 高一 难度4-6">10 道单选 · 高一</button>
+            <button class="example-chip" type="button" data-command="完形填空1篇 阅读理解2篇 难度6-8">完形 + 阅读 · 提高</button>
+            <button class="example-chip" type="button" data-command="书面表达1篇 高一 难度6">作文练习 · 高一</button>
+            <button class="example-chip" type="button" data-command="五选五1篇 短文填空1篇 难度5">五选五 + 短文填空</button>
           </div>
           <div class="command-result" id="command-result"></div>
         </div>
@@ -2069,6 +2255,24 @@
               存入练习卷
             </button>
           </div>
+          <div class="paper-actions paper-actions-secondary">
+            <button class="btn btn-outline" type="button" data-action="ai-analysis" disabled title="复制解析提示词到豆包，再把豆包的结果粘贴回来">
+              <svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>
+              豆包解析
+            </button>
+            <button class="btn btn-outline" type="button" data-action="ai-vocab" disabled title="复制词表提示词到豆包，再把豆包的结果粘贴回来">
+              <svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>
+              豆包词表
+            </button>
+            <button class="btn btn-ghost" type="button" data-action="download-vocab" disabled title="单独下载词汇背诵表">
+              <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
+              词汇表
+            </button>
+            <button class="btn btn-ghost" type="button" data-action="download-dictation" disabled title="单独下载默写表">
+              <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
+              默写表
+            </button>
+          </div>
         </div>
 
         <div id="paper-preview" class="paper-preview-wrap">
@@ -2083,7 +2287,7 @@
       <section class="view" id="view-settings" aria-labelledby="settings-title">
         <div class="view-head">
           <div>
-            <p class="eyebrow">Backup &amp; Settings <span>/ 备份与设置</span></p>
+            <p class="eyebrow">Settings <span>/ 设置</span></p>
             <h1 id="settings-title">把重要的东西，留一份底。</h1>
             <p>资料存在本机浏览器里。定期导出备份，换电脑或清理浏览器时才不会措手不及。</p>
           </div>
@@ -2135,12 +2339,62 @@
           </article>
 
           <article class="settings-card">
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>试卷版式与内容</h2>
+            <p>这些选项会用于之后生成的每日练习。页眉日期、姓名栏和答题区会按正式试卷版式自动排版。</p>
+            <div class="form-row">
+              <div class="field">
+                <label for="exam-title">试卷名称</label>
+                <input class="input" id="exam-title" type="text" maxlength="30" value="英语每日练习">
+              </div>
+              <div class="field">
+                <label for="exam-owner">页眉署名</label>
+                <input class="input" id="exam-owner" type="text" maxlength="20" value="阮蔡顺">
+              </div>
+            </div>
+            <div class="check-grid">
+              <label class="check-line"><input id="include-answers" type="checkbox" checked> 附参考答案与解析</label>
+              <label class="check-line"><input id="include-vocab" type="checkbox" checked> 附词汇背诵表</label>
+              <label class="check-line"><input id="include-dictation" type="checkbox" checked> 附默写表</label>
+              <label class="check-line"><input id="show-difficulty" type="checkbox" checked> 在答案区显示题目难度</label>
+            </div>
+            <div class="settings-actions">
+              <button class="btn btn-blue" type="button" data-action="save-settings">保存设置</button>
+            </div>
+          </article>
+
+          <article class="settings-card">
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg>图片与扫描件 OCR</h2>
+            <p>OCR 使用本机浏览器里的 Tesseract 引擎，图片不会上传。首次识别需要加载约 4 MB 的语言数据，之后会快一些。</p>
+            <div class="check-grid">
+              <label class="check-line"><input id="ocr-enabled" type="checkbox" checked> 上传图片或扫描 PDF 时自动 OCR</label>
+            </div>
+            <div class="form-row">
+              <div class="field">
+                <label for="ocr-lang">识别语言</label>
+                <select class="select" id="ocr-lang">
+                  <option value="eng+chi_sim" selected>英文 + 简体中文（推荐，含中文说明的试卷）</option>
+                  <option value="eng">仅英文（速度略快，适合纯英文题目）</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="ocr-pages">扫描 PDF 最多识别页数</label>
+                <input class="input" id="ocr-pages" type="number" min="1" max="40" step="1" value="8">
+              </div>
+            </div>
+            <p class="form-note">整本 100 多页的扫描试卷不建议一次全部 OCR，先拆分或只上传需要用的几页，识别更快、也更准确。</p>
+            <div class="settings-actions">
+              <button class="btn btn-blue" type="button" data-action="save-settings">保存设置</button>
+            </div>
+          </article>
+
+          <article class="settings-card">
             <h2><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg>识别说明</h2>
             <ul class="help-list">
-              <li>题型根据文件名、标题和正文关键词自动判断；识别不准确时，可在资料卡上手动修改。</li>
+              <li>题型先按试卷部分标题判断，再结合题号、选项、空格和文章结构复核；可在资料卡上手动修改。</li>
+              <li>每道题会按词汇难度、句长、从句、非谓语、语篇结构和题型给出 1–10 级难度。</li>
               <li>Word 会提取文字，表格和图片的版式会简化；原文件始终保留。</li>
-              <li>PDF 仅提取可复制的文字；扫描版、图片和手写内容暂不支持 OCR。</li>
-              <li>旧版 .doc、图片会完整存档，但需要手动选择题型、补充文字。</li>
+              <li>PDF 优先提取可复制文字；扫描版和图片会走本地 OCR，识别后请核对题号和文字。</li>
+              <li>旧版 .doc 会完整存档，暂不能自动提取文字。</li>
             </ul>
           </article>
 
@@ -2150,6 +2404,99 @@
             <div class="settings-actions">
               <button class="btn btn-danger" type="button" data-action="clear-all">清空全部资料</button>
             </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="view-guide" aria-labelledby="guide-title">
+        <div class="view-head">
+          <div>
+            <p class="eyebrow">Guide <span>/ 使用指南</span></p>
+            <h1 id="guide-title">从一份资料，到一份像样的卷子。</h1>
+            <p>按下面的顺序操作即可。第一次建议先用「载入示例资料」走一遍完整流程，再上传自己的试卷。</p>
+          </div>
+        </div>
+
+        <div class="guide-grid">
+          <article class="guide-card">
+            <h2><span class="num">1</span>上传资料：Word、PDF、图片都可以</h2>
+            <p>进入「上传资料」，把文件拖进虚线框，或点「选择文件」。支持 .docx、.pdf、.txt、.md、.png、.jpg、.jpeg。一次可以选多份。</p>
+            <ul>
+              <li>有文字层的 PDF 会直接提取文字；扫描版 PDF 和图片会自动走本地 OCR。</li>
+              <li>整本一百多页的扫描卷不建议一次上传。先在设置里把「扫描 PDF 最多识别页数」设为 8–12 页，或把需要用的几页截图后上传。</li>
+              <li>OCR 是机器识别，题号、引号和易混字母（l/I、0/O）可能出错。入库后点资料卡上的「修改」核对一遍，准确率会高很多。</li>
+              <li>旧版 .doc 会完整存档，但不能自动提取文字；用 Word 另存为 .docx 最稳。</li>
+            </ul>
+          </article>
+
+          <article class="guide-card">
+            <h2><span class="num">2</span>核对分类：题型和年级可以手动改</h2>
+            <p>系统会先看试卷里的部分标题（听力、选择填空、完形填空、阅读理解、五选五、语法填空、短文填空、书面表达等），再结合题号、选项、空格和文章结构判断题型。综合卷会被拆成多个部分，阅读还会按 A/B/C/D/E 篇拆开。</p>
+            <ul>
+              <li>识别不准时，点资料卡右侧的铅笔图标，修改题型、年级、标签和正文，保存后会重新拆题。</li>
+              <li>每道题会自动给出 1–10 级难度，依据包括词汇长度与难度、平均句长、长难句、从句、非谓语、被动语态、空格数量和题型。</li>
+              <li>资料卡上会显示题量和难度范围；答案区还会标出每道题的考点和难度。</li>
+            </ul>
+          </article>
+
+          <article class="guide-card">
+            <h2><span class="num">3</span>生成每日练习：一句指令就够</h2>
+            <p>进入「每日练习」，在指令框里写年级、题型、数量和难度。例如：</p>
+            <span class="guide-code">今日练习 单选5道 阅读理解1篇 语法填空1篇 难度5-7
+高一 完形填空1篇 阅读理解2篇 难度6
+五选五1篇 短文填空1篇 难度5
+书面表达1篇 高三 难度7</span>
+            <ul>
+              <li>难度可以写单级（难度6）、区间（难度5-7），也可以写「基础 / 中等 / 提高 / 挑战」。</li>
+              <li>不写题型时，会按「单选 + 完形 + 阅读 + 语法 + 作文」的默认组合抽取。</li>
+              <li>生成后会按 A4 试卷版式排版：日期标题、姓名/班级/得分栏、分题型大题、选项表、阅读篇目、作文横线、答案与解析、词汇表和默写表。</li>
+              <li>点「换一组」会重新抽题；「下载 Word」得到 .doc，可直接打印或继续编辑；「导出 PDF」在打印窗口选择「另存为 PDF」。</li>
+            </ul>
+          </article>
+
+          <article class="guide-card">
+            <h2><span class="num">4</span>豆包解析与词表：把详细讲解补到范本水平</h2>
+            <p>本地规则能给出答案、考点、难度和基础答题思路，但范本里那种「语篇导读 + 逐项排除 + 长难句分析 + 熟词生义」需要更强的语言模型。工作台用「复制提示词 → 豆包生成 → 粘贴回来」的方式接入豆包，不需要把 API Key 放在网页里。</p>
+            <ol>
+              <li>生成练习后，点「豆包解析」，再点「复制提示词」。</li>
+              <li>把提示词粘贴到豆包，等它输出完整的答案与详解。</li>
+              <li>复制豆包的结果，粘贴到弹窗下方的输入框，点「应用到练习」。解析会写进答案区，也会进入 Word / PDF。</li>
+              <li>点「豆包词表」同理：提示词已经按你给的要求写好三列表格和默写表格式，豆包返回后粘贴回来即可补齐 KK 音标和语境释义。</li>
+            </ol>
+            <p class="ai-hint">工作台不会自动上传你的试卷，也不会保存豆包账号信息。所有复制和粘贴都在本机完成。</p>
+          </article>
+
+          <article class="guide-card">
+            <h2><span class="num">5</span>词汇表与默写表：每次生成都会一起出</h2>
+            <p>生成练习时，系统会从文章和所有选项中按出现顺序抽取单词，去重后生成：</p>
+            <ul>
+              <li>词汇背诵表：三列「英文 / KK 音标 / 中文」，短语和固定搭配单独一张表。</li>
+              <li>默写表：第一部分英译英，第二部分英译中；每部分再分单个词汇和短语词组；每行两组，四列「参考词 / 默写 / 参考词 / 默写」。</li>
+              <li>点「词汇表」或「默写表」可以单独下载，方便只发词表而不发整张卷子。</li>
+              <li>本地词库没有收录的词，音标或中文会显示「—」。用「豆包词表」粘贴回来的结果会覆盖并补齐。</li>
+            </ul>
+          </article>
+
+          <article class="guide-card">
+            <h2><span class="num">6</span>保存、备份与换设备</h2>
+            <ul>
+              <li>资料只保存在当前浏览器的 IndexedDB 里，不会上传到 GitHub 或任何服务器。</li>
+              <li>换电脑、换浏览器、清理浏览器数据，资料都会消失。请在「设置」里每周导出一次 ZIP 备份。</li>
+              <li>导入备份会覆盖当前资料库，操作前会再次确认。</li>
+              <li>手机端同样可以使用：上传、生成、预览、下载都适配了窄屏；表格和长卷子建议横屏或下载后查看。</li>
+              <li>如果浏览器提示存储空间不足，先导出备份，再删除不再使用的资料；也可以点「申请长期保存」降低被自动清理的概率。</li>
+            </ul>
+          </article>
+
+          <article class="guide-card">
+            <h2><span class="num">7</span>常见问题</h2>
+            <ul>
+              <li><strong>扫描 PDF 识别很慢？</strong> OCR 在浏览器里跑，第一页要加载语言包。把页数限制调小，或只上传需要用的几页。</li>
+              <li><strong>题目被拆错？</strong> 打开资料编辑，把正文整理成「题号 + 题干 + 选项」的清晰格式，保存后会重新拆题。题号建议每行一个。</li>
+              <li><strong>答案区显示「—」？</strong> 说明原资料没有附答案，或答案不在同一份文件里。用「豆包解析」补齐即可。</li>
+              <li><strong>Word 打开后版式有偏差？</strong> .doc 是 HTML 兼容格式，Word 会按自己的规则重排。打印前在 Word 里检查分页；需要完全固定的版式时，用「导出 PDF」。</li>
+              <li><strong>能自动调用豆包 API 吗？</strong> 当前版本故意不把 API Key 写进静态网页，避免泄露。使用复制/粘贴工作流最安全；如果你之后有自己的服务器，可以再接 API。</li>
+            </ul>
           </article>
         </div>
       </section>
@@ -2230,6 +2577,35 @@
       <div class="dialog-actions">
         <button class="btn btn-ghost" type="submit" value="cancel">取消</button>
         <button class="btn btn-primary" type="submit" value="save">整理入库</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="app-dialog" id="ai-dialog">
+    <form class="dialog-form" id="ai-form" method="dialog">
+      <div class="dialog-head">
+        <h2 id="ai-title">豆包解析</h2>
+        <button class="dialog-close" type="submit" value="cancel" aria-label="关闭">×</button>
+      </div>
+      <div class="field">
+        <label for="ai-prompt">提示词（点“复制提示词”，粘贴到豆包）</label>
+        <textarea class="ai-prompt" id="ai-prompt" rows="7" readonly></textarea>
+      </div>
+      <div class="settings-actions" style="margin-top: 8px;">
+        <button class="btn btn-outline" type="button" data-action="copy-ai-prompt">
+          <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
+          复制提示词
+        </button>
+        <span class="ai-hint" id="ai-prompt-note">提示词包含当前练习全文，不会自动发送到任何地方。</span>
+      </div>
+      <div class="field">
+        <label for="ai-result">豆包返回的结果（粘贴到这里）</label>
+        <textarea class="ai-paste" id="ai-result" rows="9" placeholder="把豆包生成的答案与详解，或 Markdown 词表，整段粘贴到这里…"></textarea>
+      </div>
+      <p class="ai-hint" id="ai-result-note">解析会追加到答案区并随 Word / PDF 导出；词表会补齐音标和中文释义。</p>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" type="submit" value="cancel">取消</button>
+        <button class="btn btn-primary" type="submit" value="apply" id="ai-apply">应用到练习</button>
       </div>
     </form>
   </dialog>
