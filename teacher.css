@@ -368,10 +368,19 @@
 }
 
 @media (max-width: 430px) {
-  .teacher-hero .hero-actions { display: grid; grid-template-columns: 1fr 1fr; }
-  .teacher-hero .hero-actions .p-btn:first-child { grid-column: 1 / -1; }
+  .teacher-hero .hero-actions { display: grid; grid-template-columns: 1fr; }
+  .teacher-hero .hero-actions .p-btn { width: 100%; white-space: nowrap; }
+  .teacher-hero .hero-actions .p-btn:first-child { grid-column: auto; }
   .teacher-stats { grid-template-columns: 1fr 1fr; }
   .flow-grid { gap: 8px; }
+}
+
+@media (max-width: 360px) {
+  .teacher-tabs { padding: 4px; gap: 2px; }
+  .teacher-tabs button { min-width: 0; padding: 8px 3px; font-size: 0.64rem; letter-spacing: 0; }
+  .p-header-actions { gap: 6px; }
+  .p-header-actions #nav-assign,
+  .p-header-actions #nav-import { padding: 6px 7px; font-size: 0.6rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
