@@ -282,19 +282,32 @@
 
   async function unpackCode(code) {
     const text = String(code || '').replace(/\s+/g, '');
-    if (!text) throw new Error('任务码是空的。');
+    if (!text) throw new Error('任务是空的，先把整段代码粘贴进来。');
     const prefix = text.slice(0, 4);
     if (prefix !== 'SS0.' && prefix !== 'SS1.') {
-      throw new Error('这不是顺势任务码，请重新复制完整代码。');
+      throw new Error('这不是顺势的代码，请重新复制完整的一整段。');
     }
-    const bytes = base64UrlToBytes(text.slice(4));
+    let bytes;
+    try {
+      bytes = base64UrlToBytes(text.slice(4));
+    } catch (error) {
+      throw new Error('代码里有无法识别的字符，可能没复制完整，请重新复制。');
+    }
     let jsonBytes = bytes;
     if (prefix === 'SS1.') {
-      if (!window.DecompressionStream) throw new Error('当前浏览器太旧，无法解压任务码，请换用新版 Chrome / Edge。');
-      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-      jsonBytes = new Uint8Array(await new Response(stream).arrayBuffer());
+      if (!window.DecompressionStream) throw new Error('当前浏览器太旧，无法解压代码，请换用新版 Chrome / Edge。');
+      try {
+        const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+        jsonBytes = new Uint8Array(await new Response(stream).arrayBuffer());
+      } catch (error) {
+        throw new Error('这段代码不完整或已损坏，请让对方重新复制完整的一整段。');
+      }
     }
-    return JSON.parse(new TextDecoder().decode(jsonBytes));
+    try {
+      return JSON.parse(new TextDecoder().decode(jsonBytes));
+    } catch (error) {
+      throw new Error('代码内容无法识别，可能没复制完整，请重新复制。');
+    }
   }
 
   async function copyText(text) {
