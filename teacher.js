@@ -6,6 +6,7 @@
   'use strict';
 
   const S = window.Shunshi;
+  const IC = window.ShunshiInsightCore;
   const $ = S.$;
   const $$ = S.$$;
   const STORAGE_KEY = 'shunshi.teacher.v1';
@@ -51,6 +52,7 @@
   let assignPaperId = null;
   let lastCodes = [];
   let lastEnroll = null;
+  let editingInsightId = null;
 
   /* ------------------------------- 存储 ------------------------------- */
 
@@ -61,7 +63,16 @@
     raw.teacherName = raw.teacherName || '阮老师';
     raw.students = Array.isArray(raw.students) ? raw.students.map(normalizeStudent).filter((s) => s.id) : [];
     raw.assignments = Array.isArray(raw.assignments) ? raw.assignments.filter((a) => a && a.id) : [];
+    raw.insights = Array.isArray(raw.insights) ? normalizeInsights(raw.insights) : defaultInsights();
     return raw;
+  }
+
+  function normalizeInsights(list) {
+    return IC ? IC.normalizePosts(list) : [];
+  }
+
+  function defaultInsights() {
+    return IC ? IC.publishedPosts() : [];
   }
 
   function normalizeStudent(raw) {
@@ -96,7 +107,8 @@
       pinHash,
       createdAt: S.nowIso(),
       students: [],
-      assignments: []
+      assignments: [],
+      insights: defaultInsights()
     };
   }
 
@@ -431,6 +443,7 @@
     renderStudentGrid();
     renderAssignments();
     renderReportList();
+    renderInsights();
     renderSettings();
   }
 
@@ -613,11 +626,205 @@
     if (nameInput && document.activeElement !== nameInput) nameInput.value = data.teacherName || '阮老师';
   }
 
+  /* ------------------------------- 学习心得 ------------------------------- */
+
+  function insightSyncState() {
+    const draft = IC ? IC.normalizePosts(data && data.insights) : [];
+    const published = IC ? IC.publishedPosts() : [];
+    return {
+      draft,
+      published,
+      same: IC ? IC.samePosts(draft, published) : true
+    };
+  }
+
+  function insightAdminItem(post, index, total) {
+    const tags = (post.tags || []).map((tag) => `<span>${S.escapeHtml(tag)}</span>`).join('');
+    const summary = IC.excerptOf(post, 82);
+    return `<article class="insight-admin-item" data-insight-id="${S.escapeHtml(post.id)}">` +
+      `<div class="insight-admin-date"><b>${S.escapeHtml(IC.formatDateShort(post.date))}</b><span>${S.escapeHtml(post.date.slice(0, 4))}</span></div>` +
+      `<div class="insight-admin-main">` +
+        `<h3>${S.escapeHtml(post.title)}</h3>` +
+        `<p>${S.escapeHtml(summary)}</p>` +
+        (tags ? `<div class="insight-admin-tags">${tags}</div>` : '') +
+      `</div>` +
+      `<div class="insight-admin-actions">` +
+        `<button class="insight-mini" type="button" data-insight-action="up" title="上移" aria-label="上移这篇心得" ${index === 0 ? 'disabled' : ''}>↑</button>` +
+        `<button class="insight-mini" type="button" data-insight-action="down" title="下移" aria-label="下移这篇心得" ${index === total - 1 ? 'disabled' : ''}>↓</button>` +
+        `<button class="insight-mini wide" type="button" data-insight-action="edit">编辑</button>` +
+        `<button class="insight-mini remove" type="button" data-insight-action="delete" aria-label="删除${S.escapeHtml(post.title)}">删除</button>` +
+      `</div>` +
+    `</article>`;
+  }
+
+  function renderInsights() {
+    const listEl = $('#insight-admin-list');
+    if (!listEl || !data) return;
+    if (IC) data.insights = IC.normalizePosts(data.insights);
+    const list = data.insights || [];
+    const state = insightSyncState();
+
+    listEl.innerHTML = list.length
+      ? list.map((post, index) => insightAdminItem(post, index, list.length)).join('')
+      : emptyState('还没有手记', '点右上角“新建心得”，把最近的一条学习观察写下来。');
+
+    const countEl = $('#insight-admin-count');
+    if (countEl) countEl.textContent = `${list.length} 篇`;
+
+    const chip = $('#insight-status');
+    if (chip) {
+      chip.classList.remove('is-synced', 'is-dirty', 'is-empty');
+      if (!list.length) {
+        chip.textContent = '暂无手记';
+        chip.classList.add('is-empty');
+      } else if (state.same) {
+        chip.textContent = `已同步 · ${list.length} 篇`;
+        chip.classList.add('is-synced');
+      } else {
+        chip.textContent = `待发布 · 草稿 ${list.length} 篇`;
+        chip.classList.add('is-dirty');
+      }
+    }
+
+    const sync = $('#insight-sync');
+    if (sync) {
+      if (!list.length) {
+        sync.textContent = '当前没有手记。导出空列表后，主页心得栏会显示“还没有手记”。';
+      } else if (state.same) {
+        sync.textContent = `主页正在展示这 ${list.length} 篇手记，草稿与主页一致。`;
+      } else {
+        sync.textContent = `主页现有 ${state.published.length} 篇；本机草稿 ${list.length} 篇，有修改尚未发布。`;
+      }
+    }
+  }
+
+  function updateInsightCount() {
+    const body = $('#insight-body-input');
+    const count = $('#insight-body-count');
+    if (!body || !count) return;
+    const text = String(body.value || '').replace(/\s/g, '');
+    count.textContent = `${text.length} 字`;
+  }
+
+  function openInsightDialog(id) {
+    if (!data || !IC) return;
+    const post = id ? (data.insights || []).find((item) => item.id === id) : null;
+    editingInsightId = post ? post.id : null;
+    $('#insight-editor-title').textContent = post ? '编辑这篇心得' : '写一篇学习心得';
+    $('#insight-title-input').value = post ? post.title : '';
+    $('#insight-date-input').value = post ? post.date : IC.todayIso();
+    $('#insight-tags-input').value = post ? post.tags.join('，') : '';
+    $('#insight-excerpt-input').value = post ? post.excerpt : '';
+    $('#insight-body-input').value = post ? post.body : '';
+    $('#insight-delete').hidden = !post;
+    updateInsightCount();
+    S.openDialog($('#insight-editor-dialog'));
+    const dialogBody = $('#insight-editor-dialog .p-dialog-body');
+    if (dialogBody) dialogBody.scrollTop = 0;
+    setTimeout(() => {
+      const focusTarget = post ? $('#insight-body-input') : $('#insight-title-input');
+      if (focusTarget) focusTarget.focus();
+    }, 80);
+  }
+
+  function saveInsight() {
+    if (!data || !IC) return;
+    const title = String($('#insight-title-input').value || '').trim();
+    const body = String($('#insight-body-input').value || '').trim();
+    if (!title) { S.toast('先给这篇心得起个标题。', 'error'); $('#insight-title-input').focus(); return; }
+    if (!body) { S.toast('正文还是空的，写几句再保存。', 'error'); $('#insight-body-input').focus(); return; }
+    const post = IC.normalizePost({
+      id: editingInsightId || `LOG-${Date.now().toString(36).toUpperCase()}`,
+      title,
+      date: $('#insight-date-input').value || IC.todayIso(),
+      tags: $('#insight-tags-input').value,
+      excerpt: $('#insight-excerpt-input').value,
+      body
+    });
+    if (!post) { S.toast('标题或正文格式不对，请检查后再试。', 'error'); return; }
+    const index = editingInsightId
+      ? (data.insights || []).findIndex((item) => item.id === editingInsightId)
+      : -1;
+    if (index >= 0) data.insights[index] = post;
+    else data.insights.unshift(post);
+    data.insights = IC.normalizePosts(data.insights);
+    save();
+    editingInsightId = null;
+    S.closeDialog($('#insight-editor-dialog'));
+    renderInsights();
+    S.toast('草稿已保存。导出并发布后，主页才会更新。', 'ok', 4600);
+  }
+
+  function deleteInsight(id, closeEditor) {
+    if (!data || !IC || !id) return;
+    const post = (data.insights || []).find((item) => item.id === id);
+    if (!post) return;
+    if (!window.confirm(`删除《${post.title}》？\n\n只会删除本机草稿；主页要等下一次发布才会变化。`)) return;
+    data.insights = data.insights.filter((item) => item.id !== id);
+    save();
+    if (closeEditor) {
+      editingInsightId = null;
+      S.closeDialog($('#insight-editor-dialog'));
+    }
+    renderInsights();
+    S.toast('已从本机草稿删除。发布后主页才会同步。', 'ok', 4200);
+  }
+
+  function moveInsight(id, offset) {
+    if (!data) return;
+    const list = data.insights || [];
+    const index = list.findIndex((item) => item.id === id);
+    const target = index + offset;
+    if (index < 0 || target < 0 || target >= list.length) return;
+    const temp = list[index];
+    list[index] = list[target];
+    list[target] = temp;
+    save();
+    renderInsights();
+  }
+
+  function exportInsights() {
+    if (!data || !IC) return;
+    const list = IC.normalizePosts(data.insights);
+    if (!list.length && !window.confirm('当前没有手记。导出的空列表会让主页心得栏显示“还没有手记”。继续吗？')) return;
+    const file = IC.buildFile(list, new Date().toISOString());
+    S.downloadText('insights.js', file, 'application/javascript;charset=utf-8');
+    const sync = $('#insight-sync');
+    if (sync) sync.textContent = 'insights.js 已下载。还差最后一步：复制发布说明，交给 Claude 发布。';
+    S.toast('insights.js 已下载到“下载”文件夹。下一步：复制发布说明。', 'ok', 5200);
+  }
+
+  function previewInsights() {
+    window.open(`index.html?insights=preview&cb=${Date.now()}`, '_blank', 'noopener');
+  }
+
+  async function copyPublishPrompt() {
+    const lines = [
+      '我在「顺势教师端」更新了学习心得。',
+      '',
+      '请完成下面几件事：',
+      '1. 在“下载”文件夹找到我刚导出的最新 insights.js。如果找不到，先提醒我回教师端点“导出 insights.js”。',
+      '2. 用它覆盖 C:\\Users\\阮蔡顺\\personal-homepage\\insights.js。',
+      '3. 同步网站源码到 D:\\顺势工作台\\网站源码\\，并按原有 API 流程发布到 GitHub Pages。',
+      '4. 上线后打开主页，确认“学习心得”专栏显示最新内容，并检查“查看更多”能展开全部手记。',
+      '5. 最后用简单中文告诉我：发布是否成功、主页网址是什么。',
+      '',
+      '注意：心得是公开内容；学生档案、成绩和资料库仍只留在本机，不要上传。'
+    ];
+    try {
+      await S.copyText(lines.join('\n'));
+      S.toast('发布说明已复制。打开 Claude Code 粘贴即可。', 'ok', 4600);
+    } catch (error) {
+      S.toast('复制失败，请手动复制发布说明。', 'error');
+    }
+  }
+
   /* ------------------------------- 标签切换 ------------------------------- */
 
   function switchTab(name) {
     $$('#teacher-tabs button').forEach((button) => button.classList.toggle('active', button.dataset.tab === name));
     $$('.teacher-pane').forEach((pane) => pane.classList.toggle('active', pane.dataset.pane === name));
+    if (name === 'insights') renderInsights();
   }
 
   /* ------------------------------- 学生管理 ------------------------------- */
@@ -1415,7 +1622,8 @@
       teacherName: data.teacherName,
       pinHash: data.pinHash,
       students: data.students,
-      assignments: data.assignments
+      assignments: data.assignments,
+      insights: IC ? IC.normalizePosts(data.insights) : []
     });
   }
 
@@ -1457,7 +1665,8 @@
       pinHash: payload.pinHash,
       createdAt: payload.createdAt || S.nowIso(),
       students: (payload.students || []).map(normalizeStudent).filter((student) => student.id),
-      assignments: Array.isArray(payload.assignments) ? payload.assignments : []
+      assignments: Array.isArray(payload.assignments) ? payload.assignments : [],
+      insights: Array.isArray(payload.insights) ? normalizeInsights(payload.insights) : defaultInsights()
     };
     sessionPin = pin;
     save();
@@ -1556,6 +1765,28 @@
     $$('[data-goto]').forEach((button) => {
       button.addEventListener('click', () => switchTab(button.dataset.goto));
     });
+
+    $('#insight-new').addEventListener('click', () => openInsightDialog(null));
+    $('#insight-save').addEventListener('click', saveInsight);
+    $('#insight-delete').addEventListener('click', () => {
+      if (editingInsightId) deleteInsight(editingInsightId, true);
+    });
+    $('#insight-body-input').addEventListener('input', updateInsightCount);
+    $('#insight-admin-list').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-insight-action]');
+      if (!button) return;
+      const item = button.closest('[data-insight-id]');
+      if (!item) return;
+      const id = item.dataset.insightId;
+      const action = button.dataset.insightAction;
+      if (action === 'edit') openInsightDialog(id);
+      else if (action === 'delete') deleteInsight(id, false);
+      else if (action === 'up') moveInsight(id, -1);
+      else if (action === 'down') moveInsight(id, 1);
+    });
+    $('#insight-preview').addEventListener('click', previewInsights);
+    $('#insight-export').addEventListener('click', exportInsights);
+    $('#insight-copy-prompt').addEventListener('click', copyPublishPrompt);
 
     $('#student-add').addEventListener('click', () => openStudentDialog(null));
     $('#student-search').addEventListener('input', renderStudentGrid);

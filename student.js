@@ -92,7 +92,41 @@
     } else {
       $('#setup-card').hidden = false;
       $('#login-card').hidden = true;
+      resetSetupView();
     }
+  }
+
+  function setSetupExpanded(expanded) {
+    $('#manual-fields').hidden = !expanded;
+    $('#auth-extra').hidden = !expanded;
+    $('#manual-toggle').setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    const enrolled = $('#setup-card').dataset.enrolled === '1';
+    $('#manual-toggle-text').textContent = expanded ? (enrolled ? '收起资料' : '收起手动填写') : (enrolled ? '查看已带入的资料' : '手动填写资料');
+  }
+
+  function resetSetupView() {
+    const card = $('#setup-card');
+    card.dataset.enrolled = '0';
+    $('#enroll-state').hidden = true;
+    $('#enrolled-pin').textContent = '—';
+    $('#auth-divider').hidden = false;
+    $('#setup-id').readOnly = false;
+    $('#setup-pin').readOnly = false;
+    $('#setup-pin-hint').textContent = '密码用 4–12 位字母或数字，记牢，之后每次进入都要用。';
+    $('#setup-btn').textContent = '创建档案，开始升级';
+    setSetupExpanded(false);
+  }
+
+  function useEnrolledSetup() {
+    $('#setup-card').dataset.enrolled = '1';
+    $('#enroll-state').hidden = false;
+    $('#enrolled-pin').textContent = $('#setup-pin').value || '—';
+    $('#auth-divider').hidden = true;
+    $('#setup-id').readOnly = true;
+    $('#setup-pin').readOnly = true;
+    $('#setup-pin-hint').textContent = '密码由老师的开通码带入，请不要修改；改了老师会对不上你的汇报。';
+    $('#setup-btn').textContent = '确认信息，创建档案';
+    setSetupExpanded(true);
   }
 
   function showApp() {
@@ -167,8 +201,13 @@
     gradeSelect.value = grade;
     const avatar = payload.avatar || '🦊';
     $$('#avatar-picker input').forEach((input) => { input.checked = input.value === avatar; });
+    useEnrolledSetup();
     S.closeDialog($('#enroll-dialog'));
-    S.toast('资料已带入，确认无误后点“创建档案”。', 'ok', 5000);
+    S.toast('资料已带入，确认无误后点“确认信息，创建档案”。', 'ok', 5000);
+    setTimeout(() => {
+      const button = $('#setup-btn');
+      if (button && !button.hidden) button.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 180);
   }
 
   async function handleLogin() {
@@ -832,7 +871,22 @@
       S.openDialog($('#enroll-dialog'));
       setTimeout(() => $('#enroll-code-input').focus(), 100);
     });
+    $('#manual-toggle').addEventListener('click', () => {
+      const expanded = $('#manual-toggle').getAttribute('aria-expanded') === 'true';
+      setSetupExpanded(!expanded);
+      if (!expanded) {
+        setTimeout(() => {
+          const enrolled = $('#setup-card').dataset.enrolled === '1';
+          const target = enrolled ? $('#setup-btn') : $('#setup-name');
+          if (target) {
+            target.focus({ preventScroll: true });
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 120);
+      }
+    });
     $('#enroll-apply').addEventListener('click', applyEnrollCode);
+    $('#help-btn').addEventListener('click', () => S.openDialog($('#help-dialog')));
     $('#login-btn').addEventListener('click', handleLogin);
     $('#login-pin').addEventListener('keydown', (event) => { if (event.key === 'Enter') handleLogin(); });
     $('#logout-btn').addEventListener('click', () => {

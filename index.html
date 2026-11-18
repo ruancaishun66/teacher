@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="阮蔡顺，独立英语教师，专注初高中英语一对一。完善的教学方法，丰富的线上与线下教学经验，按学生节奏灵活安排课程。">
-  <meta name="theme-color" content="#f7f1e6">
+  <meta name="theme-color" content="#04121b">
   <meta property="og:title" content="阮蔡顺｜初高中英语一对一 · 独立英语教师">
   <meta property="og:description" content="完善的教学方法，丰富的线上与线下教学经验，为每个学生定制清晰、可执行的学习路径。">
   <meta property="og:type" content="website">
@@ -2972,6 +2972,1602 @@
       }
     }
 
+    /* ==========================================================================
+       深海航图主题 · 茫茫大海 / 定位 / 坚韧 / 浴火重生
+       ========================================================================== */
+    :root {
+      --bg: #04121b;
+      --paper: #0a2432;
+      --blue: #8fd7d1;
+      --blue-deep: #edf6f2;
+      --blue-dark: #020b12;
+      --blue-soft: #123b4a;
+      --blue-pale: #0a2a39;
+      --red: #e26a45;
+      --red-action: #dd603d;
+      --red-deep: #b8462d;
+      --red-soft: #351d1b;
+      --gold: #e7bd70;
+      --gold-soft: #332b1d;
+      --sage: #73c8b2;
+      --sage-soft: #143b35;
+      --blush: #e8a18b;
+      --ink: #e7f0ec;
+      --ink-soft: #9bb4b6;
+      --line: rgba(143, 215, 209, 0.16);
+      --line-strong: rgba(143, 215, 209, 0.3);
+      --cream: #fff8ea;
+      --shadow-soft: 0 34px 80px -56px rgba(0, 0, 0, 0.95);
+    }
+
+    body {
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(58rem 36rem at 92% -4%, rgba(226, 106, 69, 0.13), transparent 64%),
+        radial-gradient(44rem 34rem at -8% 10%, rgba(99, 199, 193, 0.12), transparent 66%),
+        radial-gradient(circle at 1px 1px, rgba(143, 215, 209, 0.055) 1px, transparent 0),
+        linear-gradient(180deg, #031019 0%, #061b27 30%, #071f2c 62%, #04131c 100%);
+      background-size: auto, auto, 30px 30px, auto;
+      color: var(--ink);
+    }
+
+    .grain {
+      opacity: 0.045;
+      mix-blend-mode: soft-light;
+    }
+
+    ::selection {
+      color: #04121b;
+      background: var(--gold);
+    }
+
+    :focus-visible {
+      outline-color: var(--gold);
+    }
+
+    .skip-link {
+      color: #04121b;
+      background: var(--gold);
+    }
+
+    /* ------------------------------- 顶栏 ------------------------------- */
+
+    .site-header {
+      border-bottom-color: rgba(143, 215, 209, 0.09);
+      background: rgba(3, 16, 25, 0.68);
+      -webkit-backdrop-filter: blur(20px) saturate(120%);
+      backdrop-filter: blur(20px) saturate(120%);
+    }
+
+    .site-header.is-scrolled {
+      border-color: rgba(143, 215, 209, 0.14);
+      background: rgba(3, 16, 25, 0.94);
+      box-shadow: 0 18px 40px -34px rgba(0, 0, 0, 0.95);
+    }
+
+    .brand-mark {
+      border-radius: 0;
+      box-shadow: none;
+      filter: drop-shadow(0 7px 16px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 12px rgba(231, 189, 112, 0.14));
+    }
+
+    .brand-name {
+      color: var(--cream);
+      text-shadow: 0 1px 20px rgba(143, 215, 209, 0.12);
+    }
+
+    .brand-role {
+      color: rgba(155, 180, 182, 0.78);
+    }
+
+    .brand-x {
+      color: var(--gold);
+    }
+
+    .site-nav a {
+      color: rgba(231, 240, 236, 0.7);
+    }
+
+    .site-nav a span {
+      color: rgba(143, 215, 209, 0.55);
+    }
+
+    .site-nav a::after {
+      background: linear-gradient(90deg, var(--gold), var(--red));
+    }
+
+    .site-nav a:hover {
+      color: var(--gold);
+    }
+
+    .header-cta {
+      border-color: rgba(255, 213, 159, 0.34);
+      color: #fff8ea;
+      background: linear-gradient(135deg, #e57a51, #ca5134);
+      box-shadow: 3px 3px 0 rgba(231, 189, 112, 0.2), 0 14px 30px -20px rgba(226, 106, 69, 0.8);
+    }
+
+    .header-cta:hover {
+      border-color: rgba(255, 226, 177, 0.5);
+      background: linear-gradient(135deg, #f08a5d, #b8462d);
+      box-shadow: 5px 5px 0 rgba(231, 189, 112, 0.26), 0 18px 34px -20px rgba(226, 106, 69, 0.9);
+    }
+
+    /* ------------------------------- 首屏 ------------------------------- */
+
+    .hero {
+      padding-top: clamp(54px, 7vw, 92px);
+      border-bottom: 1px solid rgba(143, 215, 209, 0.1);
+    }
+
+    .ocean-scene {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .ocean-scene svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .ocean-rings {
+      transform-origin: 1118px 360px;
+      animation: sonarDrift 14s ease-in-out infinite;
+    }
+
+    .ocean-waves {
+      animation: tideDrift 18s ease-in-out infinite alternate;
+    }
+
+    @keyframes sonarDrift {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.035); opacity: 1; }
+    }
+
+    @keyframes tideDrift {
+      0% { transform: translateX(-8px); }
+      100% { transform: translateX(12px); }
+    }
+
+    .hero-coordinate {
+      position: absolute;
+      top: 45%;
+      left: 16px;
+      z-index: 1;
+      color: rgba(143, 215, 209, 0.42);
+      font-family: var(--latin);
+      font-size: 0.47rem;
+      font-weight: 700;
+      letter-spacing: 0.23em;
+      line-height: 1;
+      writing-mode: vertical-rl;
+      pointer-events: none;
+    }
+
+    .hero-coordinate span {
+      color: rgba(231, 189, 112, 0.4);
+    }
+
+    .hero .container {
+      z-index: 3;
+    }
+
+    .eyebrow-pill {
+      border-color: rgba(143, 215, 209, 0.24);
+      color: var(--blue);
+      background: rgba(7, 30, 43, 0.72);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+    }
+
+    .eyebrow-dot {
+      background: var(--gold);
+      animation: beaconPulse 3.2s ease-out infinite;
+    }
+
+    @keyframes beaconPulse {
+      0% { box-shadow: 0 0 0 0 rgba(231, 189, 112, 0.3); }
+      65%, 100% { box-shadow: 0 0 0 8px rgba(231, 189, 112, 0); }
+    }
+
+    .eyebrow-latin {
+      color: rgba(155, 180, 182, 0.68);
+    }
+
+    .hero-greeting {
+      color: rgba(199, 220, 217, 0.82);
+    }
+
+    .hero-greeting strong {
+      color: var(--cream);
+      text-shadow: 0 0 30px rgba(143, 215, 209, 0.14);
+    }
+
+    .small-seal {
+      border: 1px solid rgba(255, 219, 166, 0.35);
+      color: #fff8ea;
+      background: linear-gradient(145deg, #e57a51, #b8462d);
+      box-shadow: 0 0 0 2px rgba(231, 189, 112, 0.08), 0 8px 18px -12px rgba(226, 106, 69, 0.9);
+    }
+
+    .hero-title {
+      color: var(--cream);
+      text-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    }
+
+    .hero-title .highlight {
+      color: var(--gold);
+      background-image: none;
+      text-shadow: 0 0 38px rgba(231, 189, 112, 0.22);
+    }
+
+    .hero-title .punct {
+      color: var(--red);
+    }
+
+    .hero-role {
+      color: var(--cream);
+    }
+
+    .role-dot {
+      background: var(--gold);
+      box-shadow: 0 0 14px rgba(231, 189, 112, 0.5);
+    }
+
+    .role-line {
+      background: linear-gradient(90deg, rgba(143, 215, 209, 0.6), transparent);
+    }
+
+    .role-en {
+      color: rgba(155, 180, 182, 0.66);
+    }
+
+    .hero-intro {
+      color: rgba(199, 220, 217, 0.76);
+    }
+
+    .btn-primary {
+      border-color: rgba(255, 213, 159, 0.34);
+      color: #fff8ea;
+      background: linear-gradient(135deg, #e8794f, #c94e32);
+      box-shadow: 4px 4px 0 rgba(231, 189, 112, 0.2), 0 18px 38px -22px rgba(226, 106, 69, 0.8);
+    }
+
+    .btn-primary:hover {
+      border-color: rgba(255, 226, 177, 0.52);
+      background: linear-gradient(135deg, #f28b5e, #b8462d);
+      box-shadow: 6px 6px 0 rgba(231, 189, 112, 0.26), 0 22px 44px -22px rgba(226, 106, 69, 0.9);
+    }
+
+    .btn-ghost {
+      border-color: rgba(143, 215, 209, 0.26);
+      color: var(--ink);
+      background: rgba(8, 31, 44, 0.66);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 16px 30px -28px rgba(0, 0, 0, 0.9);
+    }
+
+    .btn-ghost:hover {
+      border-color: rgba(231, 189, 112, 0.48);
+      color: var(--gold);
+      background: rgba(15, 48, 61, 0.82);
+    }
+
+    /* ------------------------------- 心得卡片 ------------------------------- */
+
+    .insight-card {
+      padding: 13px;
+      border: 1px solid rgba(231, 189, 112, 0.3);
+      border-radius: 32px;
+      background:
+        radial-gradient(circle at 88% 0%, rgba(226, 106, 69, 0.2), transparent 42%),
+        linear-gradient(160deg, rgba(11, 42, 58, 0.96), rgba(4, 18, 27, 0.98));
+      box-shadow:
+        10px 12px 0 rgba(231, 189, 112, 0.08),
+        0 42px 90px -54px rgba(0, 0, 0, 0.98),
+        0 0 70px -40px rgba(226, 106, 69, 0.55);
+      transform: rotate(-1deg);
+    }
+
+    .insight-card::before {
+      inset: 7px;
+      border-color: rgba(143, 215, 209, 0.2);
+      border-radius: 25px;
+    }
+
+    .insight-card .card-head {
+      padding: 9px 14px 11px;
+      color: rgba(143, 215, 209, 0.74);
+    }
+
+    .insight-card .card-head span:last-child {
+      color: rgba(231, 189, 112, 0.7);
+    }
+
+    .log-panel {
+      position: relative;
+      z-index: 2;
+      overflow: hidden;
+      border: 1px solid rgba(143, 215, 209, 0.16);
+      border-radius: 21px;
+      background:
+        radial-gradient(circle at 92% 4%, rgba(226, 106, 69, 0.14), transparent 38%),
+        linear-gradient(180deg, rgba(7, 29, 42, 0.86), rgba(3, 15, 23, 0.94));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    }
+
+    .log-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 16px 14px;
+      border-bottom: 1px solid rgba(143, 215, 209, 0.12);
+    }
+
+    .log-kicker {
+      color: rgba(143, 215, 209, 0.72);
+      font-family: var(--latin);
+      font-size: 0.46rem;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .log-title {
+      margin-top: 5px;
+      color: var(--cream);
+      font-family: var(--round);
+      font-size: 1.42rem;
+      font-weight: 700;
+      line-height: 1.25;
+      letter-spacing: 0.04em;
+    }
+
+    .log-count {
+      flex: none;
+      margin-top: 2px;
+      padding: 5px 9px;
+      border: 1px solid rgba(231, 189, 112, 0.24);
+      border-radius: 999px;
+      color: var(--gold);
+      background: rgba(231, 189, 112, 0.06);
+      font-family: var(--latin);
+      font-size: 0.48rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .insight-list {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .insight-item {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) 16px;
+      align-items: center;
+      width: 100%;
+      gap: 10px;
+      padding: 12px 15px;
+      border: 0;
+      border-top: 1px solid rgba(143, 215, 209, 0.09);
+      color: var(--ink);
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.22s ease, padding-left 0.22s ease;
+    }
+
+    .insight-item:first-child {
+      border-top: 0;
+    }
+
+    .insight-item:hover {
+      padding-left: 18px;
+      background: linear-gradient(90deg, rgba(143, 215, 209, 0.075), transparent 82%);
+    }
+
+    .insight-item-date {
+      color: rgba(143, 215, 209, 0.75);
+      font-family: var(--latin);
+      font-size: 0.52rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .insight-item-main {
+      min-width: 0;
+    }
+
+    .insight-item-main strong {
+      display: block;
+      overflow: hidden;
+      color: var(--cream);
+      font-family: var(--round);
+      font-size: 0.84rem;
+      font-weight: 600;
+      line-height: 1.45;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .insight-item-main small {
+      display: -webkit-box;
+      overflow: hidden;
+      margin-top: 4px;
+      color: rgba(155, 180, 182, 0.72);
+      font-size: 0.65rem;
+      line-height: 1.55;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 1;
+    }
+
+    .insight-item-arrow {
+      color: rgba(231, 189, 112, 0.7);
+      font-family: var(--latin);
+      font-size: 0.7rem;
+      transition: transform 0.22s var(--ease), color 0.22s ease;
+    }
+
+    .insight-item:hover .insight-item-arrow {
+      color: var(--gold);
+      transform: translate(2px, -2px);
+    }
+
+    .insight-empty {
+      padding: 20px 18px;
+      color: rgba(155, 180, 182, 0.72);
+      font-size: 0.74rem;
+      line-height: 1.75;
+    }
+
+    .log-more {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      gap: 10px;
+      padding: 12px 15px;
+      border: 0;
+      border-top: 1px solid rgba(231, 189, 112, 0.18);
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(226, 106, 69, 0.12), rgba(231, 189, 112, 0.035));
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.22s ease;
+    }
+
+    .log-more:hover {
+      background:
+        linear-gradient(90deg, rgba(226, 106, 69, 0.2), rgba(231, 189, 112, 0.07));
+    }
+
+    .log-more:disabled {
+      cursor: default;
+      opacity: 0.66;
+    }
+
+    .log-more-icon {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      flex: none;
+      place-items: center;
+      border: 1px solid rgba(231, 189, 112, 0.3);
+      border-radius: 50%;
+      color: var(--gold);
+      background: rgba(4, 18, 27, 0.52);
+    }
+
+    .log-more-icon .icon {
+      width: 17px;
+      height: 17px;
+    }
+
+    .log-more-copy {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .log-more-copy strong {
+      display: block;
+      color: var(--cream);
+      font-family: var(--round);
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+
+    .log-more-copy small {
+      display: block;
+      margin-top: 2px;
+      color: rgba(155, 180, 182, 0.68);
+      font-size: 0.57rem;
+    }
+
+    .log-more-arrow {
+      width: 14px;
+      height: 14px;
+      color: rgba(231, 189, 112, 0.62);
+      transition: transform 0.22s var(--ease), color 0.22s ease;
+    }
+
+    .log-more:hover .log-more-arrow {
+      color: var(--gold);
+      transform: translate(2px, -2px);
+    }
+
+    .insight-card .card-foot {
+      padding: 12px 13px 3px;
+      color: rgba(155, 180, 182, 0.72);
+      font-size: 0.67rem;
+    }
+
+    .insight-card .card-foot-en {
+      color: rgba(143, 215, 209, 0.46);
+    }
+
+    .status-dot {
+      background: var(--sage);
+      box-shadow: 0 0 0 3px rgba(115, 200, 178, 0.12), 0 0 10px rgba(115, 200, 178, 0.45);
+    }
+
+    .card-caption {
+      color: rgba(143, 215, 209, 0.78);
+    }
+
+    .card-caption .icon {
+      color: var(--gold);
+    }
+
+    /* ------------------------------- 特色条 ------------------------------- */
+
+    .feature-list {
+      border-color: rgba(143, 215, 209, 0.16);
+      background: rgba(7, 28, 40, 0.66);
+      box-shadow: 0 24px 60px -50px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+    }
+
+    .feature-item:hover {
+      background: rgba(143, 215, 209, 0.07);
+    }
+
+    .feature-icon {
+      color: var(--blue);
+      background: rgba(143, 215, 209, 0.1);
+    }
+
+    .feature-item:nth-child(2) .feature-icon {
+      color: #f2a184;
+      background: rgba(226, 106, 69, 0.13);
+    }
+
+    .feature-item:nth-child(3) .feature-icon {
+      color: var(--gold);
+      background: rgba(231, 189, 112, 0.1);
+    }
+
+    .feature-item:nth-child(4) .feature-icon {
+      color: var(--sage);
+      background: rgba(115, 200, 178, 0.1);
+    }
+
+    .feature-text strong {
+      color: var(--cream);
+    }
+
+    .feature-text small {
+      color: rgba(155, 180, 182, 0.72);
+    }
+
+    /* ------------------------------- 章节标题 ------------------------------- */
+
+    .section-bar {
+      border-color: rgba(143, 215, 209, 0.14);
+    }
+
+    .section-index {
+      color: #04121b;
+      background: linear-gradient(145deg, #f2c97f, #d7904a);
+      box-shadow: 0 0 0 3px rgba(231, 189, 112, 0.08), 0 8px 16px -12px rgba(226, 106, 69, 0.9);
+    }
+
+    .section-label {
+      color: var(--cream);
+    }
+
+    .section-label span {
+      color: rgba(143, 215, 209, 0.58);
+    }
+
+    .section-note {
+      color: rgba(155, 180, 182, 0.66);
+    }
+
+    /* ------------------------------- 关于 ------------------------------- */
+
+    .about {
+      border-top: 1px solid rgba(143, 215, 209, 0.07);
+      background:
+        radial-gradient(50rem 30rem at 88% 18%, rgba(226, 106, 69, 0.07), transparent 64%),
+        radial-gradient(40rem 30rem at 8% 74%, rgba(99, 199, 193, 0.06), transparent 65%),
+        linear-gradient(180deg, rgba(6, 24, 35, 0.5), rgba(4, 17, 26, 0.18));
+    }
+
+    .about::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.55;
+      background-image: repeating-linear-gradient(115deg, transparent 0 112px, rgba(143, 215, 209, 0.035) 112px 113px);
+      mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 82%, transparent);
+      -webkit-mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 82%, transparent);
+    }
+
+    .about-fleur {
+      display: none;
+    }
+
+    .about-title {
+      color: var(--cream);
+    }
+
+    .about-title .accent {
+      color: var(--gold);
+      background-image: linear-gradient(180deg, transparent 68%, rgba(226, 106, 69, 0.22) 68%, rgba(226, 106, 69, 0.22) 94%, transparent 94%);
+    }
+
+    .about-meta li {
+      border-color: rgba(143, 215, 209, 0.16);
+      background: rgba(8, 31, 44, 0.58);
+      color: rgba(199, 220, 217, 0.7);
+    }
+
+    .about-meta li span {
+      color: rgba(143, 215, 209, 0.55);
+    }
+
+    .about-meta li strong {
+      color: var(--cream);
+    }
+
+    .about-text {
+      color: rgba(215, 230, 226, 0.86);
+    }
+
+    .about-text strong {
+      color: var(--cream);
+      box-shadow: inset 0 -0.48em 0 rgba(226, 106, 69, 0.18);
+    }
+
+    .dropcap {
+      color: #fff8ea;
+      background: linear-gradient(145deg, #e57a51, #b8462d);
+      box-shadow: 3px 3px 0 rgba(231, 189, 112, 0.2), 0 14px 26px -18px rgba(226, 106, 69, 0.85);
+    }
+
+    .tag-list li {
+      color: var(--blue);
+      background: rgba(143, 215, 209, 0.1);
+    }
+
+    .tag-list li:nth-child(2) {
+      color: #f2a184;
+      background: rgba(226, 106, 69, 0.13);
+    }
+
+    .tag-list li:nth-child(3) {
+      color: var(--gold);
+      background: rgba(231, 189, 112, 0.1);
+    }
+
+    .tag-list li:nth-child(4) {
+      color: var(--sage);
+      background: rgba(115, 200, 178, 0.1);
+    }
+
+    .about-quote {
+      border-color: rgba(143, 215, 209, 0.18);
+      background:
+        radial-gradient(circle at 100% 0%, rgba(226, 106, 69, 0.12), transparent 44%),
+        linear-gradient(135deg, rgba(11, 42, 58, 0.8), rgba(5, 22, 32, 0.9));
+    }
+
+    .about-quote::before {
+      color: rgba(226, 106, 69, 0.22);
+    }
+
+    .about-quote blockquote {
+      color: var(--cream);
+    }
+
+    .about-quote figcaption {
+      color: rgba(155, 180, 182, 0.68);
+    }
+
+    .about-quote figcaption em {
+      color: var(--gold);
+    }
+
+    .quote-fleur {
+      color: rgba(231, 189, 112, 0.55);
+    }
+
+    .planning-note {
+      border-color: rgba(143, 215, 209, 0.16);
+      border-left-color: var(--gold);
+      background:
+        radial-gradient(circle at 92% 4%, rgba(231, 189, 112, 0.12), transparent 44%),
+        linear-gradient(135deg, rgba(11, 40, 54, 0.84), rgba(5, 20, 29, 0.9));
+      box-shadow: 0 26px 60px -54px rgba(0, 0, 0, 0.95);
+    }
+
+    .planning-icon {
+      border-color: rgba(231, 189, 112, 0.4);
+      color: var(--gold);
+      background: rgba(4, 18, 27, 0.6);
+      box-shadow: 0 0 0 5px rgba(231, 189, 112, 0.04);
+    }
+
+    .planning-kicker {
+      color: rgba(242, 161, 132, 0.9);
+    }
+
+    .planning-kicker span {
+      color: rgba(155, 180, 182, 0.7);
+    }
+
+    .planning-title {
+      color: var(--cream);
+    }
+
+    .planning-text {
+      color: rgba(199, 220, 217, 0.74);
+    }
+
+    .planning-tag {
+      border-color: rgba(226, 106, 69, 0.3);
+      color: #f2a184;
+      background: rgba(226, 106, 69, 0.08);
+    }
+
+    /* ------------------------------- 教学方式 ------------------------------- */
+
+    .method {
+      border-color: rgba(143, 215, 209, 0.12);
+      background:
+        radial-gradient(circle at 12% 8%, rgba(226, 106, 69, 0.09), transparent 38%),
+        radial-gradient(circle at 88% 72%, rgba(99, 199, 193, 0.08), transparent 44%),
+        radial-gradient(circle at 1px 1px, rgba(143, 215, 209, 0.09) 1px, transparent 0),
+        linear-gradient(180deg, #061a26, #082534 55%, #051722);
+      background-size: auto, auto, 26px 26px, auto;
+    }
+
+    .method-ornament {
+      display: none;
+    }
+
+    .method-title {
+      color: var(--cream);
+    }
+
+    .method-title .accent {
+      color: var(--gold);
+      background-image: linear-gradient(180deg, transparent 68%, rgba(226, 106, 69, 0.22) 68%, rgba(226, 106, 69, 0.22) 94%, transparent 94%);
+    }
+
+    .method-lead {
+      border-left-color: var(--gold);
+      color: rgba(199, 220, 217, 0.76);
+    }
+
+    .method-card {
+      border-color: rgba(143, 215, 209, 0.16);
+      background:
+        linear-gradient(160deg, rgba(11, 41, 56, 0.82), rgba(4, 18, 27, 0.9));
+      box-shadow: 0 22px 50px -42px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    }
+
+    .method-card:nth-child(1) {
+      --card-color: #7fd4c8;
+      --card-tint: rgba(127, 212, 200, 0.12);
+    }
+
+    .method-card:nth-child(2) {
+      --card-color: #e26a45;
+      --card-tint: rgba(226, 106, 69, 0.12);
+    }
+
+    .method-card:nth-child(3) {
+      --card-color: #e7bd70;
+      --card-tint: rgba(231, 189, 112, 0.12);
+    }
+
+    .method-card:nth-child(4) {
+      --card-color: #73c8b2;
+      --card-tint: rgba(115, 200, 178, 0.12);
+    }
+
+    .method-card::before {
+      opacity: 0.5;
+      filter: blur(2px);
+    }
+
+    .method-card:hover {
+      border-color: rgba(231, 189, 112, 0.34);
+      box-shadow: 0 28px 58px -38px rgba(0, 0, 0, 0.95), 0 0 40px -24px rgba(226, 106, 69, 0.3);
+    }
+
+    .method-number {
+      color: #04121b;
+      box-shadow: 3px 3px 0 rgba(255, 255, 255, 0.08);
+      font-weight: 800;
+    }
+
+    .method-icon {
+      border-color: rgba(143, 215, 209, 0.24);
+    }
+
+    .method-card h3 {
+      color: var(--cream);
+    }
+
+    .method-card p {
+      color: rgba(199, 220, 217, 0.74);
+    }
+
+    .method-en {
+      color: rgba(155, 180, 182, 0.66);
+    }
+
+    .format-panel {
+      border-color: rgba(143, 215, 209, 0.17);
+      background:
+        radial-gradient(circle at 100% 0%, rgba(226, 106, 69, 0.1), transparent 42%),
+        linear-gradient(155deg, rgba(9, 34, 47, 0.92), rgba(4, 18, 27, 0.95));
+      box-shadow: 0 26px 60px -48px rgba(0, 0, 0, 0.95);
+    }
+
+    .format-panel::after {
+      border-color: rgba(143, 215, 209, 0.14);
+    }
+
+    .format-kicker {
+      color: #f2a184;
+    }
+
+    .format-intro h3 {
+      color: var(--cream);
+    }
+
+    .format-intro p {
+      color: rgba(199, 220, 217, 0.74);
+    }
+
+    .format-option {
+      border-color: rgba(143, 215, 209, 0.12);
+      background: rgba(143, 215, 209, 0.065);
+    }
+
+    .format-option:nth-child(2) {
+      border-color: rgba(226, 106, 69, 0.14);
+      background: rgba(226, 106, 69, 0.075);
+    }
+
+    .format-icon {
+      color: var(--blue);
+      background: rgba(4, 18, 27, 0.6);
+    }
+
+    .format-option:nth-child(2) .format-icon {
+      color: #f2a184;
+    }
+
+    .format-option h4 {
+      color: var(--cream);
+    }
+
+    .format-option p {
+      color: rgba(199, 220, 217, 0.7);
+    }
+
+    .format-tag {
+      border-color: rgba(143, 215, 209, 0.2);
+      color: var(--blue);
+      background: rgba(4, 18, 27, 0.56);
+    }
+
+    .format-option:nth-child(2) .format-tag {
+      border-color: rgba(226, 106, 69, 0.24);
+      color: #f2a184;
+    }
+
+    .format-note {
+      color: rgba(155, 180, 182, 0.68);
+    }
+
+    /* ------------------------------- 页脚 ------------------------------- */
+
+    .footer {
+      border-top: 1px solid rgba(143, 215, 209, 0.12);
+      background:
+        radial-gradient(60rem 26rem at 50% -12%, rgba(226, 106, 69, 0.16), transparent 66%),
+        linear-gradient(180deg, #041520, #020b12 68%);
+    }
+
+    .footer::before {
+      opacity: 0.42;
+      background-image: radial-gradient(circle at 1px 1px, rgba(143, 215, 209, 0.16) 1px, transparent 0);
+      background-size: 28px 28px;
+    }
+
+    .footer::after {
+      top: -210px;
+      left: 50%;
+      width: 760px;
+      height: 420px;
+      transform: translateX(-50%);
+      background: radial-gradient(ellipse, rgba(226, 106, 69, 0.2), transparent 68%);
+    }
+
+    .footer-ornament {
+      display: none;
+    }
+
+    .footer-contact {
+      border-color: rgba(143, 215, 209, 0.17);
+      background: rgba(9, 32, 44, 0.48);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    }
+
+    .contact-label {
+      color: rgba(143, 215, 209, 0.62);
+    }
+
+    .contact-note {
+      color: rgba(199, 220, 217, 0.6);
+    }
+
+    .wechat-card {
+      border-color: rgba(231, 189, 112, 0.3);
+      background:
+        linear-gradient(155deg, rgba(11, 40, 54, 0.88), rgba(5, 20, 29, 0.92));
+      box-shadow: 6px 6px 0 rgba(231, 189, 112, 0.08), 0 24px 50px -42px rgba(0, 0, 0, 0.95);
+    }
+
+    .wechat-eyebrow {
+      color: #f2a184;
+    }
+
+    .wechat-title {
+      color: var(--cream);
+    }
+
+    .wechat-desc {
+      color: rgba(199, 220, 217, 0.68);
+    }
+
+    .wechat-qr {
+      background: #fdfaf2;
+      box-shadow: inset 0 0 0 1px rgba(143, 215, 209, 0.18), 0 8px 22px -16px rgba(0, 0, 0, 0.9);
+    }
+
+    .wechat-qr figcaption {
+      color: rgba(4, 18, 27, 0.55);
+    }
+
+    .email-icon {
+      color: #04121b;
+      background: var(--gold);
+    }
+
+    .email-link:hover .email-icon {
+      color: #04121b;
+      background: #f4d296;
+    }
+
+    .social-link {
+      border-color: rgba(143, 215, 209, 0.15);
+      background: rgba(143, 215, 209, 0.018);
+    }
+
+    .social-link:hover {
+      background: rgba(143, 215, 209, 0.07);
+    }
+
+    .social-arrow {
+      color: var(--gold);
+    }
+
+    .footer-bottom {
+      border-color: rgba(143, 215, 209, 0.12);
+    }
+
+    /* ------------------------------- 心得弹窗 ------------------------------- */
+
+    .insight-dialog {
+      width: min(900px, calc(100% - 32px));
+      max-width: none;
+      max-height: min(88vh, 940px);
+      margin: auto;
+      padding: 0;
+      border: 1px solid rgba(231, 189, 112, 0.3);
+      border-radius: 26px;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 92% 0%, rgba(226, 106, 69, 0.16), transparent 36%),
+        linear-gradient(160deg, #0a2636, #03121b 68%);
+      box-shadow: 0 50px 120px -50px rgba(0, 0, 0, 1), 0 0 80px -50px rgba(226, 106, 69, 0.6);
+      overflow: hidden;
+    }
+
+    .insight-dialog::backdrop {
+      background: rgba(1, 8, 13, 0.78);
+      -webkit-backdrop-filter: blur(9px);
+      backdrop-filter: blur(9px);
+    }
+
+    .insight-dialog-inner {
+      display: flex;
+      max-height: min(88vh, 940px);
+      flex-direction: column;
+    }
+
+    .insight-dialog-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 25px 28px 20px;
+      border-bottom: 1px solid rgba(143, 215, 209, 0.14);
+      background: linear-gradient(180deg, rgba(12, 44, 60, 0.7), transparent);
+    }
+
+    .insight-dialog-kicker {
+      color: rgba(143, 215, 209, 0.66);
+      font-family: var(--latin);
+      font-size: 0.49rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+    }
+
+    .insight-dialog-head h2 {
+      margin-top: 7px;
+      color: var(--cream);
+      font-family: var(--round);
+      font-size: clamp(1.7rem, 3vw, 2.2rem);
+      line-height: 1.25;
+      letter-spacing: 0.03em;
+    }
+
+    .insight-dialog-sub {
+      margin-top: 6px;
+      color: rgba(199, 220, 217, 0.7);
+      font-size: 0.78rem;
+      line-height: 1.8;
+    }
+
+    .insight-preview-note {
+      margin-top: 10px;
+      padding: 7px 10px;
+      border: 1px solid rgba(231, 189, 112, 0.25);
+      border-radius: 8px;
+      color: var(--gold);
+      background: rgba(231, 189, 112, 0.07);
+      font-size: 0.64rem;
+      line-height: 1.6;
+    }
+
+    .insight-dialog-close {
+      display: grid;
+      width: 40px;
+      height: 40px;
+      flex: none;
+      place-items: center;
+      border: 1px solid rgba(143, 215, 209, 0.2);
+      border-radius: 50%;
+      color: var(--ink-soft);
+      background: rgba(4, 18, 27, 0.5);
+      font-size: 1.4rem;
+      line-height: 1;
+      transition: color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .insight-dialog-close:hover {
+      border-color: rgba(231, 189, 112, 0.5);
+      color: var(--gold);
+      transform: rotate(90deg);
+    }
+
+    .insight-dialog-body {
+      overflow: auto;
+      padding: 18px 22px 22px;
+      overscroll-behavior: contain;
+    }
+
+    .insight-full {
+      overflow: hidden;
+      border: 1px solid rgba(143, 215, 209, 0.14);
+      border-radius: 16px;
+      background: linear-gradient(160deg, rgba(9, 35, 48, 0.72), rgba(4, 18, 27, 0.8));
+      transition: border-color 0.22s ease, background 0.22s ease;
+    }
+
+    .insight-full + .insight-full {
+      margin-top: 10px;
+    }
+
+    .insight-full.is-open {
+      border-color: rgba(231, 189, 112, 0.28);
+      background: linear-gradient(160deg, rgba(12, 43, 58, 0.82), rgba(4, 18, 27, 0.84));
+    }
+
+    .insight-full-head {
+      display: grid;
+      grid-template-columns: 60px minmax(0, 1fr) 26px;
+      align-items: center;
+      width: 100%;
+      gap: 14px;
+      padding: 16px 18px;
+      border: 0;
+      color: var(--ink);
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .insight-full-head:hover .insight-full-title {
+      color: var(--gold);
+    }
+
+    .insight-full-date {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      border-right: 1px solid rgba(143, 215, 209, 0.15);
+      color: var(--blue);
+      font-family: var(--latin);
+      font-size: 0.72rem;
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: 0.03em;
+    }
+
+    .insight-full-date small {
+      margin-top: 3px;
+      color: rgba(155, 180, 182, 0.6);
+      font-size: 0.46rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+    }
+
+    .insight-full-main {
+      min-width: 0;
+    }
+
+    .insight-full-title {
+      display: block;
+      color: var(--cream);
+      font-family: var(--round);
+      font-size: 0.98rem;
+      font-weight: 700;
+      line-height: 1.5;
+      transition: color 0.2s ease;
+    }
+
+    .insight-full-excerpt {
+      display: block;
+      overflow: hidden;
+      margin-top: 4px;
+      color: rgba(155, 180, 182, 0.72);
+      font-size: 0.7rem;
+      line-height: 1.6;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .insight-full-toggle {
+      justify-self: end;
+      color: rgba(231, 189, 112, 0.7);
+      font-family: var(--latin);
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+
+    .insight-full-body {
+      padding: 2px 22px 24px 92px;
+      border-top: 1px solid rgba(143, 215, 209, 0.08);
+    }
+
+    .insight-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 14px 0 16px;
+    }
+
+    .insight-tags span {
+      padding: 4px 9px;
+      border: 1px solid rgba(231, 189, 112, 0.16);
+      border-radius: 999px;
+      color: rgba(231, 189, 112, 0.88);
+      background: rgba(231, 189, 112, 0.055);
+      font-size: 0.6rem;
+      letter-spacing: 0.02em;
+    }
+
+    .insight-rich {
+      color: rgba(212, 228, 224, 0.86);
+      font-size: 0.86rem;
+      line-height: 2.05;
+    }
+
+    .insight-rich p {
+      margin: 0 0 12px;
+    }
+
+    .insight-rich p:last-child {
+      margin-bottom: 0;
+    }
+
+    .insight-rich h3,
+    .insight-rich h4 {
+      margin: 20px 0 8px;
+      color: var(--gold);
+      font-family: var(--round);
+      font-size: 1.02rem;
+      font-weight: 700;
+      line-height: 1.5;
+      letter-spacing: 0.02em;
+    }
+
+    .insight-rich h4 {
+      font-size: 0.92rem;
+      color: var(--blue);
+    }
+
+    .insight-rich ul {
+      margin: 0 0 12px;
+      padding-left: 1.2em;
+      list-style: disc;
+    }
+
+    .insight-rich li {
+      margin-bottom: 5px;
+      padding-left: 2px;
+    }
+
+    .insight-rich li::marker {
+      color: var(--gold);
+    }
+
+    .insight-rich blockquote {
+      margin: 14px 0;
+      padding: 12px 16px;
+      border-left: 2px solid var(--gold);
+      color: rgba(231, 189, 112, 0.86);
+      background: rgba(231, 189, 112, 0.045);
+      font-family: var(--old);
+      font-size: 0.9rem;
+      line-height: 1.9;
+    }
+
+    .insight-rich strong {
+      color: var(--cream);
+      font-weight: 600;
+    }
+
+    .insight-rich em {
+      color: var(--gold);
+    }
+
+    .insight-dialog-foot {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px 16px;
+      padding: 12px 24px;
+      border-top: 1px solid rgba(143, 215, 209, 0.12);
+      color: rgba(155, 180, 182, 0.6);
+      font-size: 0.62rem;
+      background: rgba(3, 14, 21, 0.5);
+    }
+
+    .insight-dialog-foot b {
+      color: var(--gold);
+      font-family: var(--latin);
+      font-weight: 700;
+    }
+
+    .insight-dialog-mark {
+      color: rgba(143, 215, 209, 0.5);
+      font-family: var(--round);
+      letter-spacing: 0.08em;
+    }
+
+    .insight-dialog-empty {
+      padding: 36px 20px;
+      color: rgba(199, 220, 217, 0.72);
+      text-align: center;
+    }
+
+    .insight-dialog-empty strong {
+      display: block;
+      color: var(--cream);
+      font-family: var(--round);
+      font-size: 1rem;
+    }
+
+    .insight-dialog-empty p {
+      margin-top: 7px;
+      font-size: 0.76rem;
+    }
+
+    .insight-dialog-body {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(231, 189, 112, 0.34) transparent;
+    }
+
+    .insight-dialog-body::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .insight-dialog-body::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .insight-dialog-body::-webkit-scrollbar-thumb {
+      border: 2px solid transparent;
+      border-radius: 999px;
+      background: rgba(231, 189, 112, 0.3);
+      background-clip: padding-box;
+    }
+
+    .insight-dialog-body::-webkit-scrollbar-thumb:hover {
+      background: rgba(231, 189, 112, 0.48);
+      background-clip: padding-box;
+    }
+
+    /* ------------------------------- 响应式 ------------------------------- */
+
+    @media (max-width: 1080px) {
+      .hero-coordinate {
+        display: none;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .hero-aside {
+        max-width: 540px;
+      }
+
+      .insight-card {
+        transform: rotate(0deg);
+      }
+
+      .log-title {
+        font-size: 1.34rem;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .hero {
+        padding-top: 38px;
+      }
+
+      .insight-card {
+        padding: 10px;
+        border-radius: 28px;
+      }
+
+      .insight-card::before {
+        inset: 6px;
+        border-radius: 22px;
+      }
+
+      .log-head {
+        padding: 14px 14px 12px;
+      }
+
+      .log-title {
+        font-size: 1.26rem;
+      }
+
+      .insight-item {
+        grid-template-columns: 38px minmax(0, 1fr) 14px;
+        gap: 8px;
+        padding: 11px 13px;
+      }
+
+      .insight-item:hover {
+        padding-left: 15px;
+      }
+
+      .insight-item-main strong {
+        font-size: 0.8rem;
+      }
+
+      .insight-item-main small {
+        font-size: 0.62rem;
+      }
+
+      .log-more {
+        padding: 11px 13px;
+      }
+
+      .log-more-icon {
+        width: 31px;
+        height: 31px;
+      }
+
+      .insight-card .card-foot {
+        padding: 10px 11px 2px;
+        font-size: 0.64rem;
+      }
+
+      .insight-dialog {
+        width: calc(100% - 18px);
+        max-height: 90vh;
+        border-radius: 20px;
+      }
+
+      .insight-dialog-inner {
+        max-height: 90vh;
+      }
+
+      .insight-dialog-head {
+        padding: 19px 17px 15px;
+        gap: 12px;
+      }
+
+      .insight-dialog-sub {
+        font-size: 0.72rem;
+      }
+
+      .insight-dialog-close {
+        width: 36px;
+        height: 36px;
+      }
+
+      .insight-dialog-body {
+        padding: 13px 12px 16px;
+      }
+
+      .insight-full-head {
+        grid-template-columns: 50px minmax(0, 1fr) 22px;
+        gap: 10px;
+        padding: 14px 13px;
+      }
+
+      .insight-full-title {
+        font-size: 0.9rem;
+      }
+
+      .insight-full-excerpt {
+        font-size: 0.66rem;
+      }
+
+      .insight-full-body {
+        padding: 2px 16px 20px;
+      }
+
+      .insight-rich {
+        font-size: 0.82rem;
+        line-height: 1.98;
+      }
+
+      .insight-dialog-foot {
+        padding: 10px 15px;
+      }
+    }
+
+    @media (max-width: 470px) {
+      .log-count {
+        padding: 4px 7px;
+        font-size: 0.44rem;
+      }
+
+      .insight-item {
+        grid-template-columns: 35px minmax(0, 1fr) 12px;
+        gap: 7px;
+        padding: 10px 11px;
+      }
+
+      .insight-item-date {
+        font-size: 0.48rem;
+      }
+
+      .insight-item-main strong {
+        font-size: 0.76rem;
+      }
+
+      .insight-item-main small {
+        font-size: 0.59rem;
+      }
+
+      .insight-card .card-head {
+        font-size: 0.46rem;
+      }
+
+      .insight-dialog-kicker {
+        font-size: 0.44rem;
+        letter-spacing: 0.14em;
+      }
+
+      .insight-dialog-head h2 {
+        font-size: 1.55rem;
+      }
+
+      .insight-dialog-sub {
+        display: none;
+      }
+
+      .insight-full-head {
+        grid-template-columns: 44px minmax(0, 1fr) 18px;
+        gap: 8px;
+        padding: 12px 11px;
+      }
+
+      .insight-full-title {
+        font-size: 0.85rem;
+      }
+
+      .insight-full-excerpt {
+        display: -webkit-box;
+        white-space: normal;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+      }
+
+      .insight-full-body {
+        padding: 0 12px 18px;
+      }
+
+      .insight-tags {
+        margin: 12px 0 13px;
+      }
+
+      .insight-dialog-foot {
+        font-size: 0.57rem;
+      }
+
+      .insight-dialog-mark {
+        display: none;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .log-title {
+        font-size: 1.12rem;
+      }
+
+      .log-kicker {
+        font-size: 0.4rem;
+        letter-spacing: 0.1em;
+      }
+
+      .insight-item {
+        grid-template-columns: 32px minmax(0, 1fr);
+      }
+
+      .insight-item-arrow {
+        display: none;
+      }
+
+      .insight-dialog-head {
+        padding: 16px 13px 13px;
+      }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       html {
         scroll-behavior: auto;
@@ -3047,6 +4643,11 @@
       <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/>
       <circle cx="12" cy="10" r="2.5"/>
     </symbol>
+    <symbol id="i-pin-wave" viewBox="0 0 24 24">
+      <path d="M18.3 9.1c0 4.3-4.8 8.6-6.3 10.1-1.5-1.5-6.3-5.8-6.3-10.1a6.3 6.3 0 1 1 12.6 0Z"/>
+      <circle cx="12" cy="9" r="2.1"/>
+      <path d="M3.2 20.2c1.4-1.1 2.8-1.1 4.2 0s2.8 1.1 4.2 0 2.8-1.1 4.2 0 2.8 1.1 4.2 0"/>
+    </symbol>
     <symbol id="i-chat" viewBox="0 0 24 24">
       <path d="M12 4.6c-4.5 0-8.2 2.9-8.2 6.4 0 2 1.1 3.8 2.8 5l-.6 2.9 3.1-1.4c.9.2 1.9.4 2.9.4 4.5 0 8.2-2.9 8.2-6.4S16.5 4.6 12 4.6Z"/>
       <circle cx="8.5" cy="11" r=".8" fill="currentColor" stroke="none"/>
@@ -3070,6 +4671,7 @@
 
       <nav class="site-nav" aria-label="主导航">
         <a href="#about">关于 <span>About</span></a>
+        <a href="#insights">心得 <span>Log</span></a>
         <a href="#method">教学方式 <span>Method</span></a>
         <a href="#contact">联系 <span>Contact</span></a>
       </nav>
@@ -3086,8 +4688,64 @@
          Hero
          ====================================================================== -->
     <section class="hero" aria-labelledby="hero-title">
-      <svg class="hero-cloud icon" aria-hidden="true"><use href="#i-cloud"/></svg>
-      <svg class="hero-fleur icon icon-fill" aria-hidden="true"><use href="#i-fleur"/></svg>
+      <div class="ocean-scene" aria-hidden="true">
+        <svg viewBox="0 0 1440 980" preserveAspectRatio="xMidYMid slice" focusable="false">
+          <defs>
+            <radialGradient id="oceanGlowWarm" cx="0" cy="0" r="1" gradientTransform="translate(1120 330) rotate(90) scale(430 520)" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#e26a45" stop-opacity=".24"/>
+              <stop offset="1" stop-color="#e26a45" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="oceanGlowCool" cx="0" cy="0" r="1" gradientTransform="translate(180 460) rotate(90) scale(420 390)" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#63c7c1" stop-opacity=".16"/>
+              <stop offset="1" stop-color="#63c7c1" stop-opacity="0"/>
+            </radialGradient>
+            <linearGradient id="waveLine" x1="120" y1="0" x2="1300" y2="0" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#63c7c1" stop-opacity=".05"/>
+              <stop offset=".45" stop-color="#8fd7d1" stop-opacity=".34"/>
+              <stop offset=".7" stop-color="#e7bd70" stop-opacity=".22"/>
+              <stop offset="1" stop-color="#e26a45" stop-opacity=".04"/>
+            </linearGradient>
+            <linearGradient id="horizonLine" x1="0" y1="0" x2="1440" y2="0" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#8fd7d1" stop-opacity="0"/>
+              <stop offset=".4" stop-color="#8fd7d1" stop-opacity=".3"/>
+              <stop offset=".65" stop-color="#e7bd70" stop-opacity=".26"/>
+              <stop offset="1" stop-color="#e26a45" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <ellipse cx="1120" cy="330" rx="430" ry="520" fill="url(#oceanGlowWarm)"/>
+          <ellipse cx="180" cy="460" rx="390" ry="420" fill="url(#oceanGlowCool)"/>
+
+          <g class="ocean-rings" fill="none" stroke="#8fd7d1">
+            <circle cx="1118" cy="360" r="128" stroke-opacity=".16"/>
+            <circle cx="1118" cy="360" r="196" stroke-opacity=".12"/>
+            <circle cx="1118" cy="360" r="274" stroke-opacity=".08"/>
+            <circle cx="1118" cy="360" r="366" stroke-opacity=".055"/>
+            <path d="M1118 128v64M1118 592v64M886 360h64M1286 360h64" stroke-opacity=".2"/>
+          </g>
+
+          <path d="M0 690h1440" stroke="url(#horizonLine)" stroke-width="1"/>
+          <g class="ocean-waves" fill="none" stroke="url(#waveLine)" stroke-linecap="round">
+            <path d="M-40 704c120-30 240-30 360 0s240 30 360 0 240-30 360 0 240 30 360 0 240-30 360 0" stroke-width="1.5"/>
+            <path d="M-40 742c100-22 200-22 300 0s200 22 300 0 200-22 300 0 200 22 300 0 200-22 300 0 200 22 300 0" stroke-width="1.2" opacity=".7"/>
+            <path d="M-40 788c130-26 260-26 390 0s260 26 390 0 260-26 390 0 260 26 390 0 260-26 390 0" stroke-width="1.8" opacity=".8"/>
+            <path d="M-40 838c110-20 220-20 330 0s220 20 330 0 220-20 330 0 220 20 330 0 220-20 330 0" stroke-width="1" opacity=".48"/>
+            <path d="M-40 892c150-24 300-24 450 0s300 24 450 0 300-24 450 0 300 24 450 0 300-24 450 0" stroke-width="1.5" opacity=".58"/>
+            <path d="M-40 946c120-18 240-18 360 0s240 18 360 0 240-18 360 0 240 18 360 0 240-18 360 0" stroke-width="1" opacity=".3"/>
+          </g>
+
+          <g class="ocean-stars" fill="#e7bd70">
+            <circle cx="220" cy="168" r="1.8" opacity=".6"/>
+            <circle cx="386" cy="112" r="1.1" opacity=".35"/>
+            <circle cx="726" cy="206" r="1.5" opacity=".45"/>
+            <circle cx="948" cy="116" r="1.2" opacity=".4"/>
+            <circle cx="1320" cy="224" r="1.7" opacity=".55"/>
+            <circle cx="1190" cy="94" r="1" opacity=".3"/>
+            <path d="M1390 146c.8 3.4 2.2 4.8 5.6 5.6-3.4.8-4.8 2.2-5.6 5.6-.8-3.4-2.2-4.8-5.6-5.6 3.4-.8 4.8-2.2 5.6-5.6Z" opacity=".42"/>
+            <path d="M286 254c.7 3 2 4.3 5 5-3 .7-4.3 2-5 5-.7-3-2-4.3-5-5 3-.7 4.3-2 5-5Z" opacity=".34"/>
+          </g>
+        </svg>
+      </div>
+      <p class="hero-coordinate" aria-hidden="true">24°N · 118°E <span>—</span> 39°N · 116°E</p>
 
       <div class="container">
         <div class="hero-grid">
@@ -3120,7 +4778,7 @@
 
             <p class="hero-intro reveal">
               <span>完善的教学方法，<span class="nowrap">丰富的线上与线下经验。</span></span>
-              <span>按你的节奏来，也让每一次进步都<span class="nowrap">有迹可循。</span></span>
+              <span>先看清自己的坐标，再按你的节奏，<span class="nowrap">一步步抵达。</span></span>
             </p>
 
             <div class="hero-actions reveal">
@@ -3135,109 +4793,48 @@
             </div>
           </div>
 
-          <aside class="hero-aside reveal" aria-label="初高中英语一对一教学卡片">
-            <div class="hero-card">
+          <aside class="hero-aside reveal" id="insights" aria-label="学习心得">
+            <div class="hero-card insight-card">
               <div class="card-head">
-                <span>The English Room</span>
+                <span>Learning Log</span>
                 <span>No. 01</span>
               </div>
 
-              <div class="hero-art">
-                <svg class="art-svg" viewBox="0 0 420 465" aria-hidden="true" focusable="false">
-                  <defs>
-                    <clipPath id="heroArchClip">
-                      <path d="M56 424V187c0-84 69-131 154-131s154 47 154 131v237Z"/>
-                    </clipPath>
-                    <pattern id="heroLattice" width="38" height="38" patternUnits="userSpaceOnUse">
-                      <path d="M0 0 38 38M38 0 0 38M19 0v38M0 19h38" fill="none" stroke="#315f8c" stroke-opacity=".12" stroke-width="1.3"/>
-                      <circle cx="19" cy="19" r="2" fill="#315f8c" fill-opacity=".12"/>
-                    </pattern>
-                    <linearGradient id="heroWash" x1="210" y1="56" x2="210" y2="424" gradientUnits="userSpaceOnUse">
-                      <stop stop-color="#f1f7fb"/>
-                      <stop offset="1" stop-color="#dceaf3"/>
-                    </linearGradient>
-                  </defs>
+              <div class="log-panel">
+                <div class="log-head">
+                  <div>
+                    <p class="log-kicker">航海日志 · INSIGHTS</p>
+                    <h2 class="log-title">学习心得</h2>
+                  </div>
+                  <span class="log-count" id="insight-count">0 篇</span>
+                </div>
 
-                  <rect width="420" height="465" fill="#eef5f9"/>
+                <div class="insight-list" id="insight-list">
+                  <p class="insight-empty">正在展开手记…</p>
+                </div>
 
-                  <g fill="none" stroke="#d6a74b" stroke-linecap="round">
-                    <path d="M22 104c0-40 32-72 72-72" stroke-width="2" opacity=".68"/>
-                    <path d="M29 104c0-35 28-64 64-64" stroke-width="1" opacity=".32"/>
-                    <path d="M398 122c0-40-32-72-72-72" stroke-width="2" opacity=".4"/>
-                    <path d="M391 122c0-35-28-64-64-64" stroke-width="1" opacity=".22"/>
-                  </g>
-
-                  <path d="M56 424V187c0-84 69-131 154-131s154 47 154 131v237Z" fill="url(#heroWash)" stroke="#315f8c" stroke-width="3"/>
-
-                  <g clip-path="url(#heroArchClip)">
-                    <rect x="56" y="56" width="308" height="368" fill="url(#heroLattice)"/>
-                    <path d="M56 360h308" stroke="#315f8c" stroke-opacity=".14" stroke-width="1.5"/>
-                    <circle cx="210" cy="188" r="91" fill="#fffaf1" opacity=".28"/>
-
-                    <g fill="#fffaf1" stroke="#315f8c" stroke-width="2.2" stroke-linejoin="round">
-                      <path d="M65 309c-15-2-20-20-6-27-4-14 12-24 24-16 5-12 23-12 28 1 14-1 22 14 13 24 8 8 0 21-11 20-16-1-32 0-48-2Z"/>
-                      <path d="M82 286c-8 0-10-11-2-13 6-1 11 4 10 10" fill="none" stroke-width="1.5"/>
-                    </g>
-
-                    <g transform="translate(356 92) scale(-.6 .6)" fill="#fffaf1" stroke="#315f8c" stroke-width="2.2" stroke-linejoin="round">
-                      <path d="M65 309c-15-2-20-20-6-27-4-14 12-24 24-16 5-12 23-12 28 1 14-1 22 14 13 24 8 8 0 21-11 20-16-1-32 0-48-2Z"/>
-                      <path d="M82 286c-8 0-10-11-2-13 6-1 11 4 10 10" fill="none" stroke-width="1.5"/>
-                    </g>
-
-                    <g>
-                      <path d="M84 334c42-20 86-16 126 8v54c-40-20-84-24-126-6Z" fill="#fffaf1" stroke="#315f8c" stroke-width="3" stroke-linejoin="round"/>
-                      <path d="M336 334c-42-20-86-16-126 8v54c40-20 84-24 126-6Z" fill="#fffaf1" stroke="#315f8c" stroke-width="3" stroke-linejoin="round"/>
-                      <path d="M210 342v54" stroke="#315f8c" stroke-width="2" opacity=".55"/>
-                      <g fill="none" stroke="#315f8c" stroke-width="1.3" stroke-linecap="round" opacity=".28">
-                        <path d="M105 350c29-11 62-8 87 7"/>
-                        <path d="M105 363c29-11 62-8 87 7"/>
-                        <path d="M105 376c29-11 62-8 87 7"/>
-                        <path d="M315 350c-29-11-62-8-87 7"/>
-                        <path d="M315 363c-29-11-62-8-87 7"/>
-                        <path d="M315 376c-29-11-62-8-87 7"/>
-                      </g>
-                      <path d="M210 342v-17l16 5-16 9Z" fill="#c4544d" stroke="#c4544d" stroke-linejoin="round"/>
-                      <ellipse cx="210" cy="405" rx="122" ry="8" fill="#315f8c" opacity=".08"/>
-                    </g>
-
-                    <g fill="#d6a74b">
-                      <path d="M92 112c1.5 6.5 4 9 10.5 10.5-6.5 1.5-9 4-10.5 10.5-1.5-6.5-4-9-10.5-10.5 6.5-1.5 9-4 10.5-10.5Z"/>
-                      <path d="M334 228c1.2 5.3 3.3 7.4 8.6 8.6-5.3 1.2-7.4 3.3-8.6 8.6-1.2-5.3-3.3-7.4-8.6-8.6 5.3-1.2 7.4-3.3 8.6-8.6Z" opacity=".8"/>
-                      <circle cx="315" cy="116" r="3.2" opacity=".9"/>
-                      <circle cx="112" cy="249" r="2.6" opacity=".7"/>
-                    </g>
-                    <circle cx="343" cy="172" r="4" fill="#c4544d" opacity=".7"/>
-
-                    <circle cx="210" cy="188" r="78" fill="#fffaf1" stroke="#315f8c" stroke-width="3"/>
-                    <circle cx="210" cy="188" r="66" fill="none" stroke="#d6a74b" stroke-width="1.5" stroke-dasharray="3 6"/>
-                    <text class="art-cn" x="210" y="157" text-anchor="middle">初高中英语</text>
-                    <text class="art-ratio" x="210" y="204" text-anchor="middle">1:1</text>
-                    <text class="art-ratio-en" x="210" y="226" text-anchor="middle">ONE TO ONE</text>
-                    <circle cx="210" cy="241" r="2.2" fill="#c4544d"/>
-                  </g>
-
-                  <path d="M70 424V187c0-78 62-121 140-121s140 43 140 121v237" fill="none" stroke="#315f8c" stroke-opacity=".3" stroke-width="1.5" stroke-dasharray="2 7" stroke-linecap="round"/>
-                  <use href="#i-fleur" x="194" y="20" width="32" height="32" fill="#d6a74b"/>
-                  <circle cx="185" cy="36" r="2.4" fill="#c4544d"/>
-                  <circle cx="235" cy="36" r="2.4" fill="#c4544d"/>
-                </svg>
-
-                <span class="card-seal" aria-hidden="true">
-                  <span>英语</span>
-                  <small>ENGLISH</small>
-                </span>
+                <button class="log-more" type="button" id="insight-more">
+                  <span class="log-more-icon" aria-hidden="true">
+                    <svg class="icon"><use href="#i-pin-wave"/></svg>
+                  </span>
+                  <span class="log-more-copy">
+                    <strong>查看更多</strong>
+                    <small>循着坐标，读完所有手记</small>
+                  </span>
+                  <svg class="icon log-more-arrow" aria-hidden="true"><use href="#i-arrow-up-right"/></svg>
+                </button>
               </div>
 
               <div class="card-foot">
-                <span><i class="status-dot" aria-hidden="true"></i>线上 / 线下</span>
-                <span class="card-foot-en">Time is flexible</span>
+                <span><i class="status-dot" aria-hidden="true"></i>海中定位 · 浴火重生</span>
+                <span class="card-foot-en">Find your north</span>
               </div>
             </div>
 
             <p class="card-caption">
-              <svg class="icon icon-fill" aria-hidden="true"><use href="#i-fleur"/></svg>
-              <span>因材施教 · 循序渐进</span>
-              <svg class="icon icon-fill" aria-hidden="true"><use href="#i-fleur"/></svg>
+              <svg class="icon" aria-hidden="true"><use href="#i-pin-wave"/></svg>
+              <span>先定位，再出发</span>
+              <svg class="icon" aria-hidden="true"><use href="#i-pin-wave"/></svg>
             </p>
           </aside>
         </div>
@@ -3584,6 +5181,30 @@
     </div>
   </footer>
 
+  <!-- ========================================================================
+       学习心得全部内容
+       ======================================================================== -->
+  <dialog class="insight-dialog" id="insight-dialog" aria-labelledby="insight-dialog-title">
+    <div class="insight-dialog-inner">
+      <div class="insight-dialog-head">
+        <div>
+          <p class="insight-dialog-kicker">SHUNSHI · LEARNING LOG</p>
+          <h2 id="insight-dialog-title">学习心得</h2>
+          <p class="insight-dialog-sub">把学习里的定位、坚持与复盘，写成一张张航海手记。</p>
+          <p class="insight-preview-note" id="insight-preview-note" hidden>本页正在预览教师端草稿，只有你能看到；发布后访客才会看到。</p>
+        </div>
+        <button class="insight-dialog-close" type="button" id="insight-dialog-close" aria-label="关闭学习心得">×</button>
+      </div>
+      <div class="insight-dialog-body" id="insight-dialog-list"></div>
+      <div class="insight-dialog-foot">
+        <span>共 <b id="insight-dialog-count">0</b> 篇 · 按教师端顺序排列</span>
+        <span class="insight-dialog-mark">海中定位 · 浴火重生</span>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="insights-core.js"></script>
+  <script src="insights.js"></script>
   <script>
     (() => {
       const header = document.querySelector('.site-header');
@@ -3626,6 +5247,169 @@
       );
 
       revealItems.forEach((item) => observer.observe(item));
+    })();
+  </script>
+
+  <script>
+    (() => {
+      'use strict';
+      const C = window.ShunshiInsightCore;
+      const list = document.getElementById('insight-list');
+      const more = document.getElementById('insight-more');
+      const count = document.getElementById('insight-count');
+      const dialog = document.getElementById('insight-dialog');
+      const dialogList = document.getElementById('insight-dialog-list');
+      const dialogCount = document.getElementById('insight-dialog-count');
+      const previewNote = document.getElementById('insight-preview-note');
+      const closeButton = document.getElementById('insight-dialog-close');
+      if (!C || !list || !more || !dialog || !dialogList) return;
+
+      const params = new URLSearchParams(window.location.search);
+      let posts = C.publishedPosts();
+      let previewing = false;
+
+      if (params.get('insights') === 'preview') {
+        try {
+          const teacherRaw = window.localStorage.getItem('shunshi.teacher.v1');
+          const teacher = teacherRaw ? JSON.parse(teacherRaw) : null;
+          if (teacher && Array.isArray(teacher.insights)) {
+            posts = C.normalizePosts(teacher.insights);
+            previewing = true;
+          }
+        } catch (error) {
+          previewing = false;
+        }
+      }
+
+      const esc = C.escapeHtml;
+
+      function countLabel() {
+        return previewing ? `预览 · ${posts.length} 篇` : `${posts.length} 篇`;
+      }
+
+      function cardItem(post) {
+        return `<button class="insight-item" type="button" data-insight-id="${esc(post.id)}" aria-label="阅读心得：${esc(post.title)}">` +
+          `<span class="insight-item-date">${esc(C.formatDateShort(post.date))}</span>` +
+          `<span class="insight-item-main">` +
+            `<strong>${esc(post.title)}</strong>` +
+            `<small>${esc(C.excerptOf(post, 34))}</small>` +
+          `</span>` +
+          `<span class="insight-item-arrow" aria-hidden="true">↗</span>` +
+        `</button>`;
+      }
+
+      function renderCard() {
+        const latest = posts.slice(0, 3);
+        list.innerHTML = latest.length
+          ? latest.map(cardItem).join('')
+          : '<p class="insight-empty">第一篇手记正在路上。先去教师端写下你的学习心得。</p>';
+        if (count) count.textContent = countLabel();
+        if (!posts.length) {
+          more.disabled = true;
+          more.querySelector('.log-more-copy strong').textContent = '暂无手记';
+          more.querySelector('.log-more-copy small').textContent = '在教师端写第一篇';
+        }
+        const card = document.querySelector('.insight-card');
+        if (card) card.classList.toggle('is-preview', previewing);
+      }
+
+      function tagsHtml(post) {
+        if (!post.tags.length) return '';
+        return `<div class="insight-tags">${post.tags.map((tag) => `<span>${esc(tag)}</span>`).join('')}</div>`;
+      }
+
+      function fullItem(post, index) {
+        const isOpen = index === 0;
+        return `<article class="insight-full${isOpen ? ' is-open' : ''}" data-post-id="${esc(post.id)}">` +
+          `<button class="insight-full-head" type="button" aria-expanded="${isOpen ? 'true' : 'false'}">` +
+            `<span class="insight-full-date"><b>${esc(C.formatDateShort(post.date))}</b><small>${esc(String(post.date).slice(0, 4))}</small></span>` +
+            `<span class="insight-full-main">` +
+              `<span class="insight-full-title">${esc(post.title)}</span>` +
+              `<span class="insight-full-excerpt">${esc(C.excerptOf(post, 58))}</span>` +
+            `</span>` +
+            `<span class="insight-full-toggle" aria-hidden="true">${isOpen ? '−' : '+'}</span>` +
+          `</button>` +
+          `<div class="insight-full-body"${isOpen ? '' : ' hidden'}>` +
+            tagsHtml(post) +
+            `<div class="insight-rich">${C.renderBody(post.body)}</div>` +
+          `</div>` +
+        `</article>`;
+      }
+
+      function renderDialog() {
+        dialogList.innerHTML = posts.length
+          ? posts.map(fullItem).join('')
+          : '<div class="insight-dialog-empty"><strong>还没有学习心得</strong><p>先在教师端「心得」页写一篇，再导出发布。</p></div>';
+        if (dialogCount) dialogCount.textContent = String(posts.length);
+        if (previewNote) previewNote.hidden = !previewing;
+      }
+
+      function openPost(id) {
+        const article = Array.from(dialogList.querySelectorAll('[data-post-id]')).find((item) => item.dataset.postId === id);
+        if (!article) return;
+        dialogList.querySelectorAll('.insight-full').forEach((item) => {
+          const body = item.querySelector('.insight-full-body');
+          const head = item.querySelector('.insight-full-head');
+          const toggle = item.querySelector('.insight-full-toggle');
+          const open = item === article;
+          item.classList.toggle('is-open', open);
+          if (body) body.hidden = !open;
+          if (head) head.setAttribute('aria-expanded', open ? 'true' : 'false');
+          if (toggle) toggle.textContent = open ? '−' : '+';
+        });
+        requestAnimationFrame(() => article.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+      }
+
+      function openDialog(id) {
+        renderDialog();
+        if (typeof dialog.showModal === 'function') {
+          if (!dialog.open) dialog.showModal();
+        } else {
+          dialog.setAttribute('open', '');
+        }
+        if (id) requestAnimationFrame(() => openPost(id));
+      }
+
+      function closeDialog() {
+        if (typeof dialog.close === 'function' && dialog.open) dialog.close();
+        else dialog.removeAttribute('open');
+      }
+
+      list.addEventListener('click', (event) => {
+        const item = event.target.closest('[data-insight-id]');
+        if (!item) return;
+        openDialog(item.dataset.insightId);
+      });
+
+      more.addEventListener('click', () => openDialog());
+
+      dialogList.addEventListener('click', (event) => {
+        const head = event.target.closest('.insight-full-head');
+        if (!head) return;
+        const article = head.closest('.insight-full');
+        if (!article) return;
+        const body = article.querySelector('.insight-full-body');
+        const toggle = article.querySelector('.insight-full-toggle');
+        const willOpen = body && body.hidden;
+        dialogList.querySelectorAll('.insight-full').forEach((item) => {
+          const itemBody = item.querySelector('.insight-full-body');
+          const itemHead = item.querySelector('.insight-full-head');
+          const itemToggle = item.querySelector('.insight-full-toggle');
+          const open = item === article && willOpen;
+          item.classList.toggle('is-open', open);
+          if (itemBody) itemBody.hidden = !open;
+          if (itemHead) itemHead.setAttribute('aria-expanded', open ? 'true' : 'false');
+          if (itemToggle) itemToggle.textContent = open ? '−' : '+';
+        });
+        if (toggle) toggle.textContent = willOpen ? '−' : '+';
+      });
+
+      if (closeButton) closeButton.addEventListener('click', closeDialog);
+      dialog.addEventListener('click', (event) => {
+        if (event.target === dialog) closeDialog();
+      });
+
+      renderCard();
     })();
   </script>
 </body>

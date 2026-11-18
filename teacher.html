@@ -104,6 +104,7 @@
       <button type="button" data-tab="students">学生</button>
       <button type="button" data-tab="assignments">任务</button>
       <button type="button" data-tab="reports">汇报</button>
+      <button type="button" data-tab="insights">心得</button>
       <button type="button" data-tab="settings">设置</button>
     </nav>
 
@@ -166,6 +167,59 @@
         <button class="p-btn small" type="button" id="report-import">＋ 导入汇报</button>
       </div>
       <div class="report-feed wide" id="report-list"></div>
+    </section>
+
+    <!-- 心得 -->
+    <section class="teacher-pane" data-pane="insights">
+      <div class="roster-toolbar insight-toolbar">
+        <div>
+          <h2 class="pane-title">学习心得 <small>LEARNING LOG</small></h2>
+          <p class="pane-sub">只有教师端能写。草稿先存这台电脑；点“导出并发布”后，主页才会更新。学生端没有编辑入口。</p>
+        </div>
+        <div class="insight-toolbar-actions">
+          <span class="insight-sync-chip" id="insight-status">读取中…</span>
+          <button class="p-btn small" type="button" id="insight-new">＋ 新建心得</button>
+        </div>
+      </div>
+
+      <div class="p-grid">
+        <section class="p-card p-col-7">
+          <div class="p-card-head">
+            <h2 class="p-card-title">手记列表 <small>NOTES</small></h2>
+            <span class="insight-count-chip" id="insight-admin-count">0 篇</span>
+          </div>
+          <div class="insight-admin-list" id="insight-admin-list"></div>
+        </section>
+
+        <section class="p-card p-col-5 insight-publish-card">
+          <div class="p-card-head">
+            <h2 class="p-card-title">发布到主页 <small>PUBLISH</small></h2>
+          </div>
+          <p class="insight-publish-lead">主页是一扇窗，草稿在本机。确认内容后，按下面三步让它出现在主页上。</p>
+          <ol class="insight-steps">
+            <li><b>01</b><span><strong>在这里写好</strong><small>新建、修改、调整顺序，随时保存草稿。</small></span></li>
+            <li><b>02</b><span><strong>导出 insights.js</strong><small>文件会下载到电脑的“下载”文件夹。</small></span></li>
+            <li><b>03</b><span><strong>交给 Claude 发布</strong><small>复制发布说明，Claude 会替换文件并上线。</small></span></li>
+          </ol>
+          <div class="insight-publish-actions">
+            <button class="p-btn small ghost" type="button" id="insight-preview">本机预览主页</button>
+            <button class="p-btn small" type="button" id="insight-export">导出 insights.js</button>
+            <button class="p-btn small ghost" type="button" id="insight-copy-prompt">复制发布说明</button>
+          </div>
+          <p class="insight-sync-note" id="insight-sync">正在核对草稿与主页是否一致…</p>
+          <p class="hint insight-privacy">心得会公开展示，请不要写学生姓名、成绩、家庭情况等隐私。只写方法与思考。</p>
+        </section>
+
+        <section class="p-card p-col-12">
+          <div class="p-card-head"><h2 class="p-card-title">写作格式 <small>FORMAT</small></h2></div>
+          <div class="insight-format-grid">
+            <div><b>段落</b><p>直接写字，空一行分段。手机与电脑都会自动排版。</p></div>
+            <div><b>小标题</b><p>行首写 <code>## 三个坐标</code>，会变成金色小标题。</p></div>
+            <div><b>列表</b><p>行首写 <code>- 内容</code>，适合写步骤、清单与复盘。</p></div>
+            <div><b>强调与引用</b><p>用 <code>**重点**</code> 加粗；用 <code>&gt; 一句话</code> 做引用。</p></div>
+          </div>
+        </section>
+      </div>
     </section>
 
     <!-- 设置 -->
@@ -514,6 +568,54 @@
   </div>
 </dialog>
 
+<!-- 编辑心得 -->
+<dialog class="p-dialog" id="insight-editor-dialog" style="width:min(820px,calc(100% - 20px));">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2 id="insight-editor-title">写一篇学习心得</h2>
+        <p>草稿只保存在这台电脑。保存后，还需要导出并发布，主页才会看到。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="form-row">
+        <div class="field insight-field-grow">
+          <label for="insight-title-input">标题</label>
+          <input class="input" id="insight-title-input" maxlength="80" placeholder="例如：先定位，再出发">
+        </div>
+        <div class="field insight-field-date">
+          <label for="insight-date-input">日期</label>
+          <input class="input" id="insight-date-input" type="date">
+        </div>
+      </div>
+      <div class="field">
+        <label for="insight-tags-input">标签 <span class="field-note">最多 4 个，用逗号分隔</span></label>
+        <input class="input" id="insight-tags-input" maxlength="60" placeholder="定位，学习方法">
+      </div>
+      <div class="field">
+        <label for="insight-excerpt-input">摘要 <span class="field-note">留空会自动从正文截取</span></label>
+        <input class="input" id="insight-excerpt-input" maxlength="120" placeholder="一句话说明这篇手记在讲什么">
+      </div>
+      <div class="field">
+        <label for="insight-body-input">正文 <span class="field-note">空行分段；支持 ## 小标题、- 列表、**加粗**</span></label>
+        <textarea class="textarea" id="insight-body-input" rows="10" maxlength="12000" placeholder="从一个真实的学习瞬间写起。&#10;&#10;## 小标题&#10;- 一条具体的做法&#10;- 一个可以今晚就试的动作"></textarea>
+      </div>
+      <div class="insight-editor-meta">
+        <span id="insight-body-count">0 字</span>
+        <span>公开内容 · 请勿写入学生隐私</span>
+      </div>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn danger" type="button" id="insight-delete" hidden style="margin-right:auto;">删除这篇</button>
+      <button class="p-btn ghost" type="button" data-close>取消</button>
+      <button class="p-btn" type="button" id="insight-save">保存草稿</button>
+    </div>
+  </div>
+</dialog>
+
+<script src="insights-core.js"></script>
+<script src="insights.js"></script>
 <script src="portal.js"></script>
 <script src="teacher.js"></script>
 </body>

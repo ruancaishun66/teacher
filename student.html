@@ -20,15 +20,21 @@
         <small>SHUNSHI · LEARNING TERMINAL</small>
       </span>
     </a>
-    <div class="p-header-actions" id="user-area" hidden>
-      <div class="p-user">
-        <span class="p-avatar" id="user-avatar">🦊</span>
-        <span>
-          <span class="p-user-name" id="user-name">学习者</span>
-          <span class="p-user-lv" id="user-lv">Lv.1</span>
-        </span>
+    <div class="p-header-tools">
+      <button class="p-help-btn" type="button" id="help-btn" aria-haspopup="dialog">
+        <span class="p-help-mark" aria-hidden="true">?</span>
+        <span class="p-help-text">怎么用</span>
+      </button>
+      <div class="p-header-actions" id="user-area" hidden>
+        <div class="p-user">
+          <span class="p-avatar" id="user-avatar">🦊</span>
+          <span>
+            <span class="p-user-name" id="user-name">学习者</span>
+            <span class="p-user-lv" id="user-lv">Lv.1</span>
+          </span>
+        </div>
+        <button class="p-icon-btn" type="button" id="logout-btn" title="退出登录" aria-label="退出登录">⎋</button>
       </div>
-      <button class="p-icon-btn" type="button" id="logout-btn" title="退出登录" aria-label="退出登录">⎋</button>
     </div>
   </div>
 </header>
@@ -37,49 +43,67 @@
 
   <!-- 未登录：建档 / 解锁 -->
   <section id="auth-view" class="auth-wrap">
-    <div class="auth-card" id="setup-card" hidden>
+    <div class="auth-card auth-card-setup" id="setup-card" hidden>
       <img class="auth-logo" src="logo.svg" alt="">
-      <h1>建立<em>学习档案</em></h1>
-      <p>学号和初始密码由阮老师发给你。第一次进入时填一次，以后这台设备会记住。</p>
-      <p class="hint warn" style="text-align:left;margin:-2px 0 12px;">第一次请优先用老师的开通码。自己随便填的学号，老师那边对不上，就收不到任务。</p>
-      <p class="auth-switch" style="margin:-6px 0 16px;">老师给了开通码？<button type="button" id="enroll-link">粘贴开通码，自动填写</button></p>
-      <div class="field">
-        <label for="setup-name">你的名字</label>
-        <input class="input" id="setup-name" maxlength="20" placeholder="例如：小林" autocomplete="name">
+      <p class="auth-kicker">第一次使用 · 约 1 分钟</p>
+      <h1>先<em>定位</em>，再出发</h1>
+      <p class="auth-lead">粘贴阮老师发给你的<strong>开通码</strong>，姓名、学号和密码会自动填好。</p>
+      <button class="p-btn block auth-primary" type="button" id="enroll-link">
+        <span>粘贴老师的开通码</span>
+        <small>推荐 · 自动填写</small>
+      </button>
+      <p class="auth-note">开通码只对你自己有效，第一次建档时用一次。</p>
+      <div class="auth-enrolled" id="enroll-state" hidden>
+        <strong>开通码已带入</strong>
+        <span>请确认姓名和年级。密码由老师设定，不用修改。</span>
+        <span class="auth-enrolled-pin">登录密码：<b id="enrolled-pin">—</b>　请记下来，下次登录要用。</span>
       </div>
-      <div class="form-row">
+      <div class="auth-divider" id="auth-divider"><span>没有开通码？</span></div>
+      <button class="auth-manual-toggle" type="button" id="manual-toggle" aria-expanded="false" aria-controls="manual-fields">
+        <span id="manual-toggle-text">手动填写资料</span>
+        <i aria-hidden="true">⌄</i>
+      </button>
+      <div class="auth-manual" id="manual-fields" hidden>
         <div class="field">
-          <label for="setup-id">学号</label>
-          <input class="input" id="setup-id" maxlength="24" placeholder="例如：S-1024" autocapitalize="characters">
+          <label for="setup-name">你的名字</label>
+          <input class="input" id="setup-name" maxlength="20" placeholder="例如：小林" autocomplete="name">
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label for="setup-id">学号</label>
+            <input class="input" id="setup-id" maxlength="24" placeholder="例如：S-1024" autocapitalize="characters">
+          </div>
+          <div class="field">
+            <label for="setup-grade">年级</label>
+            <select class="select" id="setup-grade">
+              <option value="">未标注</option>
+              <option>七年级</option><option>八年级</option><option>九年级</option>
+              <option>高一</option><option>高二</option><option>高三</option>
+              <option>中考</option><option>高考</option>
+            </select>
+          </div>
         </div>
         <div class="field">
-          <label for="setup-grade">年级</label>
-          <select class="select" id="setup-grade">
-            <option value="">未标注</option>
-            <option>七年级</option><option>八年级</option><option>九年级</option>
-            <option>高一</option><option>高二</option><option>高三</option>
-            <option>中考</option><option>高考</option>
-          </select>
+          <label for="setup-pin">设置密码（4–12 位字母或数字）</label>
+          <input class="input" id="setup-pin" type="password" maxlength="12" placeholder="不要告诉同学" autocomplete="new-password">
         </div>
+        <p class="hint auth-hint" id="setup-pin-hint">密码用 4–12 位字母或数字，记牢，之后每次进入都要用。</p>
       </div>
-      <div class="field">
-        <label for="setup-pin">设置密码（4–12 位字母或数字）</label>
-        <input class="input" id="setup-pin" type="password" maxlength="12" placeholder="不要告诉同学" autocomplete="new-password">
+      <div class="auth-extra" id="auth-extra" hidden>
+        <p class="auth-label">选一个头像 <span>（可跳过）</span></p>
+        <div class="avatar-picker" id="avatar-picker">
+          <label><input type="radio" name="avatar" value="🦊" checked><span>🦊</span></label>
+          <label><input type="radio" name="avatar" value="🐯"><span>🐯</span></label>
+          <label><input type="radio" name="avatar" value="🐼"><span>🐼</span></label>
+          <label><input type="radio" name="avatar" value="🦉"><span>🦉</span></label>
+          <label><input type="radio" name="avatar" value="🐉"><span>🐉</span></label>
+          <label><input type="radio" name="avatar" value="⚡"><span>⚡</span></label>
+          <label><input type="radio" name="avatar" value="🌙"><span>🌙</span></label>
+          <label><input type="radio" name="avatar" value="🔥"><span>🔥</span></label>
+        </div>
+        <button class="p-btn block" type="button" id="setup-btn">创建档案，开始升级</button>
       </div>
-      <p class="hint" style="text-align:left;margin:-6px 0 12px;">开通码带入的初始密码请不要改；改了老师会收不到你的汇报。确实要改，先告诉老师。</p>
-      <p class="hint" style="text-align:left;margin:-4px 0 12px;">选一个头像：</p>
-      <div class="avatar-picker" id="avatar-picker">
-        <label><input type="radio" name="avatar" value="🦊" checked><span>🦊</span></label>
-        <label><input type="radio" name="avatar" value="🐯"><span>🐯</span></label>
-        <label><input type="radio" name="avatar" value="🐼"><span>🐼</span></label>
-        <label><input type="radio" name="avatar" value="🦉"><span>🦉</span></label>
-        <label><input type="radio" name="avatar" value="🐉"><span>🐉</span></label>
-        <label><input type="radio" name="avatar" value="⚡"><span>⚡</span></label>
-        <label><input type="radio" name="avatar" value="🌙"><span>🌙</span></label>
-        <label><input type="radio" name="avatar" value="🔥"><span>🔥</span></label>
-      </div>
-      <button class="p-btn block" type="button" id="setup-btn">创建档案，开始升级</button>
-      <p class="auth-switch">已经有档案码？<button type="button" id="restore-link">恢复档案</button></p>
+      <p class="auth-switch">已经有档案？<button type="button" id="restore-link">恢复档案</button></p>
     </div>
 
     <div class="auth-card" id="login-card" hidden>
@@ -293,6 +317,54 @@
     <div class="p-dialog-foot">
       <button class="p-btn ghost" type="button" data-close>取消</button>
       <button class="p-btn" type="button" id="reset-confirm">清空并重设</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 怎么用 -->
+<dialog class="p-dialog help-dialog" id="help-dialog" style="width:min(620px,calc(100% - 20px));">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>学生端怎么用</h2>
+        <p>照着下面 6 步做就行，不用背操作。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <ol class="help-steps">
+        <li>
+          <b>第一次：用开通码建档</b>
+          <span>点“粘贴老师的开通码”，粘贴后确认姓名和年级，再点“创建档案”。绿色框里的登录密码要记下来，下次登录要用。</span>
+        </li>
+        <li>
+          <b>每天进来：先打卡</b>
+          <span>打开学生端，输入密码进入，点“今日打卡”。连续打卡会累积连击和 EXP。</span>
+        </li>
+        <li>
+          <b>老师发任务后：导入任务码</b>
+          <span>点“导入任务码”，把老师发来的一整段代码粘贴进去，点“导入任务”。任务只对你自己生效。</span>
+        </li>
+        <li>
+          <b>做完题：提交并生成汇报码</b>
+          <span>在任务里作答，点“提交任务”。再点“生成汇报码”，复制后发给阮老师，老师才能看到你的完成情况。</span>
+        </li>
+        <li>
+          <b>换手机或换浏览器：恢复档案</b>
+          <span>点“恢复档案”，粘贴之前的汇报码，再输入密码，等级、徽章和错题就能找回来。</span>
+        </li>
+        <li>
+          <b>记住：进度只在这台设备</b>
+          <span>清理浏览器数据会丢失档案。建议每次做完任务都把汇报码发给老师，相当于留一份备份。</span>
+        </li>
+      </ol>
+      <div class="help-tip">
+        <strong>遇到问题怎么办？</strong>
+        <span>先确认开通码或任务码有没有复制完整；还是不行，就把屏幕截图发给阮老师。</span>
+      </div>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn" type="button" data-close>知道了</button>
     </div>
   </div>
 </dialog>
