@@ -1,0 +1,381 @@
+/* ==========================================================================
+   顺势 · 教师端专属样式
+   ========================================================================== */
+
+.p-badge.teacher {
+  color: var(--gold);
+  border-color: rgba(214, 167, 75, 0.3);
+  background: var(--gold-soft);
+}
+
+.p-btn.danger {
+  color: #ffd9d6;
+  border: 1px solid rgba(224, 66, 59, 0.45);
+  background: rgba(224, 66, 59, 0.16);
+  box-shadow: none;
+}
+
+.p-btn.danger:hover { background: rgba(224, 66, 59, 0.28); }
+
+/* ------------------------------- 首屏 ------------------------------- */
+
+.teacher-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.65fr);
+  gap: 26px;
+  align-items: center;
+  padding: 30px 32px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background:
+    radial-gradient(ellipse 70% 90% at 92% 10%, rgba(224, 66, 59, 0.16), transparent 65%),
+    radial-gradient(ellipse 50% 80% at 0% 100%, rgba(75, 142, 201, 0.12), transparent 60%),
+    linear-gradient(150deg, rgba(22, 25, 34, 0.95), rgba(10, 11, 16, 0.97));
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.teacher-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: radial-gradient(ellipse at 70% 10%, #000, transparent 72%);
+  -webkit-mask-image: radial-gradient(ellipse at 70% 10%, #000, transparent 72%);
+}
+
+.teacher-hero-copy { position: relative; z-index: 1; }
+
+.teacher-hero h1 {
+  margin: 4px 0 10px;
+  font-family: var(--display);
+  font-size: clamp(1.6rem, 3.4vw, 2.35rem);
+  line-height: 1.22;
+  letter-spacing: 0.03em;
+}
+
+.teacher-hero h1 em {
+  color: var(--red-bright);
+  font-style: normal;
+  text-shadow: 0 0 26px rgba(224, 66, 59, 0.45);
+}
+
+.teacher-hero .hero-tip { max-width: 60ch; margin: 0 0 18px; color: var(--muted); font-size: 0.8rem; line-height: 1.8; }
+
+.teacher-hero-mark {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-self: end;
+}
+
+.teacher-hero-mark img {
+  width: 104px;
+  height: 104px;
+  filter: drop-shadow(0 0 24px rgba(224, 66, 59, 0.35));
+}
+
+.teacher-hero-mark span {
+  max-width: 76px;
+  color: var(--dim);
+  font-family: "KaiTi", "STKaiti", "SimSun", serif;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  letter-spacing: 0.12em;
+  writing-mode: vertical-rl;
+}
+
+.teacher-hero .hero-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+
+/* ------------------------------- 页签 ------------------------------- */
+
+.teacher-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 18px 0;
+  padding: 5px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.24);
+  overflow-x: auto;
+}
+
+.teacher-tabs button {
+  flex: 1;
+  min-width: 74px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  transition: 0.2s;
+}
+
+.teacher-tabs button:hover { color: var(--ink); background: rgba(255, 255, 255, 0.04); }
+.teacher-tabs button.active { color: #fff; background: var(--red-deep); box-shadow: 0 0 18px -5px rgba(224, 66, 59, 0.9); }
+
+.teacher-pane { display: none; }
+.teacher-pane.active { display: block; animation: fadeIn 0.3s var(--ease); }
+
+.pane-title { margin: 0; font-family: var(--display); font-size: 1.1rem; letter-spacing: 0.06em; }
+.pane-sub { max-width: 66ch; margin: 4px 0 0; color: var(--dim); font-size: 0.7rem; }
+
+/* ------------------------------- 总览 ------------------------------- */
+
+.teacher-stats .stat-tile b { font-size: clamp(1.35rem, 2.4vw, 1.8rem); }
+
+.report-feed { display: flex; flex-direction: column; gap: 8px; }
+.report-feed.wide { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+
+.report-feed-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.report-feed-item:hover { border-color: var(--line); background: var(--red-soft); transform: translateY(-1px); }
+
+.report-feed-item .feed-avatar {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  place-items: center;
+  border-radius: 10px;
+  background: linear-gradient(145deg, var(--red), var(--red-deep));
+  font-size: 1rem;
+}
+
+.report-feed-item .feed-copy { min-width: 0; flex: 1; }
+.report-feed-item strong { display: block; overflow: hidden; font-size: 0.78rem; white-space: nowrap; text-overflow: ellipsis; }
+.report-feed-item small { display: block; color: var(--dim); font-size: 0.64rem; }
+.report-feed-item .feed-score { color: var(--gold); font-family: var(--mono); font-size: 0.78rem; }
+
+.todo-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 9px; }
+
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 13px;
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--tone, var(--gold));
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.todo-item b { color: var(--tone, var(--gold)); font-family: var(--mono); font-size: 0.66rem; }
+.todo-item p { margin: 0; color: var(--muted); font-size: 0.74rem; line-height: 1.6; }
+.todo-item strong { color: var(--ink); }
+
+/* ------------------------------- 学生卡补充 ------------------------------- */
+
+.student-grid .empty-state { grid-column: 1 / -1; }
+
+.student-card .student-card-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.student-card .student-card-name h3 { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+.student-card .grade-tag {
+  flex: none;
+  padding: 2px 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  color: var(--dim);
+  font-size: 0.58rem;
+}
+
+.student-card-foot .risk-dot { display: inline-flex; align-items: center; gap: 5px; }
+.student-card-foot .risk-dot::before {
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--tone, var(--green));
+  box-shadow: 0 0 8px var(--tone, var(--green));
+}
+
+/* ------------------------------- 任务列表 ------------------------------- */
+
+.assignment-list { display: flex; flex-direction: column; gap: 10px; }
+
+.assignment-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 17px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+}
+
+.assignment-card .assignment-main { min-width: 220px; flex: 1; }
+.assignment-card h3 { margin: 0; font-size: 0.9rem; }
+.assignment-card .assignment-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 5px; color: var(--dim); font-size: 0.66rem; }
+.assignment-card .assignment-meta b { color: var(--gold); font-family: var(--mono); font-weight: 600; }
+
+.assignment-progress { min-width: 150px; }
+.assignment-progress .progress-label { display: flex; justify-content: space-between; margin-bottom: 5px; color: var(--dim); font-size: 0.62rem; }
+.assignment-progress .progress-label b { color: var(--ink); font-family: var(--mono); }
+
+.mini-track { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
+.mini-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--red-deep), var(--red-bright)); }
+
+.assignment-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ------------------------------- 详情 ------------------------------- */
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 7px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 0.72rem;
+}
+
+.back-link:hover { color: var(--ink); border-color: var(--line); background: var(--red-soft); }
+
+.detail-actions { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
+
+.confidence-chip {
+  padding: 3px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  color: var(--dim);
+  font-size: 0.6rem;
+}
+
+.confidence-chip.ok { color: var(--green); border-color: rgba(62, 207, 142, 0.3); background: rgba(62, 207, 142, 0.08); }
+.confidence-chip.mid { color: var(--gold); border-color: rgba(214, 167, 75, 0.3); background: var(--gold-soft); }
+.confidence-chip.low { color: var(--red-bright); border-color: var(--line); background: var(--red-soft); }
+
+.profile-text h4 { margin: 14px 0 5px; color: var(--gold); font-size: 0.75rem; letter-spacing: 0.1em; }
+.profile-text h4:first-child { margin-top: 0; }
+.profile-text p { margin: 0 0 9px; }
+.profile-text p:last-child { margin-bottom: 0; }
+.profile-text ul { margin: 6px 0; padding-left: 18px; }
+.profile-text li { margin-bottom: 4px; }
+
+.detail-pane .history-table { margin-top: 2px; }
+.detail-pane .history-empty { padding: 24px 12px; }
+
+/* ------------------------------- 对话框补充 ------------------------------- */
+
+.dialog-subtitle {
+  margin: 0 0 9px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.assign-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: 20px; }
+
+.check-list { max-height: 250px; overflow: auto; padding-right: 4px; }
+
+.enroll-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: rgba(214, 167, 75, 0.06);
+  font-size: 0.8rem;
+}
+
+.enroll-summary .student-avatar { width: 42px; height: 42px; font-size: 1.15rem; }
+.enroll-summary b { display: block; color: var(--gold); font-family: var(--mono); font-size: 0.72rem; }
+.enroll-summary span { color: var(--dim); font-size: 0.66rem; }
+
+.backup-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.code-card .code-card-head span { color: var(--dim); font-family: var(--mono); font-size: 0.64rem; }
+
+.code-card .code-text { height: 76px; }
+
+.flow-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+.flow-grid > div {
+  padding: 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.flow-grid b {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--red-bright);
+  font-family: var(--display);
+  font-size: 1.05rem;
+  letter-spacing: 0.1em;
+}
+
+.flow-grid strong { display: block; margin-bottom: 5px; font-size: 0.78rem; }
+.flow-grid p { margin: 0; color: var(--dim); font-size: 0.68rem; line-height: 1.65; }
+
+/* ------------------------------- 响应式 ------------------------------- */
+
+@media (max-width: 980px) {
+  .teacher-hero { grid-template-columns: 1fr; padding: 24px; }
+  .teacher-hero-mark { display: none; }
+  .assign-grid { grid-template-columns: 1fr; }
+  .flow-grid { grid-template-columns: 1fr 1fr; }
+  .detail-hero { flex-wrap: wrap; }
+  .detail-actions { width: 100%; justify-content: flex-start; }
+}
+
+@media (max-width: 700px) {
+  .teacher-hero { padding: 20px 17px; }
+  .teacher-hero h1 { font-size: 1.5rem; }
+  .teacher-hero .hero-actions .p-btn { flex: 1 1 auto; }
+  .teacher-tabs { margin: 14px 0; }
+  .teacher-tabs button { min-width: 64px; padding: 8px 9px; font-size: 0.7rem; }
+  .p-header-actions .p-user { display: none; }
+  .p-header-actions #nav-assign,
+  .p-header-actions #nav-import { padding: 6px 9px; font-size: 0.64rem; }
+  .student-grid { grid-template-columns: 1fr; }
+  .assignment-card { align-items: flex-start; }
+  .assignment-actions { width: 100%; }
+  .detail-hero { gap: 10px; }
+  .detail-hero .student-avatar { width: 48px; height: 48px; font-size: 1.3rem; }
+  .detail-tabs { overflow-x: auto; }
+  .detail-tabs button { min-width: 80px; white-space: nowrap; }
+  .flow-grid { grid-template-columns: 1fr; }
+  .report-feed.wide { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 430px) {
+  .teacher-hero .hero-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .teacher-hero .hero-actions .p-btn:first-child { grid-column: 1 / -1; }
+  .teacher-stats { grid-template-columns: 1fr 1fr; }
+  .flow-grid { gap: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .teacher-pane.active,
+  .report-feed-item,
+  .student-card { animation: none; transition: none; }
+}

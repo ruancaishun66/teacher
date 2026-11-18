@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07080b">
+<meta name="description" content="顺势学习终端：每日打卡、完成任务、积累经验、查看自己的学习画像。">
+<title>顺势 · 学生端｜因势利导，循循善诱</title>
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="portal.css">
+</head>
+<body>
+
+<header class="p-header">
+  <div class="p-header-inner">
+    <a class="p-brand" href="index.html" aria-label="返回顺势个人主页">
+      <span class="p-logo"><img src="logo.svg" alt=""></span>
+      <span class="p-brand-text">
+        <strong>顺势 <span class="p-badge">学生端</span></strong>
+        <small>SHUNSHI · LEARNING TERMINAL</small>
+      </span>
+    </a>
+    <div class="p-header-actions" id="user-area" hidden>
+      <div class="p-user">
+        <span class="p-avatar" id="user-avatar">🦊</span>
+        <span>
+          <span class="p-user-name" id="user-name">学习者</span>
+          <span class="p-user-lv" id="user-lv">Lv.1</span>
+        </span>
+      </div>
+      <button class="p-icon-btn" type="button" id="logout-btn" title="退出登录" aria-label="退出登录">⎋</button>
+    </div>
+  </div>
+</header>
+
+<main class="p-main">
+
+  <!-- 未登录：建档 / 解锁 -->
+  <section id="auth-view" class="auth-wrap">
+    <div class="auth-card" id="setup-card" hidden>
+      <img class="auth-logo" src="logo.svg" alt="">
+      <h1>建立<em>学习档案</em></h1>
+      <p>学号和初始密码由阮老师发给你。第一次进入时填一次，以后这台设备会记住。</p>
+      <p class="auth-switch" style="margin:-6px 0 16px;">老师给了开通码？<button type="button" id="enroll-link">粘贴开通码，自动填写</button></p>
+      <div class="field">
+        <label for="setup-name">你的名字</label>
+        <input class="input" id="setup-name" maxlength="20" placeholder="例如：小林" autocomplete="name">
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="setup-id">学号</label>
+          <input class="input" id="setup-id" maxlength="24" placeholder="例如：S-1024" autocapitalize="characters">
+        </div>
+        <div class="field">
+          <label for="setup-grade">年级</label>
+          <select class="select" id="setup-grade">
+            <option value="">未标注</option>
+            <option>七年级</option><option>八年级</option><option>九年级</option>
+            <option>高一</option><option>高二</option><option>高三</option>
+            <option>中考</option><option>高考</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="setup-pin">设置密码（4–12 位字母或数字）</label>
+        <input class="input" id="setup-pin" type="password" maxlength="12" placeholder="不要告诉同学" autocomplete="new-password">
+      </div>
+      <p class="hint" style="text-align:left;margin:-4px 0 12px;">选一个头像：</p>
+      <div class="avatar-picker" id="avatar-picker">
+        <label><input type="radio" name="avatar" value="🦊" checked><span>🦊</span></label>
+        <label><input type="radio" name="avatar" value="🐯"><span>🐯</span></label>
+        <label><input type="radio" name="avatar" value="🐼"><span>🐼</span></label>
+        <label><input type="radio" name="avatar" value="🦉"><span>🦉</span></label>
+        <label><input type="radio" name="avatar" value="🐉"><span>🐉</span></label>
+        <label><input type="radio" name="avatar" value="⚡"><span>⚡</span></label>
+        <label><input type="radio" name="avatar" value="🌙"><span>🌙</span></label>
+        <label><input type="radio" name="avatar" value="🔥"><span>🔥</span></label>
+      </div>
+      <button class="p-btn block" type="button" id="setup-btn">创建档案，开始升级</button>
+      <p class="auth-switch">已经有档案码？<button type="button" id="restore-link">恢复档案</button></p>
+    </div>
+
+    <div class="auth-card" id="login-card" hidden>
+      <img class="auth-logo" src="logo.svg" alt="">
+      <span class="p-avatar" id="login-avatar" style="width:64px;height:64px;font-size:1.8rem;margin:0 auto 12px;">🦊</span>
+      <h1 id="login-name">学习者</h1>
+      <p><span id="login-id">S-0000</span> · 输入密码解锁今天的学习任务</p>
+      <div class="field">
+        <label for="login-pin">密码</label>
+        <input class="input" id="login-pin" type="password" maxlength="12" placeholder="输入你的密码" autocomplete="current-password">
+      </div>
+      <button class="p-btn block" type="button" id="login-btn">进入学习终端</button>
+      <p class="auth-switch">忘记密码？<button type="button" id="reset-link">重设档案</button> · <button type="button" id="restore-link-2">恢复档案</button></p>
+    </div>
+  </section>
+
+  <!-- 已登录 -->
+  <section id="app-view" hidden>
+    <div class="student-hero">
+      <div class="hero-copy">
+        <p class="hero-greet" id="hero-greet">晚上好，学习者</p>
+        <h1>今天，<em>再进一步。</em></h1>
+        <p class="hero-tip" id="hero-tip">打卡、完成任务、积累经验。你的每一次练习，都会变成属性面板上的一格。</p>
+        <div class="hero-actions">
+          <button class="p-btn" type="button" id="checkin-btn">今日打卡 <span id="checkin-xp">+8 EXP</span></button>
+          <div class="streak-pill">🔥 连击 <b id="streak-num">0</b> 天</div>
+          <button class="p-btn ghost" type="button" id="import-task-btn">导入任务码</button>
+        </div>
+      </div>
+      <div class="level-card">
+        <div class="level-ring" id="level-ring">
+          <span id="level-num">Lv.1</span>
+          <small>LEVEL</small>
+        </div>
+        <div>
+          <p class="level-rank" id="rank-name">初窥门径</p>
+          <div class="xp-track"><i id="xp-fill"></i></div>
+          <p id="xp-text">0 / 100 EXP</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="p-grid" style="margin-top:18px;">
+      <section class="p-card p-col-5">
+        <div class="p-card-head">
+          <h2 class="p-card-title">属性面板 <small>ATTRIBUTES</small></h2>
+          <span class="p-dim" style="font-size:.64rem;" id="attr-note">完成一次任务后开始评估</span>
+        </div>
+        <div class="radar-wrap">
+          <svg class="radar-svg" id="radar" viewBox="0 0 200 200" role="img" aria-label="五项英语能力雷达图"></svg>
+          <div class="attr-list" id="attr-list"></div>
+        </div>
+      </section>
+
+      <section class="p-card p-col-7" id="tasks">
+        <div class="p-card-head">
+          <h2 class="p-card-title">任务列表 <small>QUESTS</small></h2>
+          <button class="p-btn small ghost" type="button" id="report-btn">生成汇报码</button>
+        </div>
+        <div class="task-list" id="task-list"></div>
+      </section>
+
+      <section class="p-card p-col-12" id="badges">
+        <div class="p-card-head">
+          <h2 class="p-card-title">成就徽章 <small>ACHIEVEMENTS</small></h2>
+          <span class="p-dim" style="font-size:.64rem;" id="badge-count">0 / 8</span>
+        </div>
+        <div class="badge-grid" id="badge-grid"></div>
+      </section>
+    </div>
+  </section>
+</main>
+
+<!-- 任务答题 -->
+<dialog class="p-dialog" id="task-dialog" style="width:min(860px,calc(100% - 20px));">
+  <div class="p-dialog-inner">
+    <div class="runner-head">
+      <div style="min-width:0;">
+        <h2 class="runner-title" id="runner-title">任务</h2>
+        <p class="runner-sub" id="runner-sub">—</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="runner-progress" aria-hidden="true"><i id="runner-fill"></i></div>
+        <button class="p-close" type="button" id="runner-close" aria-label="关闭">×</button>
+      </div>
+    </div>
+    <div class="runner-body" id="runner-body"></div>
+    <div class="runner-foot">
+      <span class="runner-count" id="runner-count">0 / 0</span>
+      <div style="display:flex;gap:8px;">
+        <button class="p-btn ghost small" type="button" id="runner-report" hidden>生成汇报码</button>
+        <button class="p-btn small" type="button" id="submit-task">提交任务</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<!-- 导入任务码 -->
+<dialog class="p-dialog" id="import-dialog">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>导入任务码</h2>
+        <p>把阮老师发来的任务码整段粘贴进来。任务只对当前学号生效。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="field">
+        <label for="import-code">任务码</label>
+        <textarea class="textarea" id="import-code" rows="7" placeholder="SS1.…"></textarea>
+      </div>
+      <p class="hint">微信里长按复制即可，换行不影响。任务码只包含题目，不含老师的资料库。</p>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" data-close>取消</button>
+      <button class="p-btn" type="button" id="import-btn">导入任务</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 汇报码 -->
+<dialog class="p-dialog" id="report-dialog">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>学习汇报码</h2>
+        <p>把这段代码发给阮老师，老师导入后就能看到你的打卡、任务和属性变化。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="field">
+        <label for="report-code">复制后发给老师</label>
+        <textarea class="textarea" id="report-code" rows="9" readonly></textarea>
+      </div>
+      <p class="hint">这段代码也相当于你的档案备份。换手机时可以点“恢复档案”，粘贴它和密码找回进度。</p>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" id="download-report">下载为文件</button>
+      <button class="p-btn" type="button" id="copy-report">复制汇报码</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 老师开通码 -->
+<dialog class="p-dialog" id="enroll-dialog">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>粘贴老师的开通码</h2>
+        <p>开通码会自动带入姓名、学号、年级和初始密码。粘贴后确认一下，再点“创建档案”。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="field">
+        <label for="enroll-code-input">开通码</label>
+        <textarea class="textarea" id="enroll-code-input" rows="7" placeholder="SS1.…"></textarea>
+      </div>
+      <p class="hint">开通码只用于第一次建档。如果已经在这台设备上有档案，请不要重复导入，否则会覆盖。</p>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" data-close>取消</button>
+      <button class="p-btn" type="button" id="enroll-apply">带入资料</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 恢复档案 -->
+<dialog class="p-dialog" id="restore-dialog">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>恢复学习档案</h2>
+        <p>粘贴之前的汇报码，再输入密码，就能把等级、任务和徽章找回来。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="field">
+        <label for="restore-code">档案码 / 汇报码</label>
+        <textarea class="textarea" id="restore-code" rows="6" placeholder="SS1.…"></textarea>
+      </div>
+      <div class="field">
+        <label for="restore-pin">密码</label>
+        <input class="input" id="restore-pin" type="password" maxlength="12" placeholder="档案原来的密码">
+      </div>
+      <p class="hint warn">恢复会覆盖这台设备上已有的学习档案。</p>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" data-close>取消</button>
+      <button class="p-btn" type="button" id="restore-btn">恢复档案</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 重设确认 -->
+<dialog class="p-dialog" id="reset-dialog" style="width:min(420px,calc(100% - 28px));">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>重设学习档案？</h2>
+        <p>这台设备上的等级、任务和打卡会清空，且无法恢复。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <p class="hint warn">如果只是忘了密码，建议先用“恢复档案”把之前的汇报码找回来。确实要重新开始，再点下面的按钮。</p>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" data-close>取消</button>
+      <button class="p-btn" type="button" id="reset-confirm">清空并重设</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="levelup" id="levelup" aria-hidden="true">
+  <div class="levelup-card">
+    <small>LEVEL UP</small>
+    <strong id="levelup-level">Lv.2</strong>
+    <p id="levelup-rank">渐入佳境</p>
+  </div>
+</div>
+
+<script src="portal.js"></script>
+<script src="student.js"></script>
+</body>
+</html>

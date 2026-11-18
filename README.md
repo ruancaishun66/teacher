@@ -1,11 +1,48 @@
-# 阮蔡顺 · 个人主页与「顺势」教师工作台
+# 阮蔡顺 · 个人主页与「顺势」学习平台
 
-独立英语教师个人主页，外加一个只在本机使用的教学资料库。
+独立英语教师个人主页，外加一套只在本机使用的教学资料库、学生端与教师控制台。
 
 - 线上主页：https://ruancaishun66.github.io/teacher/
-- 线上工作台：https://ruancaishun66.github.io/teacher/library.html
+- 学生端：https://ruancaishun66.github.io/teacher/student.html
+- 教师端（控制台）：https://ruancaishun66.github.io/teacher/teacher.html
+- 教师工作台（组卷、资料库）：https://ruancaishun66.github.io/teacher/library.html
 - 源码仓库：https://github.com/ruancaishun66/teacher
 - 本地目录：`C:\Users\阮蔡顺\personal-homepage`
+
+桌面已放四个快捷方式：`顺势-主页`、`顺势-学生端`、`顺势-教师端`、`顺势-组卷工作台`，双击即可打开。主页底部只保留「学生入口」；教师端不放在公开主页上，由老师自己保存地址。
+
+## 顺势学习平台：一人一号怎么运转
+
+这是一套**本机优先**的轻量平台：没有服务器，也没有云端账号系统。所谓“一人一号”，是老师在自己的教师端里为每个学生建立档案（姓名、学号、年级、初始密码），再由学生用自己的设备建档。平台用“开通码 / 任务码 / 汇报码”在三台设备之间传递信息。
+
+### 第一次：老师建学生档案
+
+1. 打开教师端，第一次先设教师密码（6–16 位字母或数字）。以后每次打开都要输入，防止别人碰你的电脑。
+2. 进「学生」页，点「添加学生」，填姓名、学号（3–24 位大写字母、数字、下划线或短横线）、年级和初始密码（4–12 位字母或数字）。
+3. 点学生卡片上的「开通码」，复制 `SS1.…` 开头的一长串代码，发给学生。
+4. 学生打开学生端，点「粘贴开通码，自动填写」，再确认姓名和密码，点「创建档案」。这台设备以后就记住他了。
+
+### 每次：老师下发任务
+
+1. 先在教师工作台里组好卷，点「保存到资料库」。
+2. 回教师端「任务」页，点「布置任务」，选一张练习卷、选学生、设截止日期和经验值。
+3. 平台会为**每个学生单独生成一条任务码**（任务码绑定该学生的学号，别人导入无效）。把对应任务码发给对应学生。
+4. 学生打开学生端，点「导入任务码」，粘贴后即可答题。选择题自动判分，作文按完成度计入写作属性；提交后获得经验值，可能升级并获得徽章。
+
+### 每周：学生回传学习情况
+
+1. 学生在学生端点「生成汇报码」，把 `SS1.…` 汇报码发给老师。
+2. 老师在教师端点「导入汇报」，粘贴汇报码。平台会核对学号、密码和汇报码签名，通过后更新该学生的任务记录、五维属性和认知画像。
+3. 进学生详情页，可以看雷达图、任务历史、错题分布、最近发展区、教学建议，也可以一键复制“AI 分析提示词”到豆包 / DeepSeek / 通义，再把结果粘回来保存。
+4. 画像分析框架参考 Bloom 认知目标分类、Zimmerman 自我调节学习、Vygotsky 最近发展区和 Black & Wiliam 形成性评价；样本少于 10 题时只作方向性参考。
+
+### 边界要说清楚
+
+- **数据只在各自的浏览器里。** 老师端的数据在老师电脑的浏览器；学生端的数据在学生自己的手机或电脑浏览器。平台不上传任何内容到 GitHub 或服务器。
+- **“一人一号”是本地身份，不是服务器强制。** 任务码、汇报码经过压缩和签名，普通学生不易误用，但技术上不是加密保险箱；不要把平台当成防止破解的商业题库。
+- **换设备、清理浏览器数据会丢进度。** 学生换手机前先保存汇报码，用「恢复档案」找回；老师每周在教师端「设置」里生成一次备份码，并另存到 U 盘。
+- **收费仍按方案 A 手动收款。** 平台不接支付、不自动解锁；老师确认收款后，再手动发开通码或任务码。
+- 教师端目前不做多教师协作；一台电脑一个教师档案。
 
 ## 教师工作台怎么用
 
@@ -86,7 +123,7 @@ claude
 
 也可以在新对话里直接粘贴下面这段：
 
-> 我的个人主页项目在 `C:\Users\阮蔡顺\personal-homepage`，页面是 `index.html` 和教师工作台 `library.html`、`library.js`，线上地址是 https://ruancaishun66.github.io/teacher/ ，仓库是 `ruancaishun66/teacher`。请先读取 `index.html`、`library.html`、`library.js` 和 `README.md`，然后帮我修改并发布。
+> 我的个人主页项目在 `C:\Users\阮蔡顺\personal-homepage`，包括主页 `index.html`、学生端 `student.html` / `student.js`、教师端 `teacher.html` / `teacher.js`、共用样式 `portal.css` / `portal.js`，以及教师工作台 `library.html` / `library.js`。线上地址是 https://ruancaishun66.github.io/teacher/ ，仓库是 `ruancaishun66/teacher`。请先读取相关文件和 `README.md`，然后帮我修改并发布。
 
 ### 用编辑器手动修改
 
@@ -96,8 +133,8 @@ claude
 
 ```powershell
 cd C:\Users\阮蔡顺\personal-homepage
-git add index.html library.html library.js vendor README.md
-git commit -m "Update homepage and teacher workbench"
+git add -A
+git commit -m "Update homepage and Shunshi learning platform"
 git push
 ```
 
@@ -107,8 +144,12 @@ GitHub Pages 通常 1 分钟内自动更新。
 
 | 文件 | 用途 |
 | --- | --- |
-| `index.html` | 个人主页，所有样式、插画和微信二维码都内嵌其中 |
-| `library.html` | 教师工作台页面 |
+| `index.html` | 个人主页，所有样式、插画和微信二维码都内嵌其中；底部保留学生入口 |
+| `student.html` / `student.js` | 学生端：开通码建档、登录、打卡、导入任务、答题、经验等级、徽章、属性雷达、汇报码、恢复档案 |
+| `teacher.html` / `teacher.js` / `teacher.css` | 教师端：教师锁、学生名册、开通码、布置任务、导入汇报、学情总览、认知画像、AI 分析提示词、备注、备份恢复 |
+| `portal.css` / `portal.js` | 学生端与教师端共用的黑红主题、弹窗、等级曲线、属性计算、压缩码与哈希工具 |
+| `logo.svg` | “顺势”标志：云山雾绕、红蓝变脸面具 |
+| `library.html` | 教师工作台页面（组卷、资料库、每日练习） |
 | `library.js` | 工作台逻辑：本机数据库、OCR、自动分题型、定级、水印文档、指令抽题、词表、备份恢复 |
 | `vendor/jszip.min.js` | 备份 ZIP 与 DOCX 解包 |
 | `vendor/pdf.min.js`、`vendor/pdf.worker.min.js` | PDF 文字提取与页面渲染 |

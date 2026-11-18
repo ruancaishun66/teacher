@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07080b">
+<meta name="description" content="顺势教师控制台：学情总览、任务下发、学习汇报导入与学生认知画像分析。">
+<title>顺势 · 教师端｜因势利导，循循善诱</title>
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="portal.css">
+<link rel="stylesheet" href="teacher.css">
+</head>
+<body>
+
+<header class="p-header">
+  <div class="p-header-inner">
+    <a class="p-brand" href="index.html" aria-label="返回顺势个人主页">
+      <span class="p-logo"><img src="logo.svg" alt=""></span>
+      <span class="p-brand-text">
+        <strong>顺势 <span class="p-badge teacher">教师端</span></strong>
+        <small>SHUNSHI · TEACHER CONSOLE</small>
+      </span>
+    </a>
+    <div class="p-header-actions" id="teacher-user" hidden>
+      <button class="p-btn small ghost" type="button" id="nav-assign">布置任务</button>
+      <button class="p-btn small ghost" type="button" id="nav-import">导入汇报</button>
+      <div class="p-user">
+        <span class="p-avatar">势</span>
+        <span>
+          <span class="p-user-name" id="teacher-name-label">阮老师</span>
+          <span class="p-user-lv">教师控制台</span>
+        </span>
+      </div>
+      <button class="p-icon-btn" type="button" id="teacher-logout" title="锁定控制台" aria-label="锁定控制台">⎋</button>
+    </div>
+  </div>
+</header>
+
+<main class="p-main">
+
+  <!-- 教师锁 -->
+  <section id="teacher-auth" class="auth-wrap">
+    <div class="auth-card" id="teacher-setup-card" hidden>
+      <img class="auth-logo" src="logo.svg" alt="">
+      <h1>建立<em>教师控制台</em></h1>
+      <p>第一次使用，先设一个教师密码。学生看不到这里的数据；所有档案只保存在这台电脑的浏览器里。</p>
+      <div class="field">
+        <label for="teacher-name-setup">称呼</label>
+        <input class="input" id="teacher-name-setup" maxlength="20" placeholder="例如：阮老师" value="阮老师">
+      </div>
+      <div class="field">
+        <label for="teacher-pin-setup">教师密码（6–16 位）</label>
+        <input class="input" id="teacher-pin-setup" type="password" maxlength="16" placeholder="只由你自己保管" autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label for="teacher-pin-confirm">再输一次</label>
+        <input class="input" id="teacher-pin-confirm" type="password" maxlength="16" placeholder="确认密码" autocomplete="new-password">
+      </div>
+      <button class="p-btn block" type="button" id="teacher-setup-btn">建立控制台</button>
+      <p class="auth-switch">已有备份？<button type="button" id="teacher-restore-link">从备份恢复</button></p>
+    </div>
+
+    <div class="auth-card" id="teacher-login-card" hidden>
+      <img class="auth-logo" src="logo.svg" alt="">
+      <h1>教师<em>控制台</em></h1>
+      <p>输入教师密码，查看学情、下发任务、分析画像。</p>
+      <div class="field">
+        <label for="teacher-pin">教师密码</label>
+        <input class="input" id="teacher-pin" type="password" maxlength="16" placeholder="输入密码" autocomplete="current-password">
+      </div>
+      <button class="p-btn block" type="button" id="teacher-login-btn">进入控制台</button>
+      <p class="auth-switch">换了电脑？<button type="button" id="teacher-restore-link-2">从备份恢复</button></p>
+    </div>
+  </section>
+
+  <!-- 控制台 -->
+  <section id="teacher-app" hidden>
+    <div class="teacher-hero">
+      <div class="teacher-hero-copy">
+        <p class="hero-greet">顺势 · 教师控制台</p>
+        <h1>因势利导，<em>看见每一个学生。</em></h1>
+        <p class="hero-tip">把资料库里的练习卷拆成任务码，发给学生；学生回传汇报码后，这里会自动生成学情总览与认知画像。所有数据只在本机。</p>
+        <div class="hero-actions">
+          <button class="p-btn" type="button" id="hero-assign">布置一次任务</button>
+          <button class="p-btn ghost" type="button" id="hero-import">导入学生汇报</button>
+          <button class="p-btn ghost" type="button" id="hero-add">添加学生</button>
+        </div>
+      </div>
+      <div class="teacher-hero-mark" aria-hidden="true">
+        <img src="logo.svg" alt="">
+        <span>师者<br>所以传道<br>授业解惑也</span>
+      </div>
+    </div>
+
+    <div class="teacher-stats" id="overview-stats">
+      <div class="stat-tile" style="--tile-color:var(--red)"><b id="stat-students">0</b><span>在册学生</span></div>
+      <div class="stat-tile" style="--tile-color:var(--gold)"><b id="stat-reports">0</b><span>已收汇报</span></div>
+      <div class="stat-tile" style="--tile-color:var(--blue)"><b id="stat-score">—</b><span>平均正确率</span></div>
+      <div class="stat-tile" style="--tile-color:var(--green)"><b id="stat-pending">0</b><span>待完成任务</span></div>
+    </div>
+
+    <nav class="teacher-tabs" id="teacher-tabs" aria-label="教师端页面">
+      <button type="button" class="active" data-tab="overview">总览</button>
+      <button type="button" data-tab="students">学生</button>
+      <button type="button" data-tab="assignments">任务</button>
+      <button type="button" data-tab="reports">汇报</button>
+      <button type="button" data-tab="settings">设置</button>
+    </nav>
+
+    <!-- 总览 -->
+    <section class="teacher-pane active" data-pane="overview">
+      <div class="p-grid">
+        <section class="p-card p-col-7">
+          <div class="p-card-head">
+            <h2 class="p-card-title">学生概览 <small>STUDENTS</small></h2>
+            <button class="p-btn small ghost" type="button" data-goto="students">全部学生</button>
+          </div>
+          <div class="student-grid" id="overview-students"></div>
+        </section>
+        <section class="p-card p-col-5">
+          <div class="p-card-head">
+            <h2 class="p-card-title">最近汇报 <small>RECENT</small></h2>
+            <button class="p-btn small ghost" type="button" data-goto="reports">全部汇报</button>
+          </div>
+          <div class="report-feed" id="recent-reports"></div>
+        </section>
+        <section class="p-card p-col-12">
+          <div class="p-card-head">
+            <h2 class="p-card-title">今天先做这些 <small>TO-DO</small></h2>
+          </div>
+          <div class="todo-list" id="todo-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- 学生 -->
+    <section class="teacher-pane" data-pane="students">
+      <div class="roster-toolbar">
+        <input class="input" id="student-search" placeholder="搜名字或学号…" autocomplete="off">
+        <div style="display:flex;gap:8px;">
+          <button class="p-btn small ghost" type="button" id="student-add">＋ 添加学生</button>
+        </div>
+      </div>
+      <div class="student-grid" id="student-grid"></div>
+    </section>
+
+    <!-- 任务 -->
+    <section class="teacher-pane" data-pane="assignments">
+      <div class="roster-toolbar">
+        <div>
+          <h2 class="pane-title">已布置的任务</h2>
+          <p class="pane-sub">任务码一人一码，学生用学号和密码导入。任务内容来自教师工作台已保存的练习卷。</p>
+        </div>
+        <button class="p-btn small" type="button" id="assignment-add">＋ 布置任务</button>
+      </div>
+      <div class="assignment-list" id="assignment-list"></div>
+    </section>
+
+    <!-- 汇报 -->
+    <section class="teacher-pane" data-pane="reports">
+      <div class="roster-toolbar">
+        <div>
+          <h2 class="pane-title">学习汇报库</h2>
+          <p class="pane-sub">学生发来汇报码后，在这里导入。导入前会校验学号与密码，防止拿错别人的码。</p>
+        </div>
+        <button class="p-btn small" type="button" id="report-import">＋ 导入汇报</button>
+      </div>
+      <div class="report-feed wide" id="report-list"></div>
+    </section>
+
+    <!-- 设置 -->
+    <section class="teacher-pane" data-pane="settings">
+      <div class="p-grid">
+        <section class="p-card p-col-6">
+          <div class="p-card-head"><h2 class="p-card-title">控制台信息 <small>PROFILE</small></h2></div>
+          <div class="field">
+            <label for="setting-teacher-name">称呼</label>
+            <input class="input" id="setting-teacher-name" maxlength="20">
+          </div>
+          <div class="field">
+            <label for="setting-old-pin">当前密码</label>
+            <input class="input" id="setting-old-pin" type="password" maxlength="16">
+          </div>
+          <div class="field">
+            <label for="setting-new-pin">新密码（留空则不修改）</label>
+            <input class="input" id="setting-new-pin" type="password" maxlength="16">
+          </div>
+          <button class="p-btn small" type="button" id="settings-save">保存设置</button>
+          <p class="hint" style="text-align:left;">改教师密码不影响学生密码，也不影响已经发出的任务码。</p>
+        </section>
+        <section class="p-card p-col-6">
+          <div class="p-card-head"><h2 class="p-card-title">备份与恢复 <small>BACKUP</small></h2></div>
+          <p class="hint" style="text-align:left;">备份码包含全部学生档案、汇报和任务记录。它只保存在你手里，不要发到公开群聊。</p>
+          <div class="backup-actions">
+            <button class="p-btn small" type="button" id="teacher-backup">生成备份码</button>
+            <button class="p-btn small ghost" type="button" id="teacher-restore-open">从备份恢复</button>
+          </div>
+          <p class="hint warn" style="text-align:left;margin-top:14px;">清空只影响这台电脑上的教师端数据，学生端档案仍在学生自己的设备上。</p>
+          <button class="p-btn small danger" type="button" id="teacher-clear">清空教师端数据</button>
+        </section>
+        <section class="p-card p-col-12">
+          <div class="p-card-head"><h2 class="p-card-title">这个平台怎么运转 <small>HOW IT WORKS</small></h2></div>
+          <div class="flow-grid">
+            <div><b>01</b><strong>工作台组卷</strong><p>在教师工作台导入资料、生成练习卷，并点“保存到资料库”。</p></div>
+            <div><b>02</b><strong>教师端下发</strong><p>选择练习卷和学生，生成一人一码的任务码，微信发给学生。</p></div>
+            <div><b>03</b><strong>学生端完成</strong><p>学生导入任务码，答题、打卡、获得经验与属性。</p></div>
+            <div><b>04</b><strong>汇报码回流</strong><p>学生生成汇报码，老师导入后看到学情与认知画像。</p></div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </section>
+
+  <!-- 学生详情 -->
+  <section id="student-detail" hidden>
+    <button class="back-link" type="button" id="detail-back">← 返回学生列表</button>
+    <div class="detail-hero">
+      <span class="student-avatar" id="detail-avatar">🦊</span>
+      <div style="min-width:0;flex:1;">
+        <h2 id="detail-name">学生</h2>
+        <p><span id="detail-id">S-0000</span> · <span id="detail-grade">未标注</span></p>
+      </div>
+      <div class="detail-actions">
+        <button class="p-btn small" type="button" id="detail-assign">给 TA 布置任务</button>
+        <button class="p-btn small ghost" type="button" id="detail-enroll">生成开通码</button>
+        <button class="p-btn small ghost" type="button" id="detail-edit">编辑</button>
+      </div>
+    </div>
+
+    <div class="detail-tabs" id="detail-tabs">
+      <button type="button" class="active" data-detail-tab="profile">学习画像</button>
+      <button type="button" data-detail-tab="tasks">任务历史</button>
+      <button type="button" data-detail-tab="reports">汇报记录</button>
+      <button type="button" data-detail-tab="notes">教师备注</button>
+    </div>
+
+    <section class="detail-pane active" data-detail-pane="profile">
+      <div class="teacher-stats" id="detail-stats"></div>
+      <div class="p-grid" style="margin-top:14px;">
+        <section class="p-card p-col-5">
+          <div class="p-card-head"><h2 class="p-card-title">五维能力 <small>RADAR</small></h2></div>
+          <div class="radar-wrap">
+            <svg class="radar-svg" id="detail-radar" viewBox="0 0 200 200" role="img" aria-label="学生五项能力雷达图"></svg>
+            <div class="attr-list" id="detail-attrs"></div>
+          </div>
+        </section>
+        <section class="p-card p-col-7">
+          <div class="p-card-head">
+            <h2 class="p-card-title">认知学习画像 <small>PROFILE</small></h2>
+            <span class="confidence-chip" id="profile-confidence">样本不足</span>
+          </div>
+          <div class="profile-text" id="profile-text">还没有收到这个学生的汇报码。先导入汇报，画像才会开始生成。</div>
+          <div class="ai-box">
+            <h4>免费智能体辅助分析</h4>
+            <p class="hint" style="margin:0 0 8px;text-align:left;">复制提示词，粘贴到豆包 / DeepSeek / 通义等免费智能体；把回复粘贴回来保存。提示词已带上本机的规则画像与证据，不上传资料原文。</p>
+            <div class="backup-actions">
+              <button class="p-btn small ghost" type="button" id="copy-ai-prompt">复制分析提示词</button>
+              <button class="p-btn small ghost" type="button" id="save-ai-result">保存 AI 分析</button>
+            </div>
+            <textarea class="textarea" id="ai-result" rows="7" placeholder="把智能体的分析粘贴到这里，再点“保存 AI 分析”。" style="margin-top:10px;"></textarea>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="detail-pane" data-detail-pane="tasks">
+      <div class="p-card">
+        <div class="p-card-head"><h2 class="p-card-title">任务历史 <small>HISTORY</small></h2></div>
+        <div id="detail-task-table"></div>
+      </div>
+    </section>
+
+    <section class="detail-pane" data-detail-pane="reports">
+      <div class="p-card">
+        <div class="p-card-head"><h2 class="p-card-title">汇报记录 <small>REPORTS</small></h2></div>
+        <div class="report-feed wide" id="detail-report-list"></div>
+      </div>
+    </section>
+
+    <section class="detail-pane" data-detail-pane="notes">
+      <div class="p-card">
+        <div class="p-card-head"><h2 class="p-card-title">教师备注 <small>NOTES</small></h2></div>
+        <textarea class="textarea" id="student-notes" rows="10" placeholder="记录课堂观察、家长沟通、下一步计划……只保存在本机。"></textarea>
+        <div style="margin-top:10px;"><button class="p-btn small" type="button" id="save-notes">保存备注</button></div>
+      </div>
+    </section>
+  </section>
+</main>
+
+<!-- 添加 / 编辑学生 -->
+<dialog class="p-dialog" id="student-dialog">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2 id="student-dialog-title">添加学生</h2>
+        <p>学号和初始密码由你指定。学生第一次打开学生端时，用开通码带入。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="form-row">
+        <div class="field">
+          <label for="student-name-input">姓名</label>
+          <input class="input" id="student-name-input" maxlength="20" placeholder="例如：小林">
+        </div>
+        <div class="field">
+          <label for="student-grade-input">年级</label>
+          <select class="select" id="student-grade-input">
+            <option value="">未标注</option>
+            <option>七年级</option><option>八年级</option><option>九年级</option>
+            <option>高一</option><option>高二</option><option>高三</option>
+            <option>中考</option><option>高考</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="student-id-input">学号</label>
+          <input class="input" id="student-id-input" maxlength="24" placeholder="例如：S-1024" autocapitalize="characters">
+        </div>
+        <div class="field">
+          <label for="student-pin-input">初始密码</label>
+          <input class="input" id="student-pin-input" maxlength="12" placeholder="4–12 位字母或数字">
+        </div>
+      </div>
+      <div class="field">
+        <label>头像</label>
+        <div class="avatar-picker" id="student-avatar-picker">
+          <label><input type="radio" name="student-avatar" value="🦊" checked><span>🦊</span></label>
+          <label><input type="radio" name="student-avatar" value="🐯"><span>🐯</span></label>
+          <label><input type="radio" name="student-avatar" value="🐼"><span>🐼</span></label>
+          <label><input type="radio" name="student-avatar" value="🦉"><span>🦉</span></label>
+          <label><input type="radio" name="student-avatar" value="🐉"><span>🐉</span></label>
+          <label><input type="radio" name="student-avatar" value="⚡"><span>⚡</span></label>
+          <label><input type="radio" name="student-avatar" value="🌙"><span>🌙</span></label>
+          <label><input type="radio" name="student-avatar" value="🔥"><span>🔥</span></label>
+        </div>
+      </div>
+      <p class="hint warn" style="text-align:left;" id="student-pin-note">学生端和学生端之间靠“学号 + 密码”绑定。密码要给到学生本人，不要发在公开群里。</p>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn danger" type="button" id="student-delete" hidden style="margin-right:auto;">删除学生</button>
+      <button class="p-btn ghost" type="button" data-close>取消</button>
+      <button class="p-btn" type="button" id="student-save">保存</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 开通码 -->
+<dialog class="p-dialog" id="enroll-dialog">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>学生开通码</h2>
+        <p>把开通码、学号和密码一起发给学生。学生在学生端首页点“粘贴老师的开通码”，即可自动带入。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="enroll-summary" id="enroll-summary"></div>
+      <div class="field">
+        <label for="enroll-code-output">开通码</label>
+        <textarea class="textarea" id="enroll-code-output" rows="8" readonly></textarea>
+      </div>
+      <p class="hint">开通码只用于第一次建档。换设备恢复进度，请让学生使用“汇报码 → 恢复档案”。</p>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" id="enroll-download">下载为文件</button>
+      <button class="p-btn" type="button" id="enroll-copy">复制开通码</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 布置任务 -->
+<dialog class="p-dialog" id="assign-dialog" style="width:min(880px,calc(100% - 20px));">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>布置任务</h2>
+        <p>从教师工作台已保存的练习卷里选一份，勾选学生，生成一人一码的任务码。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="assign-grid">
+        <div>
+          <h3 class="dialog-subtitle">1. 选择练习卷</h3>
+          <div class="paper-list" id="assign-papers"></div>
+          <p class="hint" style="text-align:left;margin-top:8px;">找不到练习卷？先去 <a href="library.html" target="_blank" rel="noopener" style="color:var(--gold);">教师工作台</a> 组卷并点“保存到资料库”。</p>
+        </div>
+        <div>
+          <h3 class="dialog-subtitle">2. 选择学生</h3>
+          <div class="check-list" id="assign-students"></div>
+          <div class="form-row" style="margin-top:14px;">
+            <div class="field">
+              <label for="assign-title">任务标题</label>
+              <input class="input" id="assign-title" maxlength="60" placeholder="留空则用练习卷标题">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="field">
+              <label for="assign-due">截止日期</label>
+              <input class="input" id="assign-due" type="date">
+            </div>
+            <div class="field">
+              <label for="assign-xp">完成经验</label>
+              <input class="input" id="assign-xp" type="number" min="20" max="600" step="10" value="100">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="p-dialog-foot">
+      <span class="hint" style="margin-right:auto;">任务码只包含题目与答案，不包含资料库其他内容。</span>
+      <button class="p-btn ghost" type="button" data-close>取消</button>
+      <button class="p-btn" type="button" id="assign-generate">生成任务码</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 任务码列表 -->
+<dialog class="p-dialog" id="codes-dialog" style="width:min(760px,calc(100% - 20px));">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>任务码</h2>
+        <p>一位学生一码。复制后单独发给对应学生，不要发错。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="code-list" id="codes-list"></div>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" id="codes-download">下载全部任务码</button>
+      <button class="p-btn" type="button" data-close>完成</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 导入汇报 -->
+<dialog class="p-dialog" id="import-report-dialog">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>导入学生汇报</h2>
+        <p>把学生发来的汇报码整段粘贴进来。系统会用该生登记的密码校验。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="field">
+        <label for="import-report-code">汇报码</label>
+        <textarea class="textarea" id="import-report-code" rows="8" placeholder="SS1.…"></textarea>
+      </div>
+      <p class="hint">如果提示“没有这个学号”，请先在“学生”里添加该生并设置相同密码。</p>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" data-close>取消</button>
+      <button class="p-btn" type="button" id="import-report-btn">校验并导入</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 教师备份 -->
+<dialog class="p-dialog" id="backup-dialog">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>教师端备份码</h2>
+        <p>保存这段代码，换电脑或浏览器时可以恢复全部学生、汇报和任务记录。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="field">
+        <label for="backup-code-output">备份码</label>
+        <textarea class="textarea" id="backup-code-output" rows="10" readonly></textarea>
+      </div>
+      <p class="hint warn">备份码包含学生密码，请当作私密文件保管，不要发到公开群聊或云端。</p>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" id="backup-download">下载为文件</button>
+      <button class="p-btn" type="button" id="backup-copy">复制备份码</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 教师恢复 -->
+<dialog class="p-dialog" id="teacher-restore-dialog">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>恢复教师端</h2>
+        <p>粘贴教师端备份码。恢复会覆盖这台电脑上的教师端数据。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="field">
+        <label for="teacher-restore-code">备份码</label>
+        <textarea class="textarea" id="teacher-restore-code" rows="8" placeholder="SS1.…"></textarea>
+      </div>
+      <div class="field">
+        <label for="teacher-restore-pin">备份时的教师密码</label>
+        <input class="input" id="teacher-restore-pin" type="password" maxlength="16" placeholder="用于校验备份归属">
+      </div>
+      <p class="hint warn">恢复后，教师密码会改为备份时的密码。</p>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" data-close>取消</button>
+      <button class="p-btn" type="button" id="teacher-restore-btn">恢复</button>
+    </div>
+  </div>
+</dialog>
+
+<script src="portal.js"></script>
+<script src="teacher.js"></script>
+</body>
+</html>
