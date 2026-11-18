@@ -5,11 +5,11 @@
   'use strict';
 
   const ATTRS = [
-    { key: 'vocab', name: '词汇', color: '#e0423b' },
-    { key: 'grammar', name: '语法', color: '#d6a74b' },
-    { key: 'reading', name: '阅读', color: '#4b8ec9' },
-    { key: 'writing', name: '写作', color: '#9b7bd4' },
-    { key: 'listening', name: '听说', color: '#3ecf8e' }
+    { key: 'vocab', name: '词汇', color: '#d96e51' },
+    { key: 'grammar', name: '语法', color: '#b07f39' },
+    { key: 'reading', name: '阅读', color: '#3d8f9c' },
+    { key: 'writing', name: '写作', color: '#8a74b8' },
+    { key: 'listening', name: '听说', color: '#3f8f74' }
   ];
 
   const BLOCK_LABELS = {

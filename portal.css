@@ -1,30 +1,30 @@
 /* ==========================================================================
    顺势 · 学生端 / 教师端 共用样式
-   黑红游戏风，云山变脸标识，响应式。
+   浅海初阳风：暖白、浅蓝、波纹，响应式。
    ========================================================================== */
 
 :root {
-  --bg: #07080b;
-  --bg-2: #0d0f15;
-  --panel: rgba(17, 19, 26, 0.92);
-  --panel-solid: #11131a;
-  --panel-2: #161922;
-  --ink: #f4efe7;
-  --muted: #9298a3;
-  --dim: #646b77;
-  --red: #e0423b;
-  --red-bright: #ff5a4f;
-  --red-deep: #a62722;
-  --red-soft: rgba(224, 66, 59, 0.14);
-  --gold: #d6a74b;
-  --gold-soft: rgba(214, 167, 75, 0.16);
-  --blue: #4b8ec9;
-  --blue-soft: rgba(75, 142, 201, 0.16);
-  --green: #3ecf8e;
-  --purple: #9b7bd4;
-  --line: rgba(224, 66, 59, 0.24);
-  --line-soft: rgba(255, 255, 255, 0.08);
-  --shadow: 0 30px 80px -40px rgba(0, 0, 0, 0.95);
+  --bg: #f7f4e9;
+  --bg-2: #fffdf7;
+  --panel: rgba(255, 253, 247, 0.94);
+  --panel-solid: #fffdf7;
+  --panel-2: #f0faf8;
+  --ink: #244a54;
+  --muted: #5f7e85;
+  --dim: #7d9499;
+  --red: #d96e51;
+  --red-bright: #d96e51;
+  --red-deep: #b4563e;
+  --red-soft: rgba(217, 110, 81, 0.12);
+  --gold: #8f6427;
+  --gold-soft: rgba(230, 184, 110, 0.22);
+  --blue: #3d8f9c;
+  --blue-soft: rgba(76, 154, 166, 0.14);
+  --green: #3f8f74;
+  --purple: #8a74b8;
+  --line: rgba(31, 107, 119, 0.2);
+  --line-soft: rgba(31, 107, 119, 0.11);
+  --shadow: 0 26px 60px -44px rgba(23, 75, 86, 0.55);
   --font: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif;
   --display: "Arial Black", "Microsoft YaHei", "PingFang SC", sans-serif;
   --mono: "Consolas", "SFMono-Regular", "Menlo", monospace;
@@ -388,7 +388,7 @@ button { cursor: pointer; }
 
 .p-btn:hover { transform: translateY(-1px); filter: brightness(1.08); box-shadow: 0 14px 30px -12px rgba(224, 66, 59, 0.85); }
 .p-btn:active { transform: translateY(0); }
-.p-btn:disabled { cursor: not-allowed; opacity: 0.58; color: #f6eeea; transform: none; filter: saturate(0.8); }
+.p-btn:disabled { cursor: not-allowed; opacity: 0.74; color: #fff; transform: none; filter: saturate(0.9); }
 
 .p-btn.ghost {
   color: var(--ink);
@@ -1961,3 +1961,283 @@ dialog.p-dialog[open] { animation: dialogIn 0.28s var(--ease); }
   .help-steps li { padding: 10px 11px 10px 42px; }
   .help-steps li::before { left: 10px; top: 10px; }
 }
+
+/* ==========================================================================
+   浅海初阳主题 · 覆盖层
+   暖白纸面、浅蓝波纹、初阳珊瑚色；保留全部游戏化结构。
+   ========================================================================== */
+
+body { background: var(--bg); color: var(--ink); }
+
+body::before {
+  background:
+    radial-gradient(ellipse 62% 46% at 12% -8%, rgba(255, 198, 134, 0.34), transparent 62%),
+    radial-gradient(ellipse 58% 52% at 92% 8%, rgba(118, 203, 206, 0.24), transparent 60%),
+    radial-gradient(ellipse 72% 60% at 50% 112%, rgba(96, 178, 186, 0.15), transparent 68%),
+    linear-gradient(180deg, #fdf8ed 0%, #f7f4e9 46%, #f1f6f1 100%);
+}
+
+body::after {
+  background-image:
+    linear-gradient(rgba(31, 107, 119, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(31, 107, 119, 0.035) 1px, transparent 1px);
+}
+
+::selection { color: #fff; background: rgba(217, 110, 81, 0.62); }
+
+/* 顶栏 */
+.p-header {
+  background: rgba(253, 249, 239, 0.84);
+  border-bottom-color: var(--line-soft);
+}
+.p-header::after {
+  background: linear-gradient(90deg, transparent, rgba(217, 110, 81, 0.5), rgba(230, 184, 110, 0.55), transparent);
+  opacity: 0.75;
+}
+.p-logo { filter: drop-shadow(0 8px 16px rgba(23, 75, 86, 0.2)); }
+.p-badge { color: var(--red-deep); background: var(--red-soft); }
+.p-badge.teacher { color: var(--gold); border-color: rgba(143, 100, 39, 0.3); }
+.p-user { background: rgba(255, 255, 255, 0.66); }
+.p-avatar { color: #fff; box-shadow: 0 0 0 2px rgba(217, 110, 81, 0.16); }
+.p-link:hover { background: rgba(76, 154, 166, 0.1); }
+
+/* 标题与强调色 */
+.p-eyebrow { color: var(--red-deep); }
+.p-title em { text-shadow: none; }
+.p-red { color: var(--red-deep); }
+.p-gold { color: var(--gold); }
+
+/* 卡片 */
+.p-card {
+  border-color: var(--line-soft);
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.72), rgba(255, 253, 247, 0.34) 46%),
+    var(--panel);
+  box-shadow: var(--shadow);
+}
+.p-card::before { border-color: rgba(217, 110, 81, 0.55); }
+.p-card::after { border-color: rgba(176, 127, 57, 0.4); }
+
+/* 按钮 */
+.p-btn {
+  box-shadow: 0 10px 24px -14px rgba(180, 86, 62, 0.72);
+}
+.p-btn:hover { box-shadow: 0 14px 28px -12px rgba(180, 86, 62, 0.6); }
+.p-btn.ghost {
+  background: rgba(255, 255, 255, 0.58);
+  border-color: var(--line);
+}
+.p-btn.ghost:hover { background: var(--red-soft); }
+.p-btn.gold {
+  color: #47320f;
+  background: linear-gradient(135deg, #f4d18c, #e2b06e);
+  box-shadow: 0 10px 24px -14px rgba(176, 127, 57, 0.65);
+}
+.p-icon-btn { background: rgba(255, 255, 255, 0.6); }
+.p-icon-btn:hover { color: var(--red-deep); }
+
+/* 表单 */
+.input, .select, .textarea {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: var(--line-soft);
+}
+.input::placeholder, .textarea::placeholder { color: #95aaad; }
+.input:focus, .select:focus, .textarea:focus {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px rgba(217, 110, 81, 0.13);
+}
+
+/* 弹窗 */
+dialog.p-dialog {
+  border-color: var(--line);
+  background: var(--panel-solid);
+  box-shadow: 0 40px 110px -40px rgba(23, 75, 86, 0.55);
+}
+dialog.p-dialog::backdrop { background: rgba(24, 58, 66, 0.42); }
+.p-dialog-head {
+  border-bottom-color: var(--line-soft);
+  background: linear-gradient(180deg, rgba(255, 204, 144, 0.26), rgba(255, 253, 247, 0));
+}
+.p-close { background: rgba(255, 255, 255, 0.55); }
+.p-close:hover { color: var(--red-deep); }
+
+/* 提示 */
+.p-toast {
+  border-color: var(--line);
+  background: rgba(255, 253, 247, 0.97);
+  box-shadow: 0 18px 44px -24px rgba(23, 75, 86, 0.55);
+}
+.p-toast.error { border-color: rgba(217, 110, 81, 0.5); color: var(--red-deep); }
+.p-toast.ok { border-color: rgba(63, 143, 116, 0.45); color: var(--green); }
+
+/* 登录 / 建档 */
+.auth-card {
+  border-color: var(--line);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 199, 137, 0.4), transparent 60%),
+    radial-gradient(circle at 88% 100%, rgba(118, 203, 206, 0.22), transparent 55%),
+    var(--panel);
+  box-shadow: 0 40px 100px -46px rgba(23, 75, 86, 0.5);
+}
+.auth-card::before { border-color: rgba(31, 107, 119, 0.12); }
+.auth-logo { filter: drop-shadow(0 12px 24px rgba(23, 75, 86, 0.22)); }
+.auth-card h1 em { color: var(--red-deep); }
+.auth-switch button { color: var(--gold); }
+.avatar-picker span { background: rgba(255, 255, 255, 0.6); }
+.avatar-picker input:checked + span {
+  box-shadow: 0 0 0 3px rgba(217, 110, 81, 0.13);
+}
+
+/* 学生首页 */
+.hero-copy {
+  border-color: var(--line);
+  background:
+    radial-gradient(circle at 88% 8%, rgba(255, 196, 132, 0.45), transparent 46%),
+    radial-gradient(circle at 0% 100%, rgba(96, 178, 186, 0.22), transparent 50%),
+    linear-gradient(150deg, #fffdf7, #eaf7f4);
+}
+.hero-copy::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 74px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='60' viewBox='0 0 240 60'%3E%3Cpath d='M0 30c20-10 40-10 60 0s40 10 60 0 40-10 60 0 40 10 60 0' fill='none' stroke='%233d8f9c' stroke-width='1.6' opacity='.34'/%3E%3Cpath d='M0 43c20-10 40-10 60 0s40 10 60 0 40-10 60 0 40 10 60 0' fill='none' stroke='%23d96e51' stroke-width='1.2' opacity='.22'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-position: bottom left;
+  pointer-events: none;
+}
+.hero-copy::after { color: rgba(23, 75, 86, 0.05); }
+.hero-copy h1 em { color: var(--red-deep); }
+.streak-pill { border-color: rgba(176, 127, 57, 0.28); }
+#checkin-btn:disabled {
+  opacity: 1;
+  color: #6b3a2c;
+  border-color: rgba(217, 110, 81, 0.18);
+  background: linear-gradient(135deg, #f1d7ca, #e7c7b8);
+  box-shadow: none;
+  filter: none;
+}
+
+.level-card {
+  border-color: var(--line-soft);
+  background: linear-gradient(165deg, #fffdf7, #edf8f5);
+}
+.level-card::before {
+  background: radial-gradient(circle, rgba(255, 196, 132, 0.4), transparent 68%);
+}
+.level-ring {
+  background:
+    radial-gradient(circle at 50% 50%, #fffdf7 58%, transparent 59%),
+    conic-gradient(var(--red-bright) var(--lv-progress, 0%), rgba(31, 107, 119, 0.12) 0);
+  box-shadow: 0 12px 28px -16px rgba(217, 110, 81, 0.5), inset 0 0 22px rgba(23, 75, 86, 0.06);
+}
+.level-ring::before { border-color: rgba(176, 127, 57, 0.35); }
+.level-ring span { text-shadow: 0 6px 18px rgba(217, 110, 81, 0.26); }
+.level-ring small { color: var(--dim); }
+.xp-track { background: rgba(31, 107, 119, 0.12); }
+.xp-track i { box-shadow: 0 4px 12px -4px rgba(217, 110, 81, 0.5); }
+
+/* 雷达 */
+.radar-grid { stroke: rgba(31, 107, 119, 0.16); }
+.radar-axis { stroke: rgba(31, 107, 119, 0.11); }
+.radar-shape {
+  fill: rgba(217, 110, 81, 0.2);
+  stroke: var(--red);
+  filter: drop-shadow(0 4px 8px rgba(217, 110, 81, 0.26));
+}
+.attr-bar { background: rgba(31, 107, 119, 0.12); }
+.attr-bar i { box-shadow: none; }
+
+/* 任务与徽章 */
+.task-card { background: rgba(255, 255, 255, 0.62); }
+.task-card::before { box-shadow: 0 0 10px rgba(217, 110, 81, 0.35); }
+.task-card:hover { background: var(--red-soft); }
+.task-card.done::before { box-shadow: 0 0 10px rgba(63, 143, 116, 0.35); }
+.status-chip.done { color: var(--green); background: rgba(63, 143, 116, 0.12); }
+.status-chip.overdue { color: var(--red-deep); }
+.badge { background: rgba(255, 255, 255, 0.6); }
+.badge-icon { background: rgba(31, 107, 119, 0.07); }
+.badge.owned { border-color: rgba(176, 127, 57, 0.35); }
+
+/* 答题 */
+.runner-head, .runner-foot {
+  border-color: var(--line-soft);
+  background: rgba(255, 253, 247, 0.96);
+}
+.runner-progress { background: rgba(31, 107, 119, 0.12); }
+.passage {
+  border-left-color: rgba(76, 154, 166, 0.55);
+  background: rgba(76, 154, 166, 0.08);
+  color: #31565f;
+}
+.question-card { background: rgba(255, 255, 255, 0.62); }
+.option { background: rgba(255, 255, 255, 0.72); }
+.option input:checked ~ .letter { color: #fff; }
+.option.correct .letter { color: #fff; }
+.text-answer { background: rgba(255, 255, 255, 0.8); }
+.writing-input {
+  background: rgba(255, 255, 255, 0.8);
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 31px, rgba(31, 107, 119, 0.1) 31px, rgba(31, 107, 119, 0.1) 32px);
+}
+.review-note { background: rgba(31, 107, 119, 0.05); }
+.review-note em { color: var(--red-deep); }
+
+/* 结果 */
+.result-ring {
+  background:
+    radial-gradient(circle, #fffdf7 60%, transparent 61%),
+    conic-gradient(var(--green) var(--score, 0%), rgba(31, 107, 119, 0.12) 0);
+  box-shadow: 0 14px 32px -20px rgba(63, 143, 116, 0.65);
+}
+.result-stat { background: rgba(255, 255, 255, 0.62); }
+
+/* 教师端 */
+.stat-tile {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.75), rgba(255, 253, 247, 0.3)), var(--panel);
+}
+.stat-tile::before { box-shadow: 0 0 10px -1px var(--tile-color, var(--red)); }
+.student-card { background: rgba(255, 255, 255, 0.62); }
+.student-avatar { color: #fff; box-shadow: 0 4px 12px -6px rgba(217, 110, 81, 0.5); }
+.detail-tabs { background: rgba(31, 107, 119, 0.07); }
+.detail-tabs button.active { color: #fff; }
+.profile-text { color: #31565f; }
+.ai-box { border-color: rgba(176, 127, 57, 0.3); background: rgba(230, 184, 110, 0.14); }
+.code-card { background: rgba(255, 255, 255, 0.6); }
+.code-text {
+  color: #4d6a70;
+  background: #f4faf9;
+}
+.paper-item { background: rgba(255, 255, 255, 0.6); }
+.check-chip { background: rgba(255, 255, 255, 0.6); }
+.check-chip:has(input:checked) { color: var(--ink); }
+.pin-input { background: rgba(255, 255, 255, 0.8); }
+.pin-input:focus { box-shadow: 0 0 0 3px rgba(217, 110, 81, 0.14); }
+
+/* 升级动画 */
+.levelup { background: rgba(24, 58, 66, 0.42); }
+.levelup-card {
+  background: radial-gradient(circle at 50% 0%, rgba(255, 205, 142, 0.5), transparent 65%), #fffdf7;
+  box-shadow: 0 30px 80px -30px rgba(23, 75, 86, 0.5);
+}
+.levelup-card strong { color: var(--red-deep); text-shadow: 0 8px 24px rgba(217, 110, 81, 0.3); }
+
+/* 第一次使用 / 帮助 */
+.p-help-btn { background: rgba(255, 255, 255, 0.55); }
+.p-help-mark { color: var(--red-deep); }
+.auth-card-setup .auth-primary { box-shadow: 0 16px 36px -20px rgba(180, 86, 62, 0.7); }
+.auth-enrolled {
+  border-color: rgba(63, 143, 116, 0.35);
+  background: rgba(63, 143, 116, 0.09);
+}
+.auth-enrolled strong { color: var(--green); }
+.auth-enrolled .auth-enrolled-pin { border-top-color: rgba(63, 143, 116, 0.25); }
+.auth-manual-toggle { background: rgba(255, 255, 255, 0.42); }
+.auth-card-setup .input[readonly] { background: rgba(31, 107, 119, 0.04); }
+.help-steps li { background: rgba(255, 255, 255, 0.62); }
+.help-steps li::before {
+  border-color: rgba(217, 110, 81, 0.35);
+  color: var(--red-deep);
+}
+.help-tip { background: rgba(230, 184, 110, 0.16); }

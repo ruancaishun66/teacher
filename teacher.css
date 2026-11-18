@@ -747,3 +747,122 @@
   .report-feed-item,
   .student-card { animation: none; transition: none; }
 }
+
+/* ==========================================================================
+   浅海初阳主题 · 教师端覆盖层
+   ========================================================================== */
+
+.p-badge.teacher {
+  color: var(--gold);
+  border-color: rgba(143, 100, 39, 0.3);
+  background: var(--gold-soft);
+}
+
+.p-btn.danger {
+  color: var(--red-deep);
+  border-color: rgba(217, 110, 81, 0.4);
+  background: var(--red-soft);
+}
+.p-btn.danger:hover { background: rgba(217, 110, 81, 0.2); }
+
+/* 首屏 */
+.teacher-hero {
+  border-color: var(--line);
+  background:
+    radial-gradient(ellipse 70% 90% at 92% 10%, rgba(255, 196, 132, 0.4), transparent 65%),
+    radial-gradient(ellipse 50% 80% at 0% 100%, rgba(96, 178, 186, 0.24), transparent 60%),
+    linear-gradient(150deg, #fffdf7, #eaf7f4);
+}
+.teacher-hero::before {
+  background-image:
+    linear-gradient(rgba(31, 107, 119, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(31, 107, 119, 0.045) 1px, transparent 1px);
+}
+.teacher-hero::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 0;
+  height: 86px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='60' viewBox='0 0 240 60'%3E%3Cpath d='M0 30c20-10 40-10 60 0s40 10 60 0 40-10 60 0 40 10 60 0' fill='none' stroke='%233d8f9c' stroke-width='1.6' opacity='.32'/%3E%3Cpath d='M0 43c20-10 40-10 60 0s40 10 60 0 40-10 60 0 40 10 60 0' fill='none' stroke='%23d96e51' stroke-width='1.2' opacity='.2'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-position: bottom left;
+  pointer-events: none;
+}
+.teacher-hero h1 em {
+  color: var(--red-deep);
+  text-shadow: none;
+}
+.teacher-hero-mark img { filter: drop-shadow(0 12px 24px rgba(23, 75, 86, 0.24)); }
+.teacher-hero-mark span { color: var(--muted); }
+
+/* 页签 */
+.teacher-tabs {
+  border-color: var(--line-soft);
+  background: rgba(31, 107, 119, 0.07);
+}
+.teacher-tabs button:hover { background: rgba(255, 255, 255, 0.6); }
+.teacher-tabs button.active {
+  color: #fff;
+  background: var(--red);
+  box-shadow: 0 8px 18px -10px rgba(180, 86, 62, 0.8);
+}
+
+/* 总览 */
+.report-feed-item { background: rgba(255, 255, 255, 0.62); }
+.report-feed-item .feed-avatar { color: #fff; }
+.todo-item { background: rgba(255, 255, 255, 0.58); }
+
+/* 学生卡 */
+.student-card .grade-tag { background: rgba(255, 255, 255, 0.55); }
+
+/* 任务 */
+.assignment-card {
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.78), rgba(255, 253, 247, 0.36));
+}
+.mini-track { background: rgba(31, 107, 119, 0.12); }
+
+/* 详情 */
+.back-link { background: rgba(255, 255, 255, 0.6); }
+.confidence-chip.ok { color: var(--green); border-color: rgba(63, 143, 116, 0.3); background: rgba(63, 143, 116, 0.09); }
+.confidence-chip.mid { color: var(--gold); border-color: rgba(143, 100, 39, 0.3); background: var(--gold-soft); }
+.confidence-chip.low { color: var(--red-deep); border-color: rgba(217, 110, 81, 0.35); background: var(--red-soft); }
+
+/* 对话框补充 */
+.enroll-summary { border-color: var(--line-soft); background: rgba(230, 184, 110, 0.16); }
+.flow-grid > div { background: rgba(255, 255, 255, 0.58); }
+.flow-grid b { color: var(--red-deep); }
+
+/* 学习心得 */
+.insight-sync-chip { background: rgba(255, 255, 255, 0.6); }
+.insight-sync-chip.is-synced { color: var(--green); border-color: rgba(63, 143, 116, 0.28); background: rgba(63, 143, 116, 0.08); }
+.insight-sync-chip.is-dirty { color: var(--gold); border-color: rgba(143, 100, 39, 0.3); background: var(--gold-soft); }
+
+.insight-admin-item {
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.78), rgba(255, 253, 247, 0.3));
+}
+.insight-admin-item:hover {
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.92), rgba(255, 253, 247, 0.5));
+}
+.insight-admin-tags span {
+  border-color: rgba(143, 100, 39, 0.2);
+  color: var(--gold);
+  background: rgba(230, 184, 110, 0.14);
+}
+.insight-mini { background: rgba(255, 255, 255, 0.6); }
+.insight-mini:hover { background: rgba(76, 154, 166, 0.12); }
+.insight-mini.remove:hover { color: var(--red-deep); border-color: rgba(217, 110, 81, 0.36); background: var(--red-soft); }
+.insight-publish-card {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(230, 184, 110, 0.24), transparent 45%),
+    var(--panel);
+}
+.insight-steps li { background: rgba(255, 255, 255, 0.58); }
+.insight-format-grid > div { background: rgba(255, 255, 255, 0.58); }
+.insight-format-grid code { color: var(--blue); background: rgba(76, 154, 166, 0.12); }
+
+.profile-text h4 { color: var(--gold); }
+
+#student-detail .p-col-5 { align-self: start; }
