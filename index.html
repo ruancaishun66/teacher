@@ -9,7 +9,7 @@
   <meta property="og:description" content="完善的教学方法，丰富的线上与线下教学经验，为每个学生定制清晰、可执行的学习路径。">
   <meta property="og:type" content="website">
   <title>阮蔡顺｜初高中英语一对一 · 独立英语教师</title>
-  <link rel="icon" href="logo.svg?v=20261118b" type="image/svg+xml">
+  <link rel="icon" href="logo.svg?v=20261118c" type="image/svg+xml">
   <script>document.documentElement.classList.add('js');</script>
   <style>
     /* ==========================================================================
@@ -4676,6 +4676,502 @@
         transform: none;
       }
     }
+
+    /* ==========================================================================
+       渐深入海主题 · 沙滩 → 海岸 → 波光 → 深海
+       从首屏的阳光沙滩开始，经海岸浅海、波光层，最后潜到幽静的深海。
+       相邻区块的起止颜色互相衔接，滚动时像一步一步走进海里。
+       ========================================================================== */
+
+    /* ------------------------------- 全页基调 ------------------------------- */
+
+    body {
+      background-color: #02131b;
+      background-image: none;
+    }
+
+    .hero {
+      background:
+        radial-gradient(70rem 44rem at 82% -10%, rgba(255, 199, 132, 0.5), transparent 64%),
+        radial-gradient(58rem 40rem at 6% 14%, rgba(147, 216, 209, 0.28), transparent 66%),
+        linear-gradient(180deg, #fdf8ea 0%, #fbf2dc 48%, #f0f0df 78%, #e8efdf 100%);
+    }
+
+    .feature-strip {
+      background:
+        radial-gradient(44rem 18rem at 14% 20%, rgba(255, 255, 255, 0.42), transparent 70%),
+        linear-gradient(180deg, #e8efdf 0%, #dcf0e6 46%, #c9ebe5 100%);
+    }
+
+    .feature-strip::before {
+      content: "";
+      position: absolute;
+      right: 0;
+      bottom: 10px;
+      left: 0;
+      height: 30px;
+      pointer-events: none;
+      opacity: 0.55;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='28' viewBox='0 0 180 28'%3E%3Cpath d='M0 14c15-7 30-7 45 0s30 7 45 0 30-7 45 0 30 7 45 0' fill='none' stroke='%233d8f9c' stroke-width='1.4' opacity='.32'/%3E%3C/svg%3E");
+      background-repeat: repeat-x;
+      background-position: center bottom;
+    }
+
+    .feature-text small {
+      color: rgba(23, 75, 86, 0.68);
+    }
+
+    /* ------------------------------- 海岸浅海 ------------------------------- */
+
+    .about {
+      border-top: 0;
+      background:
+        radial-gradient(52rem 28rem at 88% 10%, rgba(255, 247, 218, 0.36), transparent 62%),
+        radial-gradient(46rem 30rem at 8% 66%, rgba(255, 255, 255, 0.2), transparent 66%),
+        linear-gradient(180deg, #c9ebe5 0%, #bbe6e4 34%, #a6dcdf 68%, #93d2d8 100%);
+    }
+
+    .about::after {
+      content: "";
+      position: absolute;
+      inset: -12px;
+      z-index: 1;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse 24rem 2.4rem at 18% 18%, rgba(255, 255, 255, 0.5), transparent 72%),
+        radial-gradient(ellipse 16rem 1.8rem at 74% 9%, rgba(255, 249, 222, 0.4), transparent 72%),
+        radial-gradient(circle at 31% 31%, rgba(255, 255, 255, 0.8) 0 1.2px, transparent 2.2px),
+        radial-gradient(ellipse 26rem 2.6rem at 46% 42%, rgba(255, 255, 255, 0.3), transparent 74%),
+        radial-gradient(ellipse 18rem 2rem at 86% 64%, rgba(255, 255, 255, 0.34), transparent 74%),
+        radial-gradient(circle at 67% 57%, rgba(255, 255, 255, 0.7) 0 1px, transparent 2px),
+        radial-gradient(ellipse 14rem 1.6rem at 24% 82%, rgba(255, 250, 228, 0.28), transparent 72%);
+      animation: surfaceShimmer 18s ease-in-out infinite alternate;
+    }
+
+    @keyframes surfaceShimmer {
+      0% {
+        transform: translate3d(-8px, 2px, 0);
+        opacity: 0.85;
+      }
+
+      100% {
+        transform: translate3d(10px, -4px, 0);
+        opacity: 1;
+      }
+    }
+
+    .about .about-meta li span {
+      color: rgba(17, 64, 74, 0.64);
+    }
+
+    /* ------------------------------- 下潜过渡 ------------------------------- */
+
+    .depth-pass {
+      position: relative;
+      display: grid;
+      min-height: clamp(190px, 24vw, 290px);
+      place-items: center;
+      overflow: hidden;
+      isolation: isolate;
+      background:
+        radial-gradient(58rem 16rem at 50% 0%, rgba(235, 252, 246, 0.26), transparent 72%),
+        linear-gradient(180deg, #93d2d8 0%, #74bcc6 26%, #438c9c 48%, #1e5d6d 72%, #0d3d4c 88%, #0b3442 100%);
+    }
+
+    .depth-pass::before {
+      content: "";
+      position: absolute;
+      top: -10%;
+      left: 50%;
+      width: min(760px, 78%);
+      height: 120%;
+      transform: translateX(-50%);
+      background: linear-gradient(180deg, rgba(240, 255, 250, 0.14), transparent 62%);
+      clip-path: polygon(42% 0, 58% 0, 96% 100%, 4% 100%);
+      pointer-events: none;
+    }
+
+    .depth-waves {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .depth-waves path {
+      fill: none;
+      stroke: #eefcf8;
+      stroke-width: 1.3;
+      stroke-linecap: round;
+    }
+
+    .depth-scale {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: clamp(12px, 4vw, 52px);
+      z-index: 2;
+      width: 66px;
+      color: rgba(238, 252, 248, 0.52);
+      font-family: var(--latin);
+      font-size: 0.52rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+    }
+
+    .depth-scale span {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .depth-scale span::after {
+      content: "";
+      width: 20px;
+      height: 1px;
+      background: currentColor;
+      opacity: 0.55;
+    }
+
+    .depth-scale span:nth-child(1) {
+      top: 16%;
+    }
+
+    .depth-scale span:nth-child(2) {
+      top: 47%;
+    }
+
+    .depth-scale span:nth-child(3) {
+      top: 78%;
+    }
+
+    .depth-copy {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      width: min(760px, calc(100% - 160px));
+      grid-template-columns: minmax(28px, 1fr) auto minmax(28px, 1fr);
+      align-items: center;
+      gap: clamp(14px, 3vw, 26px);
+      color: rgba(244, 253, 250, 0.9);
+      text-align: center;
+    }
+
+    .depth-line {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(236, 252, 248, 0.5));
+    }
+
+    .depth-line:last-child {
+      background: linear-gradient(90deg, rgba(236, 252, 248, 0.5), transparent);
+    }
+
+    .depth-text {
+      display: grid;
+      gap: 8px;
+      font-family: var(--round);
+      font-size: clamp(0.92rem, 1.6vw, 1.08rem);
+      letter-spacing: 0.1em;
+      text-shadow: 0 2px 16px rgba(7, 45, 56, 0.45);
+    }
+
+    .depth-text em {
+      color: rgba(214, 242, 238, 0.6);
+      font-family: var(--old);
+      font-size: 0.64em;
+      font-style: italic;
+      letter-spacing: 0.26em;
+      text-transform: uppercase;
+    }
+
+    /* ------------------------------- 深海 ------------------------------- */
+
+    .method {
+      border-top: 0;
+      border-bottom: 0;
+      background:
+        radial-gradient(56rem 26rem at 50% -4%, rgba(125, 214, 214, 0.15), transparent 62%),
+        radial-gradient(30rem 22rem at 90% 34%, rgba(255, 190, 126, 0.06), transparent 66%),
+        radial-gradient(circle at 1px 1px, rgba(186, 240, 238, 0.09) 1px, transparent 0) 0 0 / 32px 32px,
+        linear-gradient(180deg, #0b3442 0%, #082c38 44%, #062430 100%);
+    }
+
+    .method::after {
+      content: "";
+      position: absolute;
+      top: -140px;
+      left: 50%;
+      width: min(920px, 92%);
+      height: 560px;
+      transform: translateX(-50%);
+      background: radial-gradient(ellipse at 50% 0%, rgba(150, 232, 226, 0.18), transparent 68%);
+      pointer-events: none;
+    }
+
+    .method .section-bar {
+      border-color: rgba(186, 238, 234, 0.16);
+    }
+
+    .method .section-label {
+      color: #eafaf6;
+    }
+
+    .method .section-label span {
+      color: rgba(150, 222, 218, 0.6);
+    }
+
+    .method .section-note {
+      color: rgba(214, 242, 238, 0.55);
+    }
+
+    .method-title {
+      color: #f1fbf7;
+    }
+
+    .method-title .accent {
+      color: #ffb488;
+      background-image: linear-gradient(180deg, transparent 70%, rgba(255, 204, 142, 0.24) 70%, rgba(255, 204, 142, 0.24) 94%, transparent 94%);
+    }
+
+    .method-lead {
+      border-left-color: rgba(238, 184, 110, 0.8);
+      color: rgba(219, 242, 239, 0.72);
+    }
+
+    .method-card {
+      border-color: rgba(158, 226, 224, 0.18);
+      background: linear-gradient(160deg, rgba(17, 64, 78, 0.92), rgba(7, 38, 49, 0.94));
+      box-shadow: 0 26px 60px -44px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(210, 248, 244, 0.06);
+    }
+
+    .method-card::before {
+      opacity: 0.22;
+      filter: blur(3px);
+    }
+
+    .method-card:hover {
+      border-color: rgba(158, 226, 224, 0.38);
+      box-shadow: 0 32px 70px -42px rgba(0, 0, 0, 0.9), 0 0 48px -24px rgba(120, 220, 218, 0.32);
+    }
+
+    .method-card:nth-child(1) {
+      --card-color: #6bd2d6;
+      --card-tint: rgba(107, 210, 214, 0.16);
+    }
+
+    .method-card:nth-child(2) {
+      --card-color: #ff9a74;
+      --card-tint: rgba(255, 154, 116, 0.15);
+    }
+
+    .method-card:nth-child(3) {
+      --card-color: #f2c477;
+      --card-tint: rgba(242, 196, 119, 0.15);
+    }
+
+    .method-card:nth-child(4) {
+      --card-color: #83dcbb;
+      --card-tint: rgba(131, 220, 187, 0.15);
+    }
+
+    .method-number {
+      box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.28);
+    }
+
+    .method-icon {
+      border-color: rgba(190, 240, 236, 0.3);
+    }
+
+    .method-card h3 {
+      color: #eefaf7;
+    }
+
+    .method-card p {
+      color: rgba(214, 240, 237, 0.72);
+    }
+
+    .method-en {
+      color: rgba(196, 230, 227, 0.58);
+    }
+
+    .format-panel {
+      border-color: rgba(158, 226, 224, 0.16);
+      background:
+        radial-gradient(circle at 100% 0%, rgba(255, 196, 132, 0.08), transparent 44%),
+        linear-gradient(155deg, rgba(14, 55, 68, 0.95), rgba(6, 33, 43, 0.97));
+      box-shadow: 0 32px 70px -50px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(200, 245, 240, 0.05);
+    }
+
+    .format-panel::after {
+      border-color: rgba(140, 220, 218, 0.18);
+    }
+
+    .format-kicker {
+      color: #ffb488;
+    }
+
+    .format-kicker .icon {
+      color: #ff9a74;
+    }
+
+    .format-intro h3 {
+      color: #eefaf7;
+    }
+
+    .format-intro p {
+      color: rgba(210, 238, 235, 0.68);
+    }
+
+    .format-option {
+      border-color: rgba(158, 226, 224, 0.12);
+      background: rgba(21, 72, 86, 0.55);
+    }
+
+    .format-option:nth-child(2) {
+      border-color: rgba(255, 154, 116, 0.16);
+      background: rgba(72, 47, 45, 0.3);
+    }
+
+    .format-icon {
+      color: #8adfe0;
+      background: rgba(8, 39, 50, 0.82);
+    }
+
+    .format-option:nth-child(2) .format-icon {
+      color: #ffb08a;
+    }
+
+    .format-option h4 {
+      color: #e9f8f4;
+    }
+
+    .format-option p {
+      color: rgba(205, 234, 231, 0.66);
+    }
+
+    .format-tag {
+      border-color: rgba(140, 220, 218, 0.24);
+      color: #a9e6e2;
+      background: rgba(8, 39, 50, 0.5);
+    }
+
+    .format-option:nth-child(2) .format-tag {
+      border-color: rgba(255, 170, 130, 0.24);
+      color: #ffbd9c;
+    }
+
+    .format-note {
+      color: rgba(196, 228, 225, 0.55);
+    }
+
+    .format-note .icon {
+      color: #f2c477;
+    }
+
+    /* ------------------------------- 深海页脚 ------------------------------- */
+
+    .footer {
+      margin-top: 0;
+      border-radius: 0;
+      border-top: 1px solid rgba(180, 235, 230, 0.1);
+      background:
+        radial-gradient(58rem 24rem at 50% -10%, rgba(120, 214, 212, 0.16), transparent 64%),
+        radial-gradient(40rem 26rem at 10% 30%, rgba(255, 190, 120, 0.06), transparent 66%),
+        linear-gradient(180deg, #062430 0%, #041b26 46%, #02131b 100%);
+    }
+
+    .footer::before {
+      opacity: 0.28;
+      background-image: radial-gradient(circle at 1px 1px, rgba(190, 240, 236, 0.14) 1px, transparent 0);
+      background-size: 30px 30px;
+    }
+
+    .footer::after {
+      background: radial-gradient(ellipse, rgba(120, 214, 212, 0.18), transparent 68%);
+    }
+
+    /* ------------------------------- 深海顶栏 ------------------------------- */
+
+    .site-header,
+    .site-header .brand-name,
+    .site-header .brand-role,
+    .site-header .site-nav a,
+    .site-header .site-nav a span {
+      transition:
+        background 0.35s ease,
+        border-color 0.35s ease,
+        box-shadow 0.35s ease,
+        color 0.35s ease;
+    }
+
+    .site-header.is-deep {
+      border-color: rgba(180, 235, 230, 0.12);
+      background: rgba(5, 30, 40, 0.78);
+      -webkit-backdrop-filter: blur(18px) saturate(115%);
+      backdrop-filter: blur(18px) saturate(115%);
+      box-shadow: 0 18px 42px -34px rgba(0, 0, 0, 0.9);
+    }
+
+    .site-header.is-deep .brand-name {
+      color: #effaf6;
+    }
+
+    .site-header.is-deep .brand-role {
+      color: rgba(210, 238, 235, 0.6);
+    }
+
+    .site-header.is-deep .brand-x {
+      color: #ffb08a;
+    }
+
+    .site-header.is-deep .brand-mark {
+      filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.4));
+    }
+
+    .site-header.is-deep .site-nav a {
+      color: rgba(224, 244, 242, 0.72);
+    }
+
+    .site-header.is-deep .site-nav a span {
+      color: rgba(140, 214, 214, 0.62);
+    }
+
+    .site-header.is-deep .site-nav a::after {
+      background: linear-gradient(90deg, #8adfe0, #ffb08a);
+    }
+
+    .site-header.is-deep .site-nav a:hover {
+      color: #ffd0a8;
+    }
+
+    .site-header.is-deep .header-cta {
+      color: #fff8ef;
+    }
+
+    /* ------------------------------- 小屏 ------------------------------- */
+
+    @media (max-width: 720px) {
+      .depth-scale {
+        display: none;
+      }
+
+      .depth-copy {
+        width: calc(100% - 44px);
+        grid-template-columns: 1fr;
+      }
+
+      .depth-line {
+        display: none;
+      }
+
+      .depth-text {
+        letter-spacing: 0.06em;
+      }
+    }
   </style>
 </head>
 <body id="top">
@@ -4751,7 +5247,7 @@
   <header class="site-header">
     <div class="container nav">
       <a class="brand" href="#top" aria-label="阮蔡顺，英语教学与心理视角，回到顶部">
-        <span class="brand-mark" aria-hidden="true"><img src="logo.svg?v=20261118b" alt=""></span>
+        <span class="brand-mark" aria-hidden="true"><img src="logo.svg?v=20261118c" alt=""></span>
         <span class="brand-copy">
           <span class="brand-name">阮蔡顺</span>
           <span class="brand-role">英语教学 <span class="brand-x">×</span> 心理视角</span>
@@ -5049,6 +5545,28 @@
     </section>
 
     <!-- ======================================================================
+         Depth transition · 由波光层下潜深海
+         ====================================================================== -->
+    <div class="depth-pass" aria-hidden="true">
+      <svg class="depth-waves" viewBox="0 0 1440 260" preserveAspectRatio="none" focusable="false">
+        <path d="M-40 46c120-16 240-16 360 0s240 16 360 0 240-16 360 0 240 16 360 0 240-16 360 0" stroke-opacity=".4"/>
+        <path d="M-40 108c140-18 280-18 420 0s280 18 420 0 280-18 420 0 280 18 420 0" stroke-opacity=".28"/>
+        <path d="M-40 172c120-14 240-14 360 0s240 14 360 0 240-14 360 0 240 14 360 0 240-14 360 0" stroke-opacity=".18"/>
+        <path d="M-40 226c150-16 300-16 450 0s300 16 450 0 300-16 450 0 300 16 450 0" stroke-opacity=".1"/>
+      </svg>
+      <div class="depth-scale">
+        <span>5 m</span>
+        <span>20 m</span>
+        <span>40 m</span>
+      </div>
+      <p class="depth-copy">
+        <span class="depth-line"></span>
+        <span class="depth-text">向更深处，海会安静下来。<em>Into the quiet deep</em></span>
+        <span class="depth-line"></span>
+      </p>
+    </div>
+
+    <!-- ======================================================================
          Method
          ====================================================================== -->
     <section class="method" id="method" aria-labelledby="method-title">
@@ -5304,9 +5822,18 @@
         year.textContent = new Date().getFullYear();
       }
 
+      const deepZone = document.querySelector('.depth-pass');
+
       const updateHeader = () => {
-        if (header) {
-          header.classList.toggle('is-scrolled', window.scrollY > 14);
+        if (!header) {
+          return;
+        }
+
+        header.classList.toggle('is-scrolled', window.scrollY > 14);
+
+        if (deepZone) {
+          const trigger = deepZone.getBoundingClientRect().top;
+          header.classList.toggle('is-deep', trigger <= header.offsetHeight + 28);
         }
       };
 
