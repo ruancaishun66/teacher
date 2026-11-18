@@ -1551,6 +1551,43 @@
       line-height: 1.8;
     }
 
+    .alias-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 12px;
+      max-height: 150px;
+      overflow: auto;
+    }
+
+    .alias-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--blue-soft);
+      color: var(--ink);
+      font-size: 0.66rem;
+    }
+
+    .alias-chip button {
+      border: 0;
+      padding: 0;
+      background: none;
+      color: var(--red);
+      font-size: 0.8rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .alias-empty {
+      margin-top: 10px;
+      color: var(--ink-soft);
+      font-size: 0.68rem;
+    }
+
     .storage-bar {
       height: 9px;
       margin-top: 14px;
@@ -2389,6 +2426,20 @@
           </article>
 
           <article class="settings-card">
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-database"/></svg>U 盘工作区</h2>
+            <p>把 U 盘插在电脑上，选一次里面的文件夹（例如 D:\顺势工作台）。以后下载 Word、导出备份时，可以自动再存一份到 U 盘。</p>
+            <p id="usb-status" class="form-note">尚未选择 U 盘文件夹。</p>
+            <div class="check-grid">
+              <label class="check-line"><input id="usb-mirror" type="checkbox"> 下载 Word / 导出备份时同时存到 U 盘</label>
+            </div>
+            <div class="settings-actions">
+              <button class="btn btn-outline" type="button" data-action="pick-usb">选择 U 盘文件夹</button>
+              <button class="btn btn-primary" type="button" data-action="backup-usb">备份到 U 盘</button>
+            </div>
+            <p class="form-note">只支持电脑版 Chrome / Edge。手机浏览器不能直接写 U 盘，请用「导出备份」再手动拷过去。</p>
+          </article>
+
+          <article class="settings-card">
             <h2><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg>水印与默认年级</h2>
             <p>生成的整理版和练习卷会带上这行水印。默认年级用于自动分类时没有识别到年级的资料。</p>
             <div class="field">
@@ -2406,6 +2457,26 @@
             </div>
             <div class="settings-actions">
               <button class="btn btn-blue" type="button" data-action="save-settings">保存设置</button>
+            </div>
+          </article>
+
+          <article class="settings-card">
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>题型识别库</h2>
+            <p>内置规则之外，可以把各地模拟卷的冷门叫法加进来。导入时先认这里的别名，再走固定规则；豆包精排分题后也会自动记进来。</p>
+            <div class="alias-list" id="alias-list" aria-live="polite"></div>
+            <div class="form-row">
+              <div class="field">
+                <label for="alias-input">新别名</label>
+                <input class="input" id="alias-input" type="text" maxlength="16" placeholder="例如：阅读还原">
+              </div>
+              <div class="field">
+                <label for="alias-type">归到题型</label>
+                <select class="select" id="alias-type"></select>
+              </div>
+            </div>
+            <div class="settings-actions">
+              <button class="btn btn-outline" type="button" data-action="add-alias">加入识别库</button>
+              <button class="btn btn-ghost" type="button" data-action="seed-aliases">恢复推荐别名</button>
             </div>
           </article>
 
@@ -2497,6 +2568,7 @@
               <li>入库前会自动清理重复页眉页脚、页码、题库网址、扫描软件水印和符号噪点，生成练习时还会再清一次。清理不彻底时，可在资料编辑里手动删掉那几行。</li>
               <li>整本一百多页的扫描卷不建议一次上传。先在设置里把「扫描 PDF 最多识别页数」设为 8–12 页，或把需要用的几页截图后上传。</li>
               <li>OCR 是机器识别，题号、引号和易混字母（l/I、0/O）可能出错。入库后点资料卡上的「修改」核对一遍，准确率会高很多。</li>
+              <li>如果提取出来题号、选项、大题标题粘成一团，点资料卡上的「豆包精排」图标：复制提示词给豆包，让它只调整换行和分段，再把整理稿整段粘回来，系统会按新稿一道一道重新拆题。</li>
               <li>旧版 .doc 会完整存档，但不能自动提取文字；用 Word 另存为 .docx 最稳。</li>
             </ul>
           </article>
@@ -2507,6 +2579,7 @@
             <ul>
               <li><strong>语法填空、短文填空、短文填词、语篇填空、首字母填空、选词填空已经合并为同一类「语法填空」</strong>，不会再因为叫法不同被拆成两个大题；出卷时若原卷写的是「完成句子」「选词填空」或「首字母填空」，大题标题会跟着原卷走，不会一律印成「语法填空」。</li>
               <li>识别不准时，点资料卡右侧的铅笔图标，修改题型、年级、标签和正文，保存后会重新拆题。</li>
+              <li>遇到新的大题叫法（例如「阅读还原」「词汇运用」「看图写话」），豆包精排后会把它记进「设置 → 题型识别库」；以后同类卷子直接就能认出来。也可以手动添加别名。</li>
               <li>每道题会自动给出 1–10 级难度，依据包括词汇长度与难度、平均句长、长难句、从句、非谓语、被动语态、空格数量和题型；资料卡和答案区会同时显示对应的 ★–★★★★★ 星级。</li>
               <li>系统会从文件名、卷头和正文自动判断初中/高中；也可以在资料库顶部按「初中 / 高中」筛选，或在编辑资料时手动改年级。</li>
             </ul>
@@ -2558,6 +2631,7 @@
             <ul>
               <li>资料只保存在当前浏览器的 IndexedDB 里，不会上传到 GitHub 或任何服务器。</li>
               <li>换电脑、换浏览器、清理浏览器数据，资料都会消失。请在「设置」里每周导出一次 ZIP 备份。</li>
+              <li>「设置 → U 盘工作区」可以把常插着的 U 盘设为中转站：选中一次后，之后下载的 Word 和导出的备份会自动复制一份到 U 盘；也可以点「备份到 U 盘」立刻存一份。U 盘没插时不影响正常使用。</li>
               <li>导入备份会覆盖当前资料库，操作前会再次确认。</li>
               <li>手机端同样可以使用：上传、生成、预览、下载都适配了窄屏；表格和长卷子建议横屏或下载后查看。</li>
               <li>如果浏览器提示存储空间不足，先导出备份，再删除不再使用的资料；也可以点「申请长期保存」降低被自动清理的概率。</li>
@@ -2568,7 +2642,8 @@
             <h2><span class="num">7</span>常见问题</h2>
             <ul>
               <li><strong>扫描 PDF 识别很慢？</strong> OCR 在浏览器里跑，第一页要加载语言包。把页数限制调小，或只上传需要用的几页。</li>
-              <li><strong>题目被拆错？</strong> 打开资料编辑，把正文整理成「题号 + 题干 + 选项」的清晰格式，保存后会重新拆题。题号建议每行一个。</li>
+              <li><strong>题目被拆错？</strong> 先点资料卡上的「豆包精排」，让豆包只整理换行和分段；实在不行再打开资料编辑，手动把正文整理成「题号 + 题干 + 选项」，保存后会重新拆题。</li>
+              <li><strong>豆包精排会改题目内容吗？</strong> 提示词明确要求只动换行和分段，不改写、不增删。应用后仍建议扫一眼；原始文件一直保留，可随时下载。</li>
               <li><strong>答案区显示「—」？</strong> 说明原资料没有附答案，或答案不在同一份文件里。用「豆包解析」补齐即可。</li>
               <li><strong>Word 打开后版式有偏差？</strong> .doc 是 HTML 兼容格式，Word 会按自己的规则重排。打印前在 Word 里检查分页；需要完全固定的版式时，用「导出 PDF」。</li>
               <li><strong>能自动调用豆包 API 吗？</strong> 当前版本故意不把 API Key 写进静态网页，避免泄露。使用复制/粘贴工作流最安全；如果你之后有自己的服务器，可以再接 API。</li>
@@ -2682,6 +2757,36 @@
       <div class="dialog-actions">
         <button class="btn btn-ghost" type="submit" value="cancel">取消</button>
         <button class="btn btn-primary" type="submit" value="apply" id="ai-apply">应用到练习</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="app-dialog" id="split-dialog">
+    <form class="dialog-form" id="split-form" method="dialog">
+      <div class="dialog-head">
+        <h2 id="split-title">豆包精排 · 一道一道分开</h2>
+        <button class="dialog-close" type="submit" value="cancel" aria-label="关闭">×</button>
+      </div>
+      <p class="ai-hint" style="margin-top: 0;">本地分题不准时，用这一步：先把提示词复制到豆包，让它只整理换行和分段；再把结果整段粘贴回来。</p>
+      <div class="field">
+        <label for="split-prompt">提示词（点“复制提示词”，粘贴到豆包）</label>
+        <textarea class="ai-prompt" id="split-prompt" rows="8" readonly></textarea>
+      </div>
+      <div class="settings-actions" style="margin-top: 8px;">
+        <button class="btn btn-outline" type="button" data-action="copy-split-prompt">
+          <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
+          复制分题提示词
+        </button>
+        <span class="ai-hint">提示词只包含这份资料，不会自动发送。</span>
+      </div>
+      <div class="field">
+        <label for="split-result">豆包返回的整理稿（粘贴到这里）</label>
+        <textarea class="ai-paste" id="split-result" rows="11" placeholder="把豆包整理后的完整试卷正文粘贴到这里…"></textarea>
+      </div>
+      <p class="ai-hint" id="split-note">应用后会按新稿重新拆题；原始文件仍完整保留，可随时下载。</p>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" type="submit" value="cancel">取消</button>
+        <button class="btn btn-primary" type="button" data-action="apply-split" id="split-apply">应用并重新分题</button>
       </div>
     </form>
   </dialog>

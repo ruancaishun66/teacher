@@ -132,6 +132,44 @@
     listening: ['听力理解', '听力', 'listening']
   };
 
+  // 识别库的“推荐别名”。各地模拟卷的叫法差别很大，先把常见的收进来；
+  // 老师还可以在设置里继续添加，导入时优先按识别库匹配。
+  const RECOMMENDED_SECTION_ALIASES = [
+    { alias: '单项选择', type: 'single' },
+    { alias: '单项填空', type: 'single' },
+    { alias: '选择填空', type: 'single' },
+    { alias: '语法选择', type: 'single' },
+    { alias: '完形填空', type: 'cloze' },
+    { alias: '完型填空', type: 'cloze' },
+    { alias: '阅读理解', type: 'reading' },
+    { alias: '任务型阅读', type: 'reading' },
+    { alias: '阅读表达', type: 'reading' },
+    { alias: '回答问题', type: 'reading' },
+    { alias: '五选五', type: 'five' },
+    { alias: '七选五', type: 'five' },
+    { alias: '阅读还原', type: 'five' },
+    { alias: '阅读填句', type: 'five' },
+    { alias: '补全短文', type: 'five' },
+    { alias: '信息匹配', type: 'five' },
+    { alias: '语法填空', type: 'grammar' },
+    { alias: '短文填空', type: 'grammar' },
+    { alias: '短文填词', type: 'grammar' },
+    { alias: '语篇填空', type: 'grammar' },
+    { alias: '首字母填空', type: 'grammar' },
+    { alias: '选词填空', type: 'grammar' },
+    { alias: '单词拼写', type: 'grammar' },
+    { alias: '词汇运用', type: 'grammar' },
+    { alias: '完成句子', type: 'grammar' },
+    { alias: '情景交际', type: 'dialogue' },
+    { alias: '补全对话', type: 'dialogue' },
+    { alias: '完成对话', type: 'dialogue' },
+    { alias: '看图写话', type: 'picture' },
+    { alias: '看图作文', type: 'picture' },
+    { alias: '书面表达', type: 'writing' },
+    { alias: '应用文写作', type: 'writing' },
+    { alias: '读后续写', type: 'writing' }
+  ];
+
   const CN_NUMS = {
     '零': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4,
     '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10
@@ -155,7 +193,7 @@
   };
 
   // 题组缓存的结构版本。答案解析规则升级后，首次打开会自动重建旧资料的题组。
-  const PARSER_VERSION = 13;
+  const PARSER_VERSION = 14;
 
   const DEFAULT_SETTINGS = {
     watermark: DEFAULT_WATERMARK,
@@ -168,7 +206,9 @@
     ocrEnabled: true,
     ocrLang: 'eng+chi_sim',
     ocrPdfPages: OCR_PDF_PAGE_LIMIT,
-    showDifficulty: true
+    showDifficulty: true,
+    usbMirror: false,
+    sectionAliases: []
   };
 
   /* ------------------------------------------------------------------------
@@ -195,6 +235,9 @@
     samplesBusy: false,
     ocrProgress: null,
     aiDialogMode: 'analysis',
+    aiSplitId: null,
+    sectionAliases: [],
+    usbHandle: null,
     wordDictionary: null,
     dictionaryPromise: null,
     ocrWorker: null,
@@ -295,6 +338,7 @@
     link.click();
     link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 8000);
+    mirrorBlobToUsb(blob, filename);
   }
 
   function debounce(fn, wait = 150) {
@@ -333,13 +377,23 @@
     return count;
   }
 
-  function toDisplayText(text) {
+  function repairEnglishSpacing(text) {
+    // PDF / OCR 常把句号、逗号后的空格吃掉，出现 “word.Wearing”“bird,Help”。
+    // 只在“两个字母以上的英文单词 + 标点 + 大写字母”时补空格，避免破坏
+    // U.S.A、e.g.、小数和网址。只影响可读性，不改动题目内容。
     return String(text || '')
+      .replace(/([a-z]{2})([.!?])([A-Z][a-z])/g, '$1$2 $3')
+      .replace(/([a-z])([,;:])([A-Za-z])/g, '$1$2 $3')
+      .replace(/([”"])([A-Z][a-z])/g, '$1 $2');
+  }
+
+  function toDisplayText(text) {
+    return repairEnglishSpacing(String(text || '')
       .replace(/\r\n?/g, '\n')
       .replace(/ /g, ' ')
       .replace(/[ \t]+\n/g, '\n')
       .replace(/\n{4,}/g, '\n\n\n')
-      .trim();
+      .trim());
   }
 
   /* ------------------------- 导入文字清理 ------------------------- */
@@ -668,6 +722,24 @@
     return text.replace(/\s+/g, ' ').trim();
   }
 
+  function normalizeStemText(text) {
+    // PDF 的每一行都会硬换行。题干如果原样保留这些换行，印出来就会一行一截，
+    // 像被剪碎一样。这里把软换行并回一段；对话、短诗句和表格行则保留分行。
+    const source = String(text || '').replace(/\r\n?/g, '\n').trim();
+    if (!source) return '';
+    return source.split(/\n{2,}/).map((block) => {
+      const lines = block.split('\n').map((line) => line.trim()).filter(Boolean);
+      if (!lines.length) return '';
+      if (lines.length === 1) return lines[0];
+      const dialogue = lines.every((line) => /^(?:[-–—]|(?:A|B|M|W|Man|Woman|Mr|Ms|Mrs|Dr)\s*[:：.])/.test(line));
+      const poetic = lines.length >= 3
+        && lines.every((line) => line.length <= 58)
+        && lines.filter((line) => /[.!?。！？]$/.test(line)).length <= 1;
+      if (dialogue || poetic) return lines.join('\n');
+      return lines.join(' ').replace(/\s{2,}/g, ' ').trim();
+    }).filter(Boolean).join('\n');
+  }
+
   function extractQuestionOptions(block) {
     const source = normalizeEnglish(block);
     const marker = /(?:^|[\s\n])([A-E])[.、．)）]\s*/g;
@@ -695,8 +767,8 @@
       if (item.letter === expected) starts.push(item);
       else broken = true;
     });
-    if (starts.length < 2) return { stem: source.trim(), options: [] };
-    const stem = source.slice(0, starts[0].start).trim();
+    if (starts.length < 2) return { stem: normalizeStemText(source), options: [] };
+    const stem = normalizeStemText(source.slice(0, starts[0].start));
     const options = starts.map((item, index) => {
       const end = index + 1 < starts.length ? starts[index + 1].start : source.length;
       return {
@@ -1555,6 +1627,168 @@
     }
   }
 
+  function buildSplitPrompt(material) {
+    const body = cleanImportedText(material.body || material.text || '').text;
+    return [
+      '你是英语试卷排版助手。下面是一份试卷的文字提取稿，PDF 或 OCR 把很多行粘在了一起。',
+      '请只做“分题、分段、换行”，不要改写、不要增删、不要补写任何题目内容。',
+      '',
+      '必须遵守：',
+      '1. 每个大题标题单独占一行，例如“一、单项选择”“二、完形填空”“三、阅读理解”。',
+      '2. 每道小题的题号单独起行，题号和题干之间空一格；下一题绝不能粘在上一题的选项后面。',
+      '3. 每个选项 A. B. C. D. 单独占一行，不要和题干或下一篇短文粘在一起。',
+      '4. 阅读理解每篇的篇目标签 A/B/C/D 单独占一行；文章每个自然段之间空一行。',
+      '5. 完形填空、语法填空、五选五的短文保持完整，空格用 ______ 表示，题号保留。',
+      '6. 表格改成逐行文字，每行写“项目：内容”，不要把表格挤成一句话。',
+      '7. 原文里的中文说明、分值、括号提示都保留。',
+      '8. 只输出整理后的试卷正文，不要解释，不要加“以下是整理稿”，不要用 Markdown 代码块。',
+      '',
+      `【试卷标题】${material.title || '未命名'}`,
+      `【年级】${material.grade || '未标注'}`,
+      `【题型】${typeLabel(material.type)}`,
+      '',
+      '【试卷正文】',
+      body
+    ].join('\n');
+  }
+
+  function openSplitDialog(id) {
+    const material = findMaterial(id);
+    if (!material) return;
+    const dialog = $('#split-dialog');
+    if (!dialog) return;
+    state.aiSplitId = id;
+    const title = $('#split-title');
+    const prompt = $('#split-prompt');
+    const result = $('#split-result');
+    const note = $('#split-note');
+    if (title) title.textContent = `豆包精排 · ${material.title}`;
+    if (prompt) prompt.value = buildSplitPrompt(material);
+    if (result) {
+      result.value = '';
+      result.placeholder = '把豆包整理后的完整试卷正文粘贴到这里。只调整换行和分段，题目内容应与原文一致。';
+    }
+    if (note) note.textContent = '应用后会按新稿重新拆题；原始文件仍完整保留，可随时下载。分题结果会同时记入识别库。';
+    if (!dialog.open) dialog.showModal();
+  }
+
+  async function copySplitPrompt() {
+    const prompt = $('#split-prompt');
+    if (!prompt || !prompt.value.trim()) {
+      toast('当前没有可复制的提示词。', 'error');
+      return;
+    }
+    try {
+      await copyText(prompt.value);
+      toast('分题提示词已复制，去豆包粘贴即可。');
+    } catch (error) {
+      console.error(error);
+      toast('复制失败，请手动全选提示词复制。', 'error');
+    }
+  }
+
+  function stripResultFence(text) {
+    return String(text || '')
+      .replace(/^\s*```(?:text|markdown|md)?\s*/i, '')
+      .replace(/\s*```\s*$/i, '')
+      .trim();
+  }
+
+  function cleanHeadingAlias(heading) {
+    return String(heading || '')
+      .replace(/^\s*(?:第[一二三四五六七八九十]+部分(?:\s*[（(][^）)]{0,24}[）)])?\s*)?/, '')
+      .replace(/^\s*(?:[一二三四五六七八九十]+|[ⅠⅡⅢⅣⅤⅥ]|[IVX]+)\s*[、.．:：]\s*/, '')
+      .replace(/[（(][^）)]{0,30}[）)]\s*$/, '')
+      .replace(/[，,。;；].*$/, '')
+      .replace(/\s+/g, '')
+      .trim()
+      .slice(0, 16);
+  }
+
+  async function learnSectionAliases(sections) {
+    if (!Array.isArray(sections) || !sections.length) return 0;
+    const aliases = Array.isArray(state.sectionAliases) ? state.sectionAliases.slice() : [];
+    const seen = new Set(aliases.map((entry) => `${entry.alias}|${entry.type}`));
+    let added = 0;
+    sections.forEach((section) => {
+      const alias = cleanHeadingAlias(section.heading || '');
+      const type = normalizeType(section.type);
+      if (!alias || alias.length < 2 || alias.length > 12) return;
+      if (!TYPES[type] || type === 'paper' || type === 'other') return;
+      // 太笼统的词不作为别名，否则会把普通正文误判成新大题。
+      if (/^(阅读|写作|选择|填空|试题|试卷|英语|部分)$/.test(alias)) return;
+      const key = `${alias}|${type}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      aliases.push({ alias, type });
+      added += 1;
+    });
+    if (added) {
+      state.sectionAliases = aliases.slice(-160);
+      state.settings.sectionAliases = state.sectionAliases;
+      await saveSetting('sectionAliases', state.sectionAliases);
+      renderAliasLibrary();
+    }
+    return added;
+  }
+
+  async function applySplitResult() {
+    const material = findMaterial(state.aiSplitId);
+    if (!material) return;
+    const result = $('#split-result');
+    if (!result || !result.value.trim()) {
+      toast('还没有粘贴豆包整理稿。', 'error');
+      return;
+    }
+    let text = stripResultFence(result.value);
+    // 豆包偶尔会在正文前加一句“以下是整理稿：”，从第一个大题标题或题号开始截取。
+    const startMatch = text.match(/(?:^|\n)\s*(?:[一二三四五六七八九十]+、|第[一二三四五六七八九十]+部分|(?:\d{1,3})\s*[.、．)）]\s*[A-Za-z“"(])/);
+    if (startMatch && startMatch.index > 0) text = text.slice(startMatch.index).trim();
+    text = cleanImportedText(toDisplayText(text)).text;
+    text = toDisplayText(normalizePaperLayout(text));
+    if (text.length < 20) {
+      toast('整理稿内容太短，没有保存。请把豆包返回的完整正文粘贴进来。', 'error', 6000);
+      return;
+    }
+    const split = splitAnswerSection(text);
+    const body = toDisplayText(normalizePaperLayout(split.body));
+    const addedAnswers = toDisplayText(split.answers);
+    const answers = [material.answers, addedAnswers].filter(Boolean).join('\n\n');
+    const updated = {
+      ...material,
+      text,
+      body,
+      answers,
+      note: unique([material.note, '已用豆包精排重新分题。']).join(' '),
+      parser: 'doubao-split',
+      updatedAt: nowIso()
+    };
+    delete updated.processedBlob;
+    delete updated.processedSize;
+    const items = buildItemsForMaterial(updated);
+    if (!items.length) {
+      toast('这份整理稿没有识别出题目，暂未覆盖原资料。请检查豆包是否保留了题号和大题标题。', 'error', 7600);
+      return;
+    }
+    updated.questionCount = items.length;
+    updated.processedBlob = makeMaterialBlob(updated);
+    updated.processedSize = updated.processedBlob ? updated.processedBlob.size : 0;
+    try {
+      const learned = await learnSectionAliases(detectExamSections(body));
+      await saveMaterialWithItems(updated, items);
+      await reloadAndRender();
+      const unit = items.length === 1 && updated.type === 'single' ? '道' : '组';
+      toast(`已按豆包整理稿重新分为 ${items.length} ${unit}${learned ? `，识别库新增 ${learned} 个题型别名` : ''}。`, 'ok', 6000);
+      state.aiSplitId = null;
+      const dialog = $('#split-dialog');
+      if (dialog && dialog.open) dialog.close();
+      go('library');
+    } catch (error) {
+      console.error(error);
+      toast(`保存失败：${error.message || error}`, 'error');
+    }
+  }
+
   function parseAnalysisAnswers(text) {
     const map = {};
     const source = String(text || '').replace(/\r\n?/g, '\n');
@@ -1956,6 +2190,10 @@
       if (record && record.key) settings[record.key] = record.value;
     });
     state.settings = settings;
+    state.sectionAliases = Array.isArray(settings.sectionAliases)
+      ? settings.sectionAliases.filter((entry) => entry && entry.alias && TYPES[entry.type])
+      : [];
+    state.usbHandle = settings.usbDirectory || null;
   }
 
   async function saveSetting(key, value) {
@@ -1983,9 +2221,9 @@
     for (const material of state.materials) {
       if (!material) continue;
       // 顺带清理旧版本已经存进去的页眉、页脚、水印和页码。
-      const cleanedBody = cleanImportedText(material.body || '').text;
+      const cleanedBody = normalizePaperLayout(cleanImportedText(material.body || '').text);
       const cleanedAnswers = cleanImportedText(material.answers || '').text;
-      const cleanedText = cleanImportedText(material.text || '').text;
+      const cleanedText = normalizePaperLayout(cleanImportedText(material.text || '').text);
       if (cleanedBody) material.body = cleanedBody;
       if (cleanedAnswers) material.answers = cleanedAnswers;
       if (cleanedText) material.text = cleanedText;
@@ -2090,6 +2328,7 @@
   function populateTypeSelects() {
     populateTypeSelect($('#edit-type'));
     populateTypeSelect($('#paste-type'));
+    populateTypeSelect($('#alias-type'));
     const filter = $('#filter-type');
     if (filter) {
       filter.innerHTML = `<option value="">全部题型</option>${Object.entries(TYPES)
@@ -2159,6 +2398,88 @@
     if (ocrLang) ocrLang.value = state.settings.ocrLang === 'eng' ? 'eng' : 'eng+chi_sim';
     const ocrPages = $('#ocr-pages');
     if (ocrPages) ocrPages.value = String(state.settings.ocrPdfPages || OCR_PDF_PAGE_LIMIT);
+    const usbMirror = $('#usb-mirror');
+    if (usbMirror) usbMirror.checked = state.settings.usbMirror === true;
+    renderAliasLibrary();
+    renderUsbStatus();
+  }
+
+  function renderAliasLibrary() {
+    const container = $('#alias-list');
+    if (!container) return;
+    const aliases = Array.isArray(state.sectionAliases) ? state.sectionAliases : [];
+    if (!aliases.length) {
+      container.innerHTML = '<p class="alias-empty">识别库还是空的。点“恢复推荐别名”可载入各地常见叫法。</p>';
+      return;
+    }
+    container.innerHTML = aliases.map((entry) => {
+      const label = (TYPES[entry.type] || {}).short || entry.type;
+      return `<span class="alias-chip">${escapeHtml(entry.alias)}<small>· ${escapeHtml(label)}</small>` +
+        `<button type="button" data-action="delete-alias" data-alias="${escapeAttr(entry.alias)}" data-type="${escapeAttr(entry.type)}" aria-label="删除别名">×</button></span>`;
+    }).join('');
+  }
+
+  function renderUsbStatus() {
+    const status = $('#usb-status');
+    if (!status) return;
+    if (!state.usbHandle) {
+      status.textContent = typeof window.showDirectoryPicker === 'function'
+        ? '尚未选择 U 盘文件夹。'
+        : '当前浏览器不支持直接写 U 盘，请用电脑版 Chrome / Edge。';
+      return;
+    }
+    status.textContent = `已选择：${state.usbHandle.name || 'U 盘文件夹'}。下载时可在浏览器里另存，也会按开关自动存一份到这里。`;
+  }
+
+  async function addSectionAlias() {
+    const input = $('#alias-input');
+    const select = $('#alias-type');
+    const alias = String(input ? input.value : '').trim().replace(/\s+/g, '');
+    const type = select ? select.value : '';
+    if (!alias || alias.length < 2) {
+      toast('别名至少写两个字，例如“阅读还原”。', 'error');
+      return;
+    }
+    if (!TYPES[type] || type === 'paper') {
+      toast('请先选择归到哪个题型。', 'error');
+      return;
+    }
+    const exists = (state.sectionAliases || []).some((entry) => entry.alias === alias && entry.type === type);
+    if (exists) {
+      toast('这个别名已经在识别库里了。');
+      return;
+    }
+    state.sectionAliases = [...(state.sectionAliases || []), { alias, type }].slice(-160);
+    state.settings.sectionAliases = state.sectionAliases;
+    await saveSetting('sectionAliases', state.sectionAliases);
+    if (input) input.value = '';
+    renderAliasLibrary();
+    toast(`已把「${alias}」记入识别库。`);
+  }
+
+  async function deleteSectionAlias(alias, type) {
+    state.sectionAliases = (state.sectionAliases || []).filter((entry) => !(entry.alias === alias && entry.type === type));
+    state.settings.sectionAliases = state.sectionAliases;
+    await saveSetting('sectionAliases', state.sectionAliases);
+    renderAliasLibrary();
+  }
+
+  async function seedSectionAliases() {
+    state.sectionAliases = Array.isArray(state.sectionAliases) ? state.sectionAliases.slice() : [];
+    const existing = new Set((state.sectionAliases || []).map((entry) => `${entry.alias}|${entry.type}`));
+    let added = 0;
+    RECOMMENDED_SECTION_ALIASES.forEach((entry) => {
+      const key = `${entry.alias}|${entry.type}`;
+      if (existing.has(key)) return;
+      existing.add(key);
+      state.sectionAliases.push({ ...entry });
+      added += 1;
+    });
+    state.sectionAliases = state.sectionAliases.slice(-160);
+    state.settings.sectionAliases = state.sectionAliases;
+    await saveSetting('sectionAliases', state.sectionAliases);
+    renderAliasLibrary();
+    toast(added ? `已载入 ${added} 个推荐别名。` : '推荐别名已经都在识别库里了。');
   }
 
   /* ------------------------------------------------------------------------
@@ -2335,7 +2656,7 @@
 
     text = toDisplayText(text);
     const cleaning = cleanImportedText(text, { fileName: file.name });
-    text = cleaning.text;
+    text = toDisplayText(normalizePaperLayout(cleaning.text));
     if (cleaning.removed > 0) {
       extractionNote = [extractionNote, `已清理 ${cleaning.removed} 行页眉、页脚、水印或扫描噪点。`]
         .filter(Boolean)
@@ -2956,6 +3277,14 @@
     for (const [type, pattern] of SECTION_TITLE_RULES) {
       if (pattern.test(head)) return type;
     }
+    // 老师自己在识别库里加的别名优先于固定规则，方便各地模拟卷的冷门叫法。
+    const custom = (state.sectionAliases || [])
+      .filter((entry) => entry && entry.alias && TYPES[entry.type] && entry.type !== 'paper')
+      .slice()
+      .sort((a, b) => b.alias.length - a.alias.length);
+    for (const entry of custom) {
+      if (body.startsWith(entry.alias) || head.startsWith(entry.alias)) return entry.type;
+    }
     if (/阅读下面短文[，,]?\s*从短文后所给的(?:五个|七个)选项/.test(head)) return 'five';
     if (/阅读下面短文[，,]?\s*在空白处填入/.test(head)) return 'grammar';
     if (/根据每题所提供的图画情景/.test(head)) return 'picture';
@@ -2966,6 +3295,19 @@
   function isInstructionOnlyHeading(line) {
     const text = String(line || '').trim();
     return /^(?:阅读下面短文[，,]?\s*(?:从短文后所给的(?:五个|七个)选项|在空白处填入)|根据每题所提供的图画情景|根据情景[，,]?\s*用恰当的)/.test(text);
+  }
+
+  const PAPER_TYPE_WORDS = '单项选择|单项填空|选择填空|语法选择|完形填空|完型填空|阅读理解|任务型阅读|阅读还原|阅读填句|补全短文|信息匹配|五选五|七选五|语法填空|短文填空|短文填词|语篇填空|首字母填空|选词填空|单词拼写|词汇运用|完成句子|情景交际|补全对话|完成对话|看图写话|看图作文|书面表达|应用文写作|读后续写|听力理解|听力测试';
+
+  function normalizePaperLayout(text) {
+    // 有些 PDF 把“二、完形填空”粘在上一题的选项后面，整段因此识别不到大题。
+    // 只在“已知题型词”前面补换行，不碰普通正文，避免把文章拆碎。
+    const source = String(text || '').replace(/\r\n?/g, '\n');
+    const heading = `(?:第[一二三四五六七八九十]+部分(?:\\s*[（(][^）)\\n]{0,24}[）)])?|[一二三四五六七八九十]+、|\\b(?:I{1,3}|IV|V|VI{0,3}|[ⅠⅡⅢⅣⅤⅥ])\\s*[.、．])\\s*(?:${PAPER_TYPE_WORDS})`;
+    return source
+      .replace(new RegExp(`([^\\n])([ \\t]*)(?=${heading})`, 'g'), '$1\n')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{4,}/g, '\n\n\n');
   }
 
   function detectExamSections(text) {
@@ -3379,7 +3721,7 @@
     const sourceAnswer = answerMap && answerMap[block.number] ? answerMap[block.number] : {};
     return {
       number: block.number,
-      stem: block.stem || '',
+      stem: normalizeStemText(block.stem || ''),
       options: (block.options || []).map((option) => ({ letter: option.letter, text: option.text })),
       skill,
       difficulty: difficulty.level,
@@ -4300,9 +4642,10 @@
       const cells = [];
       for (let index = 0; index < columns; index += 1) {
         const option = row[index];
+        const width = (100 / columns).toFixed(4);
         cells.push(option
-          ? `<td><span class="option-letter">${escapeHtml(option.letter)}.</span> ${escapeHtml(option.text)}</td>`
-          : '<td></td>');
+          ? `<td style="width:${width}%"><span class="option-letter">${escapeHtml(option.letter)}.</span> ${escapeHtml(option.text)}</td>`
+          : `<td style="width:${width}%"></td>`);
       }
       return `<tr>${cells.join('')}</tr>`;
     }).join('');
@@ -4311,13 +4654,23 @@
 
   function renderQuestionBlock(question, type) {
     const number = question.paperNumber || question.number;
-    const stem = String(question.stem || '').trim();
-    // 完形填空的小题题干为空，空格在短文里；这时不要再印一条空白横线。
-    const stemHtml = stem ? escapeHtml(stem).replace(/\n/g, '<br>') : '';
+    const stem = normalizeStemText(question.stem || '');
+    // 完形填空的小题题干为空，空格在短文里；这时只印题号和选项。
+    const stemBlocks = stem ? stem.split(/\n{2,}/).filter(Boolean) : [];
+    const stemHtml = stemBlocks.length
+      ? stemBlocks.map((block, index) => (
+        `<p class="question-stem">` +
+        `${index === 0 ? `<span class="question-number">${escapeHtml(number)}.</span> ` : ''}` +
+        `${escapeHtml(block).replace(/\n/g, '<br>')}</p>`
+      )).join('')
+      : `<p class="question-stem"><span class="question-number">${escapeHtml(number)}.</span></p>`;
     // 难度只放在答案与解析区，题面保持和正式试卷一样干净。
+    // Word 对 div 的 margin 支持不稳定，题末留一个很薄的空段落，
+    // 打印时就能稳定地把下一题或下一篇短文隔开。
     return `<div class="question-block">` +
-      `<div class="question-stem"><span class="question-number">${escapeHtml(number)}.</span>${stemHtml ? ` ${stemHtml}` : ''}</div>` +
+      stemHtml +
       renderOptionTable(question.options || []) +
+      `<p class="question-gap" aria-hidden="true">&nbsp;</p>` +
       `</div>`;
   }
 
@@ -4365,10 +4718,18 @@
 
   function renderChoiceBox(options) {
     if (!options.length) return '';
-    const cells = options.map((option) => (
-      `<div class="choice-box-item"><span class="option-letter">${escapeHtml(option.letter)}.</span> ${escapeHtml(option.text)}</div>`
-    )).join('');
-    return `<div class="choice-box">${cells}</div>`;
+    // 用两列表格而不是 inline-block：Word 对表格的支持最稳定，
+    // 五选五/七选五的 A–E 选项不会在导出后挤成一团。
+    const rows = [];
+    for (let index = 0; index < options.length; index += 2) {
+      const left = options[index];
+      const right = options[index + 1];
+      rows.push('<tr>' +
+        `<td>${left ? `<span class="option-letter">${escapeHtml(left.letter)}.</span> ${escapeHtml(left.text)}` : ''}</td>` +
+        `<td>${right ? `<span class="option-letter">${escapeHtml(right.letter)}.</span> ${escapeHtml(right.text)}` : ''}</td>` +
+        '</tr>');
+    }
+    return `<table class="choice-box" role="presentation"><tbody>${rows.join('')}</tbody></table>`;
   }
 
   function paperSectionLabel(section) {
@@ -4441,7 +4802,7 @@
         ? String(cleanPaperText(item.content || '')).replace(/^\s*\d{1,3}\s*[.、．)）]\s*/, `${paperNumber}. `)
         : cleanPaperText(item.content || '');
       return `<div class="writing-block">${renderParagraphs(promptText, 'writing-prompt')}` +
-        `<div class="writing-lines" aria-hidden="true">${'<i></i>'.repeat(12)}</div></div>`;
+        `<div class="writing-lines" aria-hidden="true">${'<p class="writing-line">&nbsp;</p>'.repeat(12)}</div></div>`;
     }
 
     const label = section.type === 'reading' ? passageLabelFor(item, index) : '';
@@ -4874,7 +5235,9 @@
       `<p class="exam-owner">${escapeHtml(state.settings.examOwner || BRAND_NAME)} · ${escapeHtml(BRAND_TAGLINE)}</p>` +
       `<h1><span class="exam-date">${escapeHtml(dateText)}</span> <span class="exam-name">${escapeHtml(examName)}</span></h1>` +
       `<p class="exam-sub">${grade}共 ${escapeHtml(questionTotal)} 小题${levelText}　·　建议用时 ______ 分钟</p>` +
-      `<div class="exam-fields"><span>姓名：<i></i></span><span>班级：<i></i></span><span>得分：<i></i></span></div>` +
+      `<table class="exam-fields" role="presentation"><tbody><tr>` +
+      `<td>姓名：<i></i></td><td>班级：<i></i></td><td>得分：<i></i></td>` +
+      `</tr></tbody></table>` +
       `</header>` +
       sections +
       buildAnswerSection(paper) +
@@ -4926,8 +5289,8 @@
       .exam-date { display: block; margin-bottom: 1px; color: #333; font-size: 10pt; font-weight: 400; letter-spacing: 0.1em; }
       .exam-name { display: block; margin-left: 0; font-size: 20pt; }
       .exam-sub { margin: 5px 0 0; color: #333; font-size: 9.5pt; }
-      .exam-fields { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 14mm; margin-top: 9px; font-size: 10pt; }
-      .exam-fields span { display: inline-flex; align-items: flex-end; gap: 2px; white-space: nowrap; }
+      .exam-fields { width: 100%; margin: 9px auto 0; border-collapse: collapse; table-layout: fixed; font-size: 10pt; }
+      .exam-fields td { padding: 0 2mm; text-align: center; white-space: nowrap; }
       .exam-fields i { display: inline-block; width: 28mm; border-bottom: 1px solid #111; height: 1.1em; }
 
       .exam-section { margin-top: 28px; }
@@ -4946,24 +5309,25 @@
 
       .question-block { margin-top: 16px; padding-bottom: 2px; break-inside: avoid; page-break-inside: avoid; }
       .passage-block + .question-block { margin-top: 13px; }
-      .question-stem { line-height: 1.8; text-align: left; }
+      .question-stem { margin: 0; line-height: 1.8; text-align: left; }
       .question-number { font-weight: 700; }
+      .question-gap { margin: 0; height: 4px; font-size: 4pt; line-height: 4pt; }
       .blank-line { display: inline-block; min-width: 55mm; border-bottom: 1px solid #111; height: 1em; }
       .option-table { width: 100%; margin: 4px 0 0 0; border-collapse: collapse; table-layout: fixed; }
-      .option-table td { padding: 2px 14px 2px 0; vertical-align: top; line-height: 1.7; }
+      .option-table td { padding: 2px 14px 2px 0; vertical-align: top; line-height: 1.7; word-break: break-word; }
       .option-table.cols-1 td { width: 100%; }
       .option-table.cols-2 td { width: 50%; }
       .option-table.cols-3 td { width: 33.333%; }
       .option-table.cols-4 td { width: 25%; }
       .option-letter { font-weight: 700; }
 
-      .choice-box { margin: 15px 0 4px; padding: 9px 12px; border: 1px solid #111; }
-      .choice-box-item { display: inline-block; width: 49%; padding: 2px 8px 2px 0; line-height: 1.65; vertical-align: top; }
+      .choice-box { width: 100%; margin: 15px 0 4px; border-collapse: collapse; table-layout: fixed; border: 1px solid #111; }
+      .choice-box td { width: 50%; padding: 5px 10px; vertical-align: top; line-height: 1.65; word-break: break-word; }
 
       .writing-block { margin-top: 15px; break-inside: avoid; page-break-inside: avoid; }
       .writing-prompt { margin: 0; line-height: 1.85; }
       .writing-lines { margin-top: 10px; }
-      .writing-lines i { display: block; height: 27px; border-bottom: 1px solid #b9b9b9; }
+      .writing-line { margin: 0; height: 27px; border-bottom: 1px solid #b9b9b9; font-size: 10pt; line-height: 27px; }
 
       .answer-section, .vocab-section, .dictation-section { margin-top: 28px; }
       .page-break { break-before: page; page-break-before: always; }
@@ -5026,13 +5390,15 @@
         .question-stem { line-height: 1.75; }
         .option-table { margin-top: 3px; }
         .option-table td { padding: 2px 6px 2px 0; line-height: 1.65; }
-        .choice-box { margin-top: 13px; padding: 8px 10px; }
+        .choice-box { margin-top: 13px; }
+        .choice-box td { padding: 4px 6px; }
         .exam-head h1 { font-size: 15.5pt; }
         .exam-date { display: block; margin-bottom: 1px; font-size: 10pt; letter-spacing: 0.04em; }
         .exam-name { display: block; margin-left: 0; font-size: 16pt; }
         .exam-owner { font-size: 8pt; }
         .exam-sub { font-size: 8.5pt; }
-        .exam-fields { gap: 4px 6px; font-size: 9pt; }
+        .exam-fields { font-size: 9pt; }
+        .exam-fields td { padding: 0 1mm; }
         .exam-fields i { width: 22mm; }
         .section-heading { flex-wrap: wrap; gap: 0 8px; }
         .section-heading h2 { font-size: 11.5pt; }
@@ -5210,6 +5576,7 @@
         `</div>` +
         `<div class="material-actions">` +
         `<button class="icon-btn" type="button" data-action="preview" title="预览 / 修改" aria-label="预览或修改资料"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>` +
+        `<button class="icon-btn" type="button" data-action="ai-split" title="豆包精排 / 重新分题" aria-label="豆包精排并重新分题"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg></button>` +
         `<button class="icon-btn" type="button" data-action="edit" title="修改信息" aria-label="修改资料信息"><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg></button>` +
         `${originalButton}${processedButton}` +
         `<button class="icon-btn danger" type="button" data-action="delete-material" title="删除资料" aria-label="删除资料"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg></button>` +
@@ -5429,7 +5796,7 @@
       .filter((tag) => !GRADE_OPTIONS.includes(tag));
     const text = toDisplayText($('#edit-text').value);
     const split = splitAnswerSection(text);
-    const body = toDisplayText(split.body);
+    const body = toDisplayText(normalizePaperLayout(split.body));
     const answers = toDisplayText(split.answers);
 
     const updated = {
@@ -5662,7 +6029,7 @@
     const text = cleanImportedText(toDisplayText($('#paste-text').value)).text;
     if (!title || !text) return;
     const split = splitAnswerSection(text);
-    const body = toDisplayText(split.body);
+    const body = toDisplayText(normalizePaperLayout(split.body));
     const answers = toDisplayText(split.answers);
     const material = {
       id: uid(),
@@ -5926,49 +6293,150 @@ Li Hua`,
     }
   }
 
-  async function exportBackup() {
-    if (!window.JSZip) {
-      toast('备份组件未加载，请刷新页面后重试。', 'error');
+  function supportsUsbWorkspace() {
+    return typeof window.showDirectoryPicker === 'function';
+  }
+
+  async function ensureUsbPermission() {
+    if (!state.usbHandle) {
+      toast('请先在「设置 → U 盘工作区」选择 U 盘文件夹。', 'error', 5200);
+      return null;
+    }
+    try {
+      if (typeof state.usbHandle.queryPermission === 'function') {
+        let permission = await state.usbHandle.queryPermission({ mode: 'readwrite' });
+        if (permission !== 'granted' && typeof state.usbHandle.requestPermission === 'function') {
+          permission = await state.usbHandle.requestPermission({ mode: 'readwrite' });
+        }
+        if (permission !== 'granted') {
+          toast('没有拿到 U 盘的写入权限，请重新选择文件夹。', 'error', 5200);
+          return null;
+        }
+      }
+      return state.usbHandle;
+    } catch (error) {
+      console.error(error);
+      toast(`U 盘权限检查失败：${error.message || error}`, 'error', 5200);
+      return null;
+    }
+  }
+
+  async function writeBlobToUsb(blob, filename, subfolder = '下载') {
+    if (!supportsUsbWorkspace()) {
+      toast('当前浏览器不能直接写 U 盘，请用电脑版 Chrome / Edge。', 'error', 5200);
+      return false;
+    }
+    const root = await ensureUsbPermission();
+    if (!root) return false;
+    try {
+      const directory = subfolder
+        ? await root.getDirectoryHandle(subfolder, { create: true })
+        : root;
+      const handle = await directory.getFileHandle(safeFilename(filename), { create: true });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return true;
+    } catch (error) {
+      console.error(error);
+      toast(`写入 U 盘失败：${error.message || error}`, 'error', 6000);
+      return false;
+    }
+  }
+
+  async function pickUsbFolder() {
+    if (!supportsUsbWorkspace()) {
+      toast('请用电脑版 Chrome / Edge 打开工作台，手机浏览器不能直接写 U 盘。', 'error', 6000);
       return;
     }
+    try {
+      const handle = await window.showDirectoryPicker({ id: 'shunshi-usb', mode: 'readwrite' });
+      state.usbHandle = handle;
+      await saveSetting('usbDirectory', handle);
+      renderUsbStatus();
+      toast(`已选择 U 盘文件夹「${handle.name}」。以后下载 Word 或备份时，可按开关自动存一份。`, 'ok', 5600);
+    } catch (error) {
+      if (error && error.name === 'AbortError') return;
+      console.error(error);
+      toast(`选择文件夹失败：${error.message || error}`, 'error', 5200);
+    }
+  }
+
+  function mirrorBlobToUsb(blob, filename) {
+    if (!state.settings.usbMirror || !state.usbHandle || !supportsUsbWorkspace()) return;
+    writeBlobToUsb(blob, filename, '下载').then((ok) => {
+      if (ok) toast(`已同时保存到 U 盘：${filename}`, 'ok', 3200);
+    });
+  }
+
+  async function buildBackupPackage() {
+    if (!window.JSZip) throw new Error('备份组件未加载，请刷新页面后重试。');
+    const zip = new window.JSZip();
+    const materials = state.materials.map((material) => {
+      const { originalBlob, processedBlob, ...meta } = material;
+      const record = {
+        ...meta,
+        originalFile: originalBlob ? `originals/${material.id}__${safeFilename(material.sourceName || material.title)}` : null,
+        processedFile: processedBlob ? `processed/${material.id}.doc` : null
+      };
+      if (originalBlob) zip.file(record.originalFile, originalBlob);
+      if (processedBlob) zip.file(record.processedFile, processedBlob);
+      return record;
+    });
+    const papers = state.papers.map((paper) => {
+      const { wordBlob, ...meta } = paper;
+      const record = {
+        ...meta,
+        wordFile: wordBlob ? `papers/${paper.id}.doc` : null
+      };
+      if (wordBlob) zip.file(record.wordFile, wordBlob);
+      return record;
+    });
+    // FileSystemDirectoryHandle 不能写进 JSON；U 盘位置属于这台电脑的设置，
+    // 换电脑后应重新选择，所以备份里只保存其他设置。
+    const { usbDirectory, ...backupSettings } = state.settings;
+    void usbDirectory;
+    zip.file('library.json', JSON.stringify({
+      app: 'rcs-teacher-library',
+      version: 1,
+      exportedAt: nowIso(),
+      settings: backupSettings,
+      materials,
+      items: state.items,
+      papers
+    }, null, 2));
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+    return {
+      blob,
+      filename: safeFilename(`教师资料库备份-${todayIsoDate()}`) + '.zip'
+    };
+  }
+
+  async function exportBackup() {
     toast('正在打包备份，资料多时请稍等…', 'ok', 6000);
     try {
-      const zip = new window.JSZip();
-      const materials = state.materials.map((material) => {
-        const { originalBlob, processedBlob, ...meta } = material;
-        const record = {
-          ...meta,
-          originalFile: originalBlob ? `originals/${material.id}__${safeFilename(material.sourceName || material.title)}` : null,
-          processedFile: processedBlob ? `processed/${material.id}.doc` : null
-        };
-        if (originalBlob) zip.file(record.originalFile, originalBlob);
-        if (processedBlob) zip.file(record.processedFile, processedBlob);
-        return record;
-      });
-      const papers = state.papers.map((paper) => {
-        const { wordBlob, ...meta } = paper;
-        const record = {
-          ...meta,
-          wordFile: wordBlob ? `papers/${paper.id}.doc` : null
-        };
-        if (wordBlob) zip.file(record.wordFile, wordBlob);
-        return record;
-      });
-      zip.file('library.json', JSON.stringify({
-        app: 'rcs-teacher-library',
-        version: 1,
-        exportedAt: nowIso(),
-        settings: state.settings,
-        materials,
-        items: state.items,
-        papers
-      }, null, 2));
-      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
-      downloadBlob(blob, safeFilename(`教师资料库备份-${todayIsoDate()}`) + '.zip');
+      const { blob, filename } = await buildBackupPackage();
+      downloadBlob(blob, filename);
       toast(`备份已导出（${formatBytes(blob.size)}）。建议放到网盘或移动硬盘。`);
     } catch (error) {
       console.error(error);
       toast(`备份失败：${error.message || error}`, 'error', 6000);
+    }
+  }
+
+  async function backupToUsb() {
+    if (!state.usbHandle) {
+      toast('请先选择 U 盘文件夹。', 'error', 5200);
+      return;
+    }
+    toast('正在打包并写入 U 盘，资料多时请稍等…', 'ok', 7000);
+    try {
+      const { blob, filename } = await buildBackupPackage();
+      const ok = await writeBlobToUsb(blob, filename, '备份');
+      if (ok) toast(`备份已写入 U 盘「备份」文件夹（${formatBytes(blob.size)}）。`, 'ok', 6000);
+    } catch (error) {
+      console.error(error);
+      toast(`备份到 U 盘失败：${error.message || error}`, 'error', 6000);
     }
   }
 
@@ -6125,6 +6593,8 @@ Li Hua`,
       await saveSetting('ocrEnabled', ocrEnabled);
       await saveSetting('ocrLang', ocrLang);
       await saveSetting('ocrPdfPages', ocrPdfPages);
+      await saveSetting('usbMirror', bool('#usb-mirror', 'usbMirror'));
+      await saveSetting('sectionAliases', Array.isArray(state.sectionAliases) ? state.sectionAliases : []);
       if (state.ocrWorker && state.ocrWorkerLang && state.ocrWorkerLang !== ocrLang) {
         try { await state.ocrWorker.terminate(); } catch (error) { /* ignore */ }
         state.ocrWorker = null;
@@ -6317,6 +6787,12 @@ Li Hua`,
         if (value === 'apply') applyAiResult();
       });
     }
+    const splitDialog = $('#split-dialog');
+    if (splitDialog) {
+      splitDialog.addEventListener('close', () => {
+        splitDialog.returnValue = '';
+      });
+    }
     const confirmDialog = $('#confirm-dialog');
     if (confirmDialog) {
       confirmDialog.addEventListener('close', () => {
@@ -6383,6 +6859,21 @@ Li Hua`,
         case 'save-settings':
           await saveSettingsFromUI();
           break;
+        case 'add-alias':
+          await addSectionAlias();
+          break;
+        case 'delete-alias':
+          await deleteSectionAlias(button.dataset.alias || '', button.dataset.type || '');
+          break;
+        case 'seed-aliases':
+          await seedSectionAliases();
+          break;
+        case 'pick-usb':
+          await pickUsbFolder();
+          break;
+        case 'backup-usb':
+          await backupToUsb();
+          break;
         case 'clear-all':
           confirmClearAll();
           break;
@@ -6398,6 +6889,15 @@ Li Hua`,
         case 'preview':
         case 'edit':
           if (id) openEditDialog(id);
+          break;
+        case 'ai-split':
+          if (id) openSplitDialog(id);
+          break;
+        case 'copy-split-prompt':
+          await copySplitPrompt();
+          break;
+        case 'apply-split':
+          await applySplitResult();
           break;
         case 'download-original': {
           const material = findMaterial(id);
