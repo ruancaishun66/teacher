@@ -1222,9 +1222,13 @@
       correctAnswer: review.correctAnswer,
       explanation: String(review.explanation || '').slice(0, 160)
     }));
+    const safeName = String(student.name || '').trim();
+    const maskedPlain = safeName
+      ? profile.plain.split(safeName).join('学生（姓名已隐去）')
+      : profile.plain;
     const payload = {
       student: {
-        name: student.name,
+        name: '学生（姓名已隐去）',
         grade: student.grade,
         level: S.levelInfo(xpOfStudent(student)).level,
         xp: xpOfStudent(student),
@@ -1241,7 +1245,7 @@
       errorPatterns: profile.reviewRows,
       tasks: taskLines,
       wrongSamples,
-      localProfile: profile.plain
+      localProfile: maskedPlain
     };
     return [
       '你是一位英语学习认知诊断与学习画像分析专家，服务对象是初高中一对一英语老师。请基于下面的学习数据，做一份可执行、不过度贴标签的学生画像。',
@@ -1264,6 +1268,7 @@
       '最后附一段“给家长的话”，不超过 120 字，客观、不制造焦虑。',
       '',
       '【学生数据】',
+      '学生姓名已隐去；如需称呼，请用“孩子”。教师备注如含真实姓名，请在粘贴前自行替换。',
       JSON.stringify(payload, null, 2),
       '',
       '注意：数据来自学生本机记录，可能不完整；请明确标注推断与证据的边界。不要建议任何需要上传学生隐私的平台。'
