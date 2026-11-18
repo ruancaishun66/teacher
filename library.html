@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#f7f1e6">
-  <title>教师工作台｜阮蔡顺</title>
+  <title>顺势教师工作台｜因势利导，循循善诱</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23c4544d'/%3E%3Ctext x='32' y='44' font-family='sans-serif' font-size='34' font-weight='700' fill='%23fffaf2' text-anchor='middle'%3E%E9%98%AE%3C/text%3E%3C/svg%3E">
   <style>
     :root {
@@ -161,6 +161,15 @@
       font-family: var(--round);
       font-size: 1.02rem;
       letter-spacing: 0.04em;
+    }
+
+    .app-brand-copy strong em {
+      margin-left: 4px;
+      color: var(--ink-soft);
+      font-size: 0.62rem;
+      font-style: normal;
+      font-weight: 500;
+      letter-spacing: 0.08em;
     }
 
     .app-brand-copy small {
@@ -596,6 +605,50 @@
     .toolbar .select {
       width: auto;
       min-width: 108px;
+    }
+
+    .segmented {
+      display: inline-flex;
+      padding: 3px;
+      border: 1px solid rgba(49, 95, 140, 0.16);
+      border-radius: 11px;
+      background: rgba(255, 250, 242, 0.8);
+    }
+
+    .segmented button {
+      min-height: 30px;
+      padding: 4px 12px;
+      border: 0;
+      border-radius: 8px;
+      color: var(--ink-soft);
+      background: transparent;
+      font: inherit;
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: 0.18s ease;
+    }
+
+    .segmented button:hover {
+      color: var(--blue-deep);
+    }
+
+    .segmented button.is-active {
+      color: #fff;
+      background: var(--blue);
+      box-shadow: 0 4px 10px -6px rgba(49, 95, 140, 0.8);
+    }
+
+    .practice-level-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .practice-level-row > span {
+      color: var(--ink-soft);
+      font-size: 0.7rem;
     }
 
     .material-list {
@@ -2050,10 +2103,10 @@
   <header class="app-header">
     <div class="app-header-inner">
       <a class="app-brand" href="index.html" aria-label="返回阮蔡顺的个人主页">
-        <span class="app-seal" aria-hidden="true">阮</span>
+        <span class="app-seal" aria-hidden="true">势</span>
         <span class="app-brand-copy">
-          <strong>教师工作台</strong>
-          <small>阮蔡顺 · 初高中英语</small>
+          <strong>顺势 <em>教师工作台</em></strong>
+          <small>因势利导 · 初高中英语</small>
         </span>
       </a>
       <div class="app-header-actions">
@@ -2136,6 +2189,11 @@
             <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
             <input class="input" id="library-search" type="search" placeholder="搜索标题、内容或标签…" aria-label="搜索资料">
           </div>
+          <div class="segmented" id="filter-level" role="group" aria-label="按学段筛选">
+            <button type="button" data-level="" class="is-active" aria-pressed="true">全部</button>
+            <button type="button" data-level="junior" aria-pressed="false">初中</button>
+            <button type="button" data-level="senior" aria-pressed="false">高中</button>
+          </div>
           <select class="select" id="filter-type" aria-label="按题型筛选">
             <option value="">全部题型</option>
           </select>
@@ -2215,6 +2273,15 @@
 
         <div class="command-card">
           <p class="command-label">Command <span>/ 今日指令</span></p>
+          <div class="practice-level-row">
+            <span>选题范围</span>
+            <div class="segmented" id="practice-level" role="group" aria-label="选择初中或高中题库">
+              <button type="button" data-level="" class="is-active" aria-pressed="true">全部</button>
+              <button type="button" data-level="junior" aria-pressed="false">初中</button>
+              <button type="button" data-level="senior" aria-pressed="false">高中</button>
+            </div>
+            <span>指令里写“初中 / 高中 / 高一”也会自动切换。</span>
+          </div>
           <div class="command-row">
             <input class="command-input" id="command-input" type="text" value="今日练习 单选5道 阅读理解1篇 语法填空1篇" aria-label="输入组卷指令" autocomplete="off">
             <button class="btn btn-primary" type="button" id="generate-paper">
@@ -2227,7 +2294,7 @@
             <button class="example-chip" type="button" data-command="随机 10 道单选 高一 难度4-6">10 道单选 · 高一</button>
             <button class="example-chip" type="button" data-command="完形填空1篇 阅读理解2篇 难度6-8">完形 + 阅读 · 提高</button>
             <button class="example-chip" type="button" data-command="书面表达1篇 高一 难度6">作文练习 · 高一</button>
-            <button class="example-chip" type="button" data-command="五选五1篇 短文填空1篇 难度5">五选五 + 短文填空</button>
+            <button class="example-chip" type="button" data-command="五选五1篇 语法填空1篇 难度5">五选五 + 语法填空</button>
           </div>
           <div class="command-result" id="command-result"></div>
         </div>
@@ -2271,6 +2338,10 @@
             <button class="btn btn-ghost" type="button" data-action="download-dictation" disabled title="单独下载默写表">
               <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
               默写表
+            </button>
+            <button class="btn btn-ghost" type="button" data-action="download-long-sentences" disabled title="从本份练习中提炼长难句，生成分析、翻译练习纸">
+              <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
+              长难句
             </button>
           </div>
         </div>
@@ -2322,7 +2393,7 @@
             <p>生成的整理版和练习卷会带上这行水印。默认年级用于自动分类时没有识别到年级的资料。</p>
             <div class="field">
               <label for="watermark-input">水印文字</label>
-              <input class="input" id="watermark-input" type="text" maxlength="40" value="阮蔡顺 · 初高中英语 · 仅供学习">
+              <input class="input" id="watermark-input" type="text" maxlength="40" value="顺势 · 因势利导 · 仅供学习">
             </div>
             <div class="field">
               <label for="default-grade">默认年级</label>
@@ -2348,7 +2419,7 @@
               </div>
               <div class="field">
                 <label for="exam-owner">页眉署名</label>
-                <input class="input" id="exam-owner" type="text" maxlength="20" value="阮蔡顺">
+                <input class="input" id="exam-owner" type="text" maxlength="20" value="顺势">
               </div>
             </div>
             <div class="check-grid">
@@ -2423,6 +2494,7 @@
             <p>进入「上传资料」，把文件拖进虚线框，或点「选择文件」。支持 .docx、.pdf、.txt、.md、.png、.jpg、.jpeg。一次可以选多份。</p>
             <ul>
               <li>有文字层的 PDF 会直接提取文字；扫描版 PDF 和图片会自动走本地 OCR。</li>
+              <li>入库前会自动清理重复页眉页脚、页码、题库网址、扫描软件水印和符号噪点，生成练习时还会再清一次。清理不彻底时，可在资料编辑里手动删掉那几行。</li>
               <li>整本一百多页的扫描卷不建议一次上传。先在设置里把「扫描 PDF 最多识别页数」设为 8–12 页，或把需要用的几页截图后上传。</li>
               <li>OCR 是机器识别，题号、引号和易混字母（l/I、0/O）可能出错。入库后点资料卡上的「修改」核对一遍，准确率会高很多。</li>
               <li>旧版 .doc 会完整存档，但不能自动提取文字；用 Word 另存为 .docx 最稳。</li>
@@ -2431,26 +2503,30 @@
 
           <article class="guide-card">
             <h2><span class="num">2</span>核对分类：题型和年级可以手动改</h2>
-            <p>系统会先看试卷里的部分标题（听力、选择填空、完形填空、阅读理解、五选五、语法填空、短文填空、书面表达等），再结合题号、选项、空格和文章结构判断题型。综合卷会被拆成多个部分，阅读还会按 A/B/C/D/E 篇拆开。</p>
+            <p>系统会先看试卷里的部分标题（听力、选择填空、完形填空、阅读理解、五选五、语法填空、书面表达等），再结合题号、选项、空格和文章结构判断题型。综合卷会被拆成多个部分，阅读还会按 A/B/C/D/E 篇拆开。</p>
             <ul>
+              <li><strong>语法填空、短文填空、短文填词、语篇填空、首字母填空、选词填空已经合并为同一类「语法填空」</strong>，不会再因为叫法不同被拆成两个大题；出卷时若原卷写的是「完成句子」「选词填空」或「首字母填空」，大题标题会跟着原卷走，不会一律印成「语法填空」。</li>
               <li>识别不准时，点资料卡右侧的铅笔图标，修改题型、年级、标签和正文，保存后会重新拆题。</li>
-              <li>每道题会自动给出 1–10 级难度，依据包括词汇长度与难度、平均句长、长难句、从句、非谓语、被动语态、空格数量和题型。</li>
-              <li>资料卡上会显示题量和难度范围；答案区还会标出每道题的考点和难度。</li>
+              <li>每道题会自动给出 1–10 级难度，依据包括词汇长度与难度、平均句长、长难句、从句、非谓语、被动语态、空格数量和题型；资料卡和答案区会同时显示对应的 ★–★★★★★ 星级。</li>
+              <li>系统会从文件名、卷头和正文自动判断初中/高中；也可以在资料库顶部按「初中 / 高中」筛选，或在编辑资料时手动改年级。</li>
             </ul>
           </article>
 
           <article class="guide-card">
             <h2><span class="num">3</span>生成每日练习：一句指令就够</h2>
-            <p>进入「每日练习」，在指令框里写年级、题型、数量和难度。例如：</p>
+            <p>进入「每日练习」，先选「全部 / 初中 / 高中」题库，再在指令框里写年级、题型、数量和难度。指令里写「初中」「高中」「高一」等字眼时，会自动切换到对应题库。例如：</p>
             <span class="guide-code">今日练习 单选5道 阅读理解1篇 语法填空1篇 难度5-7
-高一 完形填空1篇 阅读理解2篇 难度6
-五选五1篇 短文填空1篇 难度5
+高中 完形填空1篇 阅读理解2篇 难度6
+初中 五选五1篇 语法填空1篇 难度5
 书面表达1篇 高三 难度7</span>
             <ul>
+              <li>学段是硬边界：选「初中」时不会拿高中题凑数，反之亦然；某个题型在当前题库里没有时，会明确提示并跳过。</li>
               <li>难度可以写单级（难度6）、区间（难度5-7），也可以写「基础 / 中等 / 提高 / 挑战」。</li>
-              <li>不写题型时，会按「单选 + 完形 + 阅读 + 语法 + 作文」的默认组合抽取。</li>
+              <li>不写题型时，会按当前题库的「单选 + 完形 + 阅读 + 语法 + 作文」默认组合抽取。</li>
               <li>生成后会按 A4 试卷版式排版：日期标题、姓名/班级/得分栏、分题型大题、选项表、阅读篇目、作文横线、答案与解析、词汇表和默写表。</li>
               <li>点「换一组」会重新抽题；「下载 Word」得到 .doc，可直接打印或继续编辑；「导出 PDF」在打印窗口选择「另存为 PDF」。</li>
+              <li>新增「长难句」按钮：从本份练习的阅读、完形、五选五中自动挑出完整长句，生成「原句 + 分析横线 + 译文横线」的练习纸，适合做阅读拆解和长难句提炼。</li>
+              <li>词汇背诵表和默写表会按年级筛词：去掉 the、does 这类基础词，只保留略高于当前水平、且在本份练习里出现的词；一份 59 题的卷子通常收 30–40 个词，不再印成几十页。</li>
             </ul>
           </article>
 

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   阮蔡顺 · 教师工作台
+   顺势 · 教师工作台
    本地优先的资料库：IndexedDB + 浏览器内解析 + 组卷 + 备份。
    任何资料都不会上传到服务器。
    ========================================================================== */
@@ -13,7 +13,13 @@
   const DB_NAME = 'rcs-teacher-library';
   const DB_VERSION = 1;
   const STORES = ['materials', 'items', 'papers', 'settings'];
-  const DEFAULT_WATERMARK = '阮蔡顺 · 初高中英语 · 仅供学习';
+  // 品牌取“顺势”，取《史记》“善战者因其势而利导之”与《论语》“循循然善诱人”之意。
+  const BRAND_NAME = '顺势';
+  const BRAND_SEAL = '势';
+  const BRAND_TAGLINE = '因势利导 · 循循善诱';
+  const BRAND_SIGNATURE = '顺势 · 因势利导';
+  const DEFAULT_WATERMARK = `${BRAND_SIGNATURE} · 仅供学习`;
+  const LEGACY_WATERMARK = '阮蔡顺 · 初高中英语 · 仅供学习';
   const MAX_FILE_BYTES = 100 * 1024 * 1024;
   const MAX_PDF_PAGES = 80;
   const OCR_PDF_PAGE_LIMIT = 8;
@@ -26,17 +32,21 @@
     cloze: { label: '完形填空', short: '完形', unit: '篇', order: 2 },
     reading: { label: '阅读理解', short: '阅读', unit: '篇', order: 3 },
     five: { label: '五选五 / 七选五', short: '五选五', unit: '篇', order: 4 },
-    grammar: { label: '语法填空', short: '语法', unit: '篇', order: 5 },
+    grammar: { label: '语法填空（含短文填空）', short: '语法', unit: '篇', order: 5 },
     dialogue: { label: '情景交际', short: '情景交际', unit: '道', order: 6 },
     picture: { label: '看图写话', short: '看图', unit: '道', order: 7 },
-    shortblank: { label: '短文填空', short: '短文填空', unit: '篇', order: 8 },
+    // 旧版本把“短文填空”单列。各地叫法不同，本质仍是语篇语法填空；
+    // 这里只保留兼容键，新资料一律归入 grammar，不再出现在题型下拉框里。
+    shortblank: { label: '语法填空（短文填空）', short: '语法', unit: '篇', order: 5.5, legacy: true },
     writing: { label: '书面表达', short: '作文', unit: '篇', order: 9 },
     listening: { label: '听力理解', short: '听力', unit: '套', order: 10 },
     paper: { label: '综合练习卷', short: '综合卷', unit: '份', order: 11 },
     other: { label: '其他资料', short: '其他', unit: '份', order: 12 }
   };
 
-  const TYPE_ORDER = Object.keys(TYPES).sort((a, b) => TYPES[a].order - TYPES[b].order);
+  const TYPE_ORDER = Object.keys(TYPES)
+    .filter((key) => !TYPES[key].legacy)
+    .sort((a, b) => TYPES[a].order - TYPES[b].order);
 
   const TYPE_KEYWORDS = {
     single: {
@@ -56,8 +66,12 @@
       weak: ['选五', '阅读填空', '还原']
     },
     grammar: {
-      strong: ['语法填空', 'grammatical fill', 'fill in the blanks with the correct form', '括号内单词的正确形式', '所给单词的正确形式'],
-      weak: ['语法']
+      strong: [
+        '语法填空', '短文填空', '短文填词', '语篇填空', '首字母填空', '选词填空',
+        '单词拼写', '词汇运用', '完成句子', 'grammatical fill',
+        'fill in the blanks with the correct form', '括号内单词的正确形式', '所给单词的正确形式'
+      ],
+      weak: ['语法', '根据首字母', '根据语境']
     },
     dialogue: {
       strong: ['情景交际', '补全对话', '完成对话', '根据情景', 'dialogue completion', 'complete the dialogue'],
@@ -67,17 +81,13 @@
       strong: ['看图写话', '看图作文', '根据图片', '根据所给图片', 'look at the pictures and write'],
       weak: ['看图', '图片']
     },
-    shortblank: {
-      strong: ['短文填空', '首字母填空', '根据首字母', '选词填空', 'short passage filling'],
-      weak: ['短文', '填空']
-    },
     writing: {
       strong: ['书面表达', '应用文写作', '写作题', '作文题', '读后续写', 'writing task', 'write a composition'],
       weak: ['作文', '写作']
     },
     listening: {
-      strong: ['听力测试', '听力理解', '听下面五段', '听下面七段', '听第', 'listening comprehension'],
-      weak: ['听力', 'listening']
+      strong: ['听力测试', '听力理解', '听音理解', '听下面五段', '听下面七段', '听第', 'listening comprehension'],
+      weak: ['听力', '听音', 'listening']
     }
   };
 
@@ -86,15 +96,21 @@
     cloze: '阅读下面短文，从每题所给的 A、B、C、D 四个选项中，选出可以填入空白处的最佳选项。',
     reading: '阅读下列短文，从每题所给的 A、B、C、D 四个选项中，选出最佳选项。',
     five: '阅读下面短文，从短文后所给的选项中选出能填入空白处的最佳选项，使短文通顺、连贯。',
-    grammar: '阅读下面短文，在空白处填入 1 个适当的单词或括号内单词的正确形式。',
+    grammar: '阅读下面短文，在空白处填入 1 个适当的单词或括号内单词的正确形式；首字母填空、选词填空、短文填词按题目要求作答。',
     dialogue: '根据情景，用恰当的语句完成下列对话。',
     picture: '根据每题所提供的图画情景和提示词，写出一个与图画情景相符的句子。',
-    shortblank: '阅读下面短文，根据语境或所给单词的提示，在每个空格内填入一个恰当的单词，使短文意思完整、行文连贯。',
     writing: '根据提示，完成写作。',
     listening: '听录音，完成练习。'
   };
 
   const GRADE_OPTIONS = ['七年级', '八年级', '九年级', '高一', '高二', '高三', '中考', '高考', '初中', '高中'];
+
+  const BAND_LABELS = { junior: '初中', senior: '高中' };
+  const BAND_OPTIONS = [
+    { value: '', label: '全部' },
+    { value: 'junior', label: '初中' },
+    { value: 'senior', label: '高中' }
+  ];
 
   const GRADE_EQUIVALENTS = {
     '高考': ['高考', '高三'],
@@ -109,10 +125,9 @@
     cloze: ['完形填空', '完型填空', '完形', '完型', 'cloze'],
     reading: ['阅读理解', '阅读下列短文', '阅读', 'reading'],
     five: ['阅读七选五', '五选五', '七选五', '阅读填句', '阅读还原', '补全短文', '选五'],
-    grammar: ['语法填空', '语法'],
+    grammar: ['语法填空', '短文填空', '短文填词', '语篇填空', '首字母填空', '选词填空', '单词拼写', '词汇运用', '语法'],
     dialogue: ['情景交际', '补全对话', '完成对话', '交际'],
     picture: ['看图写话', '看图作文', '看图'],
-    shortblank: ['短文填空', '首字母填空', '选词填空'],
     writing: ['应用文写作', '书面表达', '作文', '读后续写', '写作'],
     listening: ['听力理解', '听力', 'listening']
   };
@@ -140,13 +155,13 @@
   };
 
   // 题组缓存的结构版本。答案解析规则升级后，首次打开会自动重建旧资料的题组。
-  const PARSER_VERSION = 3;
+  const PARSER_VERSION = 13;
 
   const DEFAULT_SETTINGS = {
     watermark: DEFAULT_WATERMARK,
     defaultGrade: '',
     examTitle: '英语每日练习',
-    examOwner: '阮蔡顺',
+    examOwner: BRAND_NAME,
     includeAnswers: true,
     includeVocab: true,
     includeDictation: true,
@@ -167,7 +182,8 @@
     papers: [],
     settings: { ...DEFAULT_SETTINGS },
     view: 'library',
-    filters: { q: '', type: '', grade: '', sort: 'newest' },
+    filters: { q: '', type: '', grade: '', level: '', sort: 'newest' },
+    practiceLevel: '',
     currentPaper: null,
     currentParsed: null,
     paperFrame: null,
@@ -326,6 +342,166 @@
       .trim();
   }
 
+  /* ------------------------- 导入文字清理 ------------------------- */
+  // 试卷 PDF / 扫描件里常见页眉、页脚、页码、网址、题库水印和 OCR 噪点。
+  // 这些内容一旦进入资料库，就会跟着每日练习一起印出来，所以在入库前先清一遍。
+  const NOISE_LINE_RULES = [
+    /^\s*第\s*\d{1,3}\s*页(?:\s*[，,/·]?\s*共\s*\d{1,3}\s*页)?\s*$/,
+    /^\s*共\s*\d{1,3}\s*页\s*$/,
+    /^\s*(?:page|p\.?)\s*\d{1,3}(?:\s*(?:of|\/)\s*\d{1,3})?\s*$/i,
+    /^\s*[-—–]\s*\d{1,3}\s*[-—–]\s*$/,
+    /^\s*\d{1,3}\s*\/\s*\d{1,3}\s*$/,
+    /^\s*(?:第[一二三四五六七八九十]+页)\s*$/,
+    /^\s*\d{1,3}\s*$/,
+    /(?:扫描全能王|CamScanner|全能扫描王|夸克扫描王)/i,
+    /(?:学科网|菁优网|组卷网|21世纪教育网|无忧考网|中考网|高考网|百度文库|道客巴巴|豆丁网|橡皮网|题库网|教习网|二一教育)/,
+    /(?:https?:\/\/|www\.)\S+/i,
+    /^\s*[\w.-]+\.(?:com|cn|net|org)(?:\/\S*)?\s*$/i,
+    /^\s*(?:QQ|qq|微信|wechat|WeChat|微信号)\s*[:：]?\s*[A-Za-z0-9_-]{4,}\s*$/,
+    /^\s*(?:绝密★?启用前|机密★?启用前)\s*$/,
+    /^\s*(?:内部资料|仅供学习|仅供参考|版权所有|侵权必究|翻印必究)[\s·，。;；]*$/,
+    /^\s*(?:英语试题|英语试卷|英语测试卷)\s*$/,
+    /^\s*(?:请在各题目的答题区域内作答|超出黑色矩形边框限定区域的答案无效).*$/,
+    /^\s*(?:试题|试卷|本卷|全卷)\s*结束.*$/,
+    /^\s*请认真检查.*$/,
+    /^\s*(?:注意事项|考生须知)\s*[:：]?\s*$/
+  ];
+
+  function normalizeFurnitureKey(line) {
+    return String(line || '')
+      .toLowerCase()
+      .replace(/[0-9０-９]+/g, '#')
+      .replace(/[·•|—–_]+/g, '')
+      .replace(/\s+/g, '');
+  }
+
+  function isLikelyFurnitureLine(line) {
+    const text = String(line || '').trim();
+    if (!text) return false;
+    // 阅读篇目标签 A–E、题号行、选项行、问句都不是页眉页脚。
+    if (/^[A-G]$/.test(text)) return false;
+    if (/^[_\-—\s]+$/.test(text)) return false;
+    if (/^\d{1,3}\s*[.、．)）]/.test(text)) return false;
+    if (/^[A-G]\s*[.、．)）]/.test(text)) return false;
+    if (/[?？]/.test(text)) return false;
+    if (englishWordTokens(text).length >= 10) return false;
+    return text.length <= 60;
+  }
+
+  function stripPartHeading(text) {
+    // “第二部分（非选择题）”是卷面结构标记，不是题目内容。它常粘在五选五选项
+    // 末尾或作文提示后面，必须在入库和渲染时都清掉，否则会印进选项框。
+    return String(text || '')
+      .replace(/第[一二三四五六七八九十]+\s*部分\s*[（(][^）)]{0,24}[）)]/g, ' ')
+      .replace(/第[一二三四五六七八九十]+\s*部分\s*$/g, ' ')
+      .replace(/[-]/g, ' ')
+      .replace(/[□☐]/g, ' ')
+      .replace(/[ \t]{2,}/g, ' ')
+      .trim();
+  }
+
+  function isPartHeadingLine(line) {
+    const text = String(line || '').trim();
+    if (!text) return false;
+    return /^第[一二三四五六七八九十]+\s*部分(?:\s*[（(][^）)]{0,24}[）)])?\s*$/.test(text);
+  }
+
+  function isNoiseLine(line) {
+    const text = String(line || '').trim();
+    if (!text) return false;
+    if (/^[\s\-—_=*·•.。，,;；:：|\\/]+$/.test(text)) return true;
+    if (NOISE_LINE_RULES.some((pattern) => pattern.test(text))) return true;
+    // OCR 常把边框、下划线识别成一串符号；字母/汉字/数字占比过低时丢掉。
+    if (text.length >= 6) {
+      const meaningful = (text.match(/[A-Za-z0-9一-鿿]/g) || []).length;
+      if (meaningful / text.length < 0.32) return true;
+    }
+    return false;
+  }
+
+  function cleanPageTexts(pages) {
+    const cleaned = (pages || []).map((page) => String(page || '').replace(/\r\n?/g, '\n'));
+    if (!cleaned.length) return [];
+    const counts = new Map();
+    const samples = new Map();
+    if (cleaned.length >= 2) {
+      cleaned.forEach((page) => {
+        const seen = new Set();
+        page.split('\n').forEach((line) => {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          const key = normalizeFurnitureKey(trimmed);
+          if (!key || seen.has(key)) return;
+          seen.add(key);
+          counts.set(key, (counts.get(key) || 0) + 1);
+          if (!samples.has(key)) samples.set(key, trimmed);
+        });
+      });
+    }
+    const threshold = Math.max(2, Math.ceil(cleaned.length * 0.5));
+    const repeated = new Set();
+    counts.forEach((count, key) => {
+      if (count >= threshold && isLikelyFurnitureLine(samples.get(key))) repeated.add(key);
+    });
+    return cleaned.map((page) => page.split('\n')
+      .filter((line) => {
+        const trimmed = line.trim();
+        if (!trimmed) return true;
+        if (isNoiseLine(trimmed)) return false;
+        return !repeated.has(normalizeFurnitureKey(trimmed));
+      })
+      .join('\n'));
+  }
+
+  function cleanImportedText(text, options = {}) {
+    const source = String(text || '').replace(/\r\n?/g, '\n');
+    if (!source.trim()) return { text: '', removed: 0 };
+    const lines = source.split('\n');
+    const counts = new Map();
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.length > 60) return;
+      const key = normalizeFurnitureKey(trimmed);
+      if (!key) return;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    const repeated = new Set();
+    counts.forEach((count, key) => {
+      if (count >= 4) repeated.add(key);
+    });
+    const watermarkKeys = new Set(
+      [watermarkText(), DEFAULT_WATERMARK, LEGACY_WATERMARK, BRAND_SIGNATURE]
+        .map((value) => normalizeFurnitureKey(value))
+        .filter(Boolean)
+    );
+    let removed = 0;
+    const kept = [];
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        kept.push('');
+        return;
+      }
+      if (isNoiseLine(trimmed) || isPartHeadingLine(trimmed)) {
+        removed += 1;
+        return;
+      }
+      const key = normalizeFurnitureKey(trimmed);
+      if (watermarkKeys.has(key)) {
+        removed += 1;
+        return;
+      }
+      if (repeated.has(key) && isLikelyFurnitureLine(trimmed)) {
+        removed += 1;
+        return;
+      }
+      kept.push(stripPartHeading(line.replace(/[ \t]+$/g, '')));
+    });
+    // options.fileName 目前不参与判断，保留参数是为了以后按来源做更细的规则。
+    void options.fileName;
+    return { text: toDisplayText(kept.join('\n')), removed };
+  }
+
   function isCjk(char) {
     return /[㐀-鿿぀-ヿ]/.test(char || '');
   }
@@ -373,6 +549,18 @@
   function splitSentences(text) {
     return normalizeEnglish(text)
       .split(/(?<=[.!?])\s+(?=[A-Z(])|\n+/)
+      .map((sentence) => sentence.trim())
+      .filter((sentence) => sentence.length > 1);
+  }
+
+  function splitProseSentences(text) {
+    // PDF 每一行都会硬换行；如果按换行切句，长难句会被切成
+    // “wants to ask him…” 这种没有主语的半句。散文先并回一行再按标点切。
+    return normalizeEnglish(text)
+      .replace(/\r\n?/g, '\n')
+      .replace(/\n+/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .split(/(?<=[.!?])\s+(?=[A-Z0-9("“'①-⑳])/)
       .map((sentence) => sentence.trim())
       .filter((sentence) => sentence.length > 1);
   }
@@ -457,36 +645,99 @@
     return map;
   }
 
+  function trimOptionText(value) {
+    let text = String(value || '');
+    // 下一篇文章的篇目标签常常单独占一行（B / C…），不能被最后一项选项吞进去。
+    let cut = text.search(/\n[ \t]*[A-G][ \t]*(?=\n|$)/);
+    if (cut >= 0) text = text.slice(0, cut);
+    // 下一大题的标题或作答说明。
+    cut = text.search(/\n[ \t]*(?:第[一二三四五六七八九十]+(?:部分|节|大题)|[一二三四五六七八九十]+、|(?:阅读下列短文|阅读下面短文|完形填空|语法填空|短文填空|短文填词|书面表达|听力理解|情景交际|看图写话)[:：]?)/);
+    if (cut >= 0) text = text.slice(0, cut);
+    // 没有换行的“D. four B The next passage…”：在句末标点后、篇目标签前截断。
+    cut = text.search(/[.!?]\s+[A-G]\s+(?=[A-Z][a-z])/);
+    if (cut >= 0) text = text.slice(0, cut + 1);
+    // 兜底：下一题题号如果没被主解析器切开，也不能留在选项里。
+    cut = text.search(/\n[ \t]*\d{1,3}[.、．)）]\s*/);
+    if (cut >= 0) text = text.slice(0, cut);
+    // 选项通常只占一行；若后面空行接了一整段英文，保留选项本身。
+    const paragraphs = text.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
+    if (paragraphs.length > 1 && paragraphs[0].length <= 100
+      && englishWordTokens(paragraphs.slice(1).join(' ')).length >= 12) {
+      text = paragraphs[0];
+    }
+    return text.replace(/\s+/g, ' ').trim();
+  }
+
   function extractQuestionOptions(block) {
     const source = normalizeEnglish(block);
-    const marker = /(?:^|\s)([A-E])[.、．)）]\s*/g;
+    const marker = /(?:^|[\s\n])([A-E])[.、．)）]\s*/g;
     const markers = [];
     let match = marker.exec(source);
     while (match) {
-      markers.push({ letter: match[1], start: match.index, contentStart: marker.lastIndex });
+      markers.push({
+        letter: match[1],
+        start: match.index + (match[0].length - match[0].replace(/^[\s\n]+/, '').length),
+        contentStart: marker.lastIndex
+      });
       match = marker.exec(source);
     }
-    if (markers.length < 2) return { stem: source.trim(), options: [] };
-    const stem = source.slice(0, markers[0].start).trim();
-    const options = markers.map((item, index) => {
-      const end = index + 1 < markers.length ? markers[index + 1].start : source.length;
+    // 从 A 开始连续取选项；遇到第一个断点就停，避免把后文正文里的 B、C 当成选项。
+    const starts = [];
+    let broken = false;
+    markers.forEach((item) => {
+      if (broken) return;
+      if (!starts.length) {
+        if (item.letter !== 'A') return;
+        starts.push(item);
+        return;
+      }
+      const expected = String.fromCharCode(65 + starts.length);
+      if (item.letter === expected) starts.push(item);
+      else broken = true;
+    });
+    if (starts.length < 2) return { stem: source.trim(), options: [] };
+    const stem = source.slice(0, starts[0].start).trim();
+    const options = starts.map((item, index) => {
+      const end = index + 1 < starts.length ? starts[index + 1].start : source.length;
       return {
         letter: item.letter,
-        text: source.slice(item.contentStart, end).replace(/\s+/g, ' ').trim()
+        text: trimOptionText(source.slice(item.contentStart, end))
       };
     }).filter((option) => option.text);
     return { stem, options };
   }
 
-  function parseQuestionBlocks(text) {
-    const source = normalizeEnglish(String(text || '')).replace(/\r\n?/g, '\n');
-    const starts = [];
+  function looksLikeQuestionStartText(text) {
+    const sample = String(text || '').slice(0, 120).trim();
+    if (!sample) return false;
+    if (/^[_（(]/.test(sample)) return true;
+    if (!/^[A-Za-z"'“]/.test(sample)) return false;
+    return englishWordTokens(sample).length >= 2;
+  }
+
+  function findInlineQuestionStart(source, number, from, end) {
+    const pattern = new RegExp(`(?:^|[^0-9])(${number})\\s*[.、．)）]\\s*`, 'g');
+    pattern.lastIndex = from;
+    const match = pattern.exec(source);
+    if (!match || match.index >= end) return null;
+    const contentStart = pattern.lastIndex;
+    if (contentStart >= end) return null;
+    if (!looksLikeQuestionStartText(source.slice(contentStart, contentStart + 160))) return null;
+    return {
+      number,
+      index: match.index + (match[0].length - match[0].replace(/^[^0-9]*/, '').length),
+      contentStart
+    };
+  }
+
+  function collectQuestionStarts(source) {
+    const anchors = [];
     const pattern = /(?:^|\n)[ \t]*(\d{1,3})[.、．)）][ \t]*/g;
     let match = pattern.exec(source);
     while (match) {
       const number = Number(match[1]);
       if (number >= 1 && number <= 200) {
-        starts.push({
+        anchors.push({
           number,
           index: match.index + (match[0].startsWith('\n') ? 1 : 0),
           contentStart: pattern.lastIndex
@@ -494,6 +745,89 @@
       }
       match = pattern.exec(source);
     }
+    const starts = anchors.slice();
+    // PDF 经常把“24. A. … B. … C. … D. … 25. A. …”压成一行。
+    // 在两个行首题号之间按 expected = 上一个 + 1 找内联题号，补回被吞掉的切分点。
+    for (let index = 0; index < anchors.length - 1; index += 1) {
+      const from = anchors[index];
+      const to = anchors[index + 1];
+      let expected = from.number + 1;
+      let cursor = from.contentStart;
+      while (expected < to.number) {
+        const found = findInlineQuestionStart(source, expected, cursor, to.index);
+        if (!found) break;
+        starts.push(found);
+        cursor = found.contentStart;
+        expected += 1;
+      }
+    }
+    if (anchors.length) {
+      const last = anchors[anchors.length - 1];
+      let expected = last.number + 1;
+      let cursor = last.contentStart;
+      let guard = 0;
+      while (guard < 120) {
+        const found = findInlineQuestionStart(source, expected, cursor, source.length);
+        if (!found) break;
+        starts.push(found);
+        cursor = found.contentStart;
+        expected += 1;
+        guard += 1;
+      }
+    }
+    starts.sort((a, b) => a.index - b.index);
+    return starts.filter((start, index) => index === 0 || start.index !== starts[index - 1].index);
+  }
+
+  function filterReadingTableStarts(starts) {
+    // 阅读材料里的实验步骤、表格行也常写成“1. 2. 3.”。如果同一段里既有
+    // 1–10 的步骤编号，又有 11 以上的连续题号，保留高题号，避免把步骤当小题。
+    if (starts.length < 3) return starts;
+    const high = starts.filter((start) => start.number >= 11);
+    const low = starts.filter((start) => start.number <= 10);
+    if (high.length >= 2 && low.length) {
+      return starts.filter((start) => start.number >= 11);
+    }
+    return starts;
+  }
+
+  function mergeMisnumberedContinuations(blocks) {
+    // PDF 里偶尔出现“80. … / 77. —No, I disagree.”这种印刷或识别错号。
+    // 当某个题号不增反降、且后面没有继续降号时，把它并回上一题，避免凭空多一小题。
+    // 另一种是页脚页码粘在换行句前面：“56. —Yes, Ms Lu…”，题号会突然从 24 跳到 56
+    // 再回到 25；这种“尖峰号”也要并回上一题，或直接丢掉页码。
+    const merged = [];
+    blocks.forEach((block, index) => {
+      const prev = merged[merged.length - 1];
+      const next = blocks[index + 1];
+      const loneOutOfOrder = prev && block.number <= prev.number && (!next || next.number > prev.number);
+      const pageNumberSpike = prev && next
+        && block.number > prev.number + 5
+        && next.number === prev.number + 1;
+      if (!loneOutOfOrder && !pageNumberSpike) {
+        merged.push(block);
+        return;
+      }
+      const extra = String(block.raw || '').replace(/^\s*\d{1,3}\s*[.、．)）]\s*/, '').trim();
+      // 页码后面直接跟下一题时，正文属于下一题，不能并进上一题。
+      if (pageNumberSpike && /^\d{1,3}\s*[.、．)）]/.test(extra)) return;
+      if (extra) {
+        // 合并后必须重新拆一次选项：对话续行后面常常紧跟着 A/B/C，
+        // 只把文字拼进 stem 会把选项一起吞掉，印出来就是一道没有选项的选择题。
+        prev.raw = `${prev.raw || ''}\n${extra}`.trim();
+        const reparsed = extractQuestionOptions(prev.raw);
+        prev.stem = reparsed.stem;
+        prev.options = reparsed.options;
+        prev.end = block.end;
+      }
+    });
+    return merged;
+  }
+
+  function parseQuestionBlocks(text, options = {}) {
+    const source = normalizeEnglish(String(text || '')).replace(/\r\n?/g, '\n');
+    let starts = collectQuestionStarts(source);
+    if (options.reading) starts = filterReadingTableStarts(starts);
     const blocks = [];
     starts.forEach((start, index) => {
       const end = index + 1 < starts.length ? starts[index + 1].index : source.length;
@@ -509,12 +843,12 @@
         raw
       });
     });
-    return blocks;
+    return mergeMisnumberedContinuations(blocks);
   }
 
-  function splitPassageAndQuestions(content) {
+  function splitPassageAndQuestions(content, type = '') {
     const source = String(content || '').replace(/\r\n?/g, '\n').trim();
-    const blocks = parseQuestionBlocks(source);
+    const blocks = parseQuestionBlocks(source, { reading: normalizeType(type) === 'reading' });
     if (!blocks.length) return { passage: source, questions: [] };
     let first = blocks.find((block) => block.stem || block.options.length);
     if (!first) return { passage: source, questions: [] };
@@ -630,6 +964,12 @@
     return '挑战';
   }
 
+  function starsForLevel(level) {
+    const value = clamp(Number(level) || 1, 1, 10);
+    const stars = clamp(Math.ceil(value / 2), 1, 5);
+    return '★'.repeat(stars) + '☆'.repeat(5 - stars);
+  }
+
   function rangeText(values) {
     const list = values.map((value) => Number(value)).filter(Number.isFinite);
     if (!list.length) return '';
@@ -661,6 +1001,25 @@
         match = pattern.exec(source);
       }
     });
+    return numbers.sort((a, b) => a - b);
+  }
+
+  function collectInlineBlankNumbers(text) {
+    // 五选五的编号写成“66 And / 67 First”，没有下划线。只认 1–200 的
+    // 独立数字，且后面紧跟英文单词，年份（1915、2026）和分数不会被算进来。
+    const source = String(text || '');
+    const numbers = [];
+    const seen = new Set();
+    const pattern = /(?:^|[\s（(])(\d{1,3})(?=\s+[A-Za-z“"‘'])/g;
+    let match = pattern.exec(source);
+    while (match) {
+      const number = Number(match[1]);
+      if (number >= 1 && number <= 200 && !seen.has(number)) {
+        seen.add(number);
+        numbers.push(number);
+      }
+      match = pattern.exec(source);
+    }
     return numbers.sort((a, b) => a - b);
   }
 
@@ -719,6 +1078,22 @@
   function normalizeWordKey(word) {
     return String(word || '').toLowerCase().replace(/[‘’']/g, "'").replace(/[^a-z' -]/g, '').trim();
   }
+
+  // 词表只收“值得背”的词。没有这层过滤时，一篇 59 题的卷子会生成七百多行，
+  // 连 the / does / what 都印进去，既浪费纸也抓不住重点。
+  const VOCAB_STOPWORDS = new Set((`
+    a an the and or but if so because as than then that this these those there here when where what which who whom whose why how
+    all any both each every few more most other some such no not only own same too very just also again always never often sometimes usually ever still already yet soon later now today tomorrow yesterday before after during while until since
+    for from into onto over under above below between among through across along around about against without within behind beside near off on in out up down at by with of to
+    be am is are was were been being have has had do does did done can could may might must shall should will would
+    i you he she it we they me him her us them my your his its our their mine yours hers ours theirs myself yourself himself herself itself ourselves themselves
+    one two three four five six seven eight nine ten first second third next last many much little big small good bad new old great long short high low
+    people person thing things time day days year years way ways man woman boy girl child children student students teacher school home world life
+    football basketball volleyball baseball tennis soccer sport sports noodle noodles food foods drink drinks fruit apple apples banana rice bread milk water juice coffee tea breakfast lunch dinner
+    interesting interested different difficult important information activities activity
+    make made take took get got go went come came see saw look looked say said tell told know knew think thought want wanted like liked give gave use used find found work worked call called need needed feel felt keep kept let put seem seemed help helped show showed try tried ask asked turn turned play played run ran move moved live lived believe believed bring brought happen happened write wrote provide sit sat stand stood lose lost pay paid meet met include included continue continued set learn learned change changed lead led understand understood watch watched follow followed stop stopped create created speak spoke read allow allowed add added spend spent grow grew open opened walk walked win won offer offered remember remembered love loved consider considered appear appeared buy bought wait waited serve served die died send sent expect expected build built stay stayed fall fell cut reach reached kill killed remain remained
+    don't doesn't didn't isn't aren't wasn't weren't can't couldn't shouldn't wouldn't won't
+  `).trim().split(/\s+/));
 
   function extractVocabularyWords(text) {
     const tokens = englishWordTokens(text);
@@ -939,11 +1314,7 @@
     less: 'little', least: 'little'
   };
 
-  function dictionaryLookup(word) {
-    const dict = state.wordDictionary;
-    if (!dict) return null;
-    const key = normalizeWordKey(word);
-    if (!key) return null;
+  function wordCandidates(key) {
     const candidates = [key];
     if (IRREGULAR_LEMMAS[key]) candidates.push(IRREGULAR_LEMMAS[key]);
     if (key.endsWith("'s")) candidates.push(key.slice(0, -2));
@@ -952,10 +1323,61 @@
     if (key.endsWith('ed')) candidates.push(key.slice(0, -2), `${key.slice(0, -1)}`);
     if (key.endsWith('es')) candidates.push(key.slice(0, -2));
     if (key.endsWith('s')) candidates.push(key.slice(0, -1));
-    for (const candidate of candidates) {
+    return candidates;
+  }
+
+  function dictionaryLookup(word) {
+    const dict = state.wordDictionary;
+    if (!dict) return null;
+    const key = normalizeWordKey(word);
+    if (!key) return null;
+    for (const candidate of wordCandidates(key)) {
       if (dict[candidate]) return dict[candidate];
     }
     return null;
+  }
+
+  function dictionaryFrequencyRank(word) {
+    if (!state.wordRanks) return null;
+    const key = normalizeWordKey(word);
+    if (!key) return null;
+    let best = null;
+    for (const candidate of wordCandidates(key)) {
+      const rank = state.wordRanks.get(candidate);
+      // 变形词的词频要按原形算：“decided”本身可能很靠后，但 decide 是高频词。
+      if (rank != null && (best == null || rank < best)) best = rank;
+    }
+    return best;
+  }
+
+  function lemmaKey(word) {
+    const key = normalizeWordKey(word);
+    if (!key || key.includes(' ')) return key;
+    let bestKey = key;
+    let bestRank = null;
+    for (const candidate of wordCandidates(key)) {
+      const rank = state.wordRanks ? state.wordRanks.get(candidate) : null;
+      if (rank != null && (bestRank == null || rank < bestRank)) {
+        bestRank = rank;
+        bestKey = candidate;
+      }
+    }
+    return bestKey;
+  }
+
+  function canonicalWordEntry(entry) {
+    const key = lemmaKey(entry.word);
+    if (!key || key === entry.key) return entry;
+    const found = dictionaryLookup(key);
+    if (!found) return entry;
+    return {
+      ...entry,
+      word: key,
+      key,
+      phonetic: found.kk || found.ipa || entry.phonetic,
+      meaning: found.zh || entry.meaning,
+      pos: found.pos || entry.pos
+    };
   }
 
   async function loadWordDictionary() {
@@ -965,6 +1387,9 @@
       .then((response) => response.ok ? response.json() : {})
       .then((data) => {
         state.wordDictionary = data && typeof data === 'object' ? data : {};
+        // 词库本身按常用度排序：越靠前越是高频基础词。记下序号，词表就能
+        // 按年级跳过太简单的词，只留下略高于学生当前水平的词。
+        state.wordRanks = new Map(Object.keys(state.wordDictionary).map((word, index) => [word, index]));
         return state.wordDictionary;
       })
       .catch(() => {
@@ -1269,16 +1694,121 @@
     downloadBlob(blob, `${safeFilename(`${paper.title} · ${suffix}`)}.doc`);
   }
 
+  /* ---------------------------- 长难句提炼 ---------------------------- */
+  // 参考用户 D 盘“阅读及拆解 / 长难句提炼”的整理习惯：原句 + 分析横线 + 译文横线。
+
+  function collectLongSentences(paper, limit = 10) {
+    const entries = [];
+    const seen = new Set();
+    (paper.sections || []).forEach((section) => {
+      // 只从成篇阅读里选长难句；语法填空的句子带空格和提示词，不适合直接做翻译拆解。
+      if (!['reading', 'cloze', 'five'].includes(normalizeType(section.type))) return;
+      section.items.forEach((item) => {
+        let source = cleanPaperText(item.passage || item.content || '');
+        if (['cloze', 'five'].includes(normalizeType(section.type))) {
+          // 完形/五选五的原文里常留着裸题号（如 “the 41 thing”），
+          // 先换成空格线，长难句才不会印出莫名其妙的数字。
+          source = markBareBlanks(source, item.numberMap).replace(/__\d+__/g, '______');
+        }
+        splitProseSentences(source).forEach((sentence) => {
+          const clean = sentence
+            .replace(/_{2,}\s*\d{0,3}\s*_{2,}/g, '______')
+            .replace(/^[①-⑳]\s*/, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+          // 真实试卷里“值得拆解”的句子不一定都很长；门槛过高会让一份卷子
+          // 只抽出一两句，讲义显得单薄。先收 10 词以上的完整英文句，再按难度排序。
+          if (clean.length < 40 || /[一-鿿]/.test(clean)) return;
+          // 带空格线的句子本身是待填题，不适合拿来做长难句翻译。
+          if (/_{2,}/.test(clean)) return;
+          // 实验步骤表、图表说明不是句子，拆解它们没有意义。
+          if (/what we need|what to do|what happens|result drawing|materials\s*:/i.test(clean)) return;
+          if ((clean.match(/[:：]/g) || []).length >= 2) return;
+          if (/^[-•·]/.test(clean)) return;
+          const words = englishWordTokens(clean);
+          if (words.length < 10) return;
+          const clauses = (clean.match(/\b(which|that|who|whom|whose|when|where|while|although|though|because|if|unless|since|before|after|until|whether|so that|even though|in order to|rather than|despite|in spite of)\b/gi) || []).length;
+          const key = clean.toLowerCase();
+          if (seen.has(key)) return;
+          seen.add(key);
+          entries.push({
+            sentence: clean,
+            words: words.length,
+            clauses,
+            score: words.length + clauses * 4
+          });
+        });
+      });
+    });
+    return entries.sort((a, b) => b.score - a.score).slice(0, limit);
+  }
+
+  function longSentenceDocument(paper) {
+    const list = collectLongSentences(paper);
+    const items = list.map((entry, index) => (
+      `<section class="ls-item">` +
+      `<h3>句子 ${index + 1} <em>（${entry.words} 词${entry.clauses ? ` · ${entry.clauses} 处从句/连接` : ''}）</em></h3>` +
+      `<p class="ls-sentence">${escapeHtml(entry.sentence)}</p>` +
+      `<p class="ls-label">一、长难句分析（划分主干、从句、非谓语与修饰成分）</p>` +
+      `<div class="ls-lines">${'<i></i>'.repeat(3)}</div>` +
+      `<p class="ls-label">二、参考译文</p>` +
+      `<div class="ls-lines">${'<i></i>'.repeat(2)}</div>` +
+      `</section>`
+    )).join('');
+    const extraStyles = `
+      .long-sentence-doc { position: relative; z-index: 1; }
+      .ls-item { margin-top: 18px; padding-top: 12px; border-top: 1px solid #c9c2b2; break-inside: avoid; page-break-inside: avoid; }
+      .ls-item h3 { margin: 0; color: #1b344d; font-family: "Microsoft YaHei", sans-serif; font-size: 11.5pt; }
+      .ls-item h3 em { color: #66727a; font-size: 9pt; font-style: normal; font-weight: 400; }
+      .ls-tip { margin: 10px 0 0; color: #555; font-size: 9.5pt; line-height: 1.7; }
+      .ls-sentence { margin: 6px 0 0; font-family: Arial, "SimHei", sans-serif; font-size: 11.5pt; line-height: 1.9; text-align: justify; }
+      .ls-label { margin: 12px 0 2px; color: #1b344d; font-size: 9.5pt; font-weight: 700; }
+      .ls-lines i { display: block; height: 24px; border-bottom: 1px solid #c9c2b2; }
+    `;
+    const meta = [
+      paper.grade || '',
+      `${list.length} 句`,
+      formatDate(paper.createdAt)
+    ].filter(Boolean).map((value) => escapeHtml(value)).join(' · ');
+    const body = watermarkLayerHtml('doc-watermark') +
+      `<article class="doc long-sentence-doc">` +
+      `<p class="doc-kicker">${escapeHtml(BRAND_SIGNATURE)} · 长难句提炼</p>` +
+      `<h1>${escapeHtml(paper.title)}</h1>` +
+      `<p class="doc-meta">${meta}</p>` +
+      `<p class="ls-tip">先通读原句，划出主句的主谓宾，再逐层标出从句、非谓语和修饰成分；最后对照自己的分析写出译文。</p>` +
+      items +
+      `<footer class="doc-footer">${escapeHtml(watermarkText())}</footer>` +
+      `</article>`;
+    return wrapWordDocument(`${paper.title} · 长难句提炼`, body, extraStyles);
+  }
+
+  function downloadLongSentences(paper) {
+    if (!paper) return;
+    const list = collectLongSentences(paper);
+    if (!list.length) {
+      toast('这份练习里还没有足够长的句子，暂时不能生成长难句提炼。', 'error', 5200);
+      return;
+    }
+    const blob = new Blob(['﻿', longSentenceDocument(paper)], { type: 'application/msword' });
+    downloadBlob(blob, `${safeFilename(`${paper.title} · 长难句提炼`)}.doc`);
+  }
+
+  // 旧资料里可能还存着 shortblank；读取时统一归入 grammar，避免在同一份练习里
+  // 同时出现“语法填空”和“短文填空”两个大题。
+  function normalizeType(type) {
+    return type === 'shortblank' ? 'grammar' : type;
+  }
+
   function typeLabel(type) {
-    return (TYPES[type] || TYPES.other).label;
+    return (TYPES[normalizeType(type)] || TYPES.other).label;
   }
 
   function typeShort(type) {
-    return (TYPES[type] || TYPES.other).short;
+    return (TYPES[normalizeType(type)] || TYPES.other).short;
   }
 
   function typeUnit(type) {
-    return (TYPES[type] || TYPES.other).unit;
+    return (TYPES[normalizeType(type)] || TYPES.other).unit;
   }
 
   function watermarkText() {
@@ -1433,16 +1963,41 @@
     state.settings[key] = value;
   }
 
+  async function migrateBrandSettings() {
+    let changed = 0;
+    if (state.settings.watermark === LEGACY_WATERMARK) {
+      await saveSetting('watermark', DEFAULT_WATERMARK);
+      changed += 1;
+    }
+    // 只替换旧版本的默认署名；用户自己改过的名字保持原样。
+    if (state.settings.examOwner === '阮蔡顺') {
+      await saveSetting('examOwner', BRAND_NAME);
+      changed += 1;
+    }
+    return changed;
+  }
+
   async function migrateParserCache() {
     if (Number(state.settings.parserVersion || 0) >= PARSER_VERSION) return 0;
     let rebuilt = 0;
     for (const material of state.materials) {
       if (!material) continue;
+      // 顺带清理旧版本已经存进去的页眉、页脚、水印和页码。
+      const cleanedBody = cleanImportedText(material.body || '').text;
+      const cleanedAnswers = cleanImportedText(material.answers || '').text;
+      const cleanedText = cleanImportedText(material.text || '').text;
+      if (cleanedBody) material.body = cleanedBody;
+      if (cleanedAnswers) material.answers = cleanedAnswers;
+      if (cleanedText) material.text = cleanedText;
+      material.type = normalizeType(material.type);
+      material.band = material.band || gradeBand(material.grade);
       const fresh = parseAnswerKey(material.answers || '');
       const merged = { ...(material.answerMap || {}), ...fresh };
       const items = buildItemsForMaterial({ ...material, answerMap: merged });
       material.answerMap = merged;
       material.questionCount = items.length;
+      material.processedBlob = makeMaterialBlob(material);
+      material.processedSize = material.processedBlob ? material.processedBlob.size : 0;
       await saveMaterialWithItems(material, items);
       rebuilt += 1;
     }
@@ -1525,7 +2080,7 @@
     if (!select) return;
     const current = select.value;
     select.innerHTML = Object.entries(TYPES)
-      .filter(([key]) => key !== 'paper')
+      .filter(([key, def]) => key !== 'paper' && !def.legacy)
       .sort((a, b) => a[1].order - b[1].order)
       .map(([key, def]) => `<option value="${key}">${escapeHtml(def.label)}</option>`)
       .join('');
@@ -1538,7 +2093,7 @@
     const filter = $('#filter-type');
     if (filter) {
       filter.innerHTML = `<option value="">全部题型</option>${Object.entries(TYPES)
-        .filter(([key]) => key !== 'paper')
+        .filter(([key, def]) => key !== 'paper' && !def.legacy)
         .sort((a, b) => a[1].order - b[1].order)
         .map(([key, def]) => `<option value="${key}">${escapeHtml(def.short)}</option>`)
         .join('')}`;
@@ -1564,14 +2119,20 @@
     const select = $('#filter-grade');
     if (!select) return;
     const current = select.value;
+    const level = state.filters.level;
     const grades = unique([
       ...GRADE_OPTIONS,
       ...state.materials.map((material) => material.grade).filter(Boolean)
-    ]);
+    ]).filter((grade) => !level || gradeBand(grade) === level);
     select.innerHTML = `<option value="">全部年级</option>${grades
       .map((grade) => `<option value="${escapeAttr(grade)}">${escapeHtml(grade)}</option>`)
       .join('')}`;
-    if (current && grades.includes(current)) select.value = current;
+    if (current && grades.includes(current)) {
+      select.value = current;
+    } else {
+      state.filters.grade = '';
+      select.value = '';
+    }
   }
 
   function hydrateSettingsUI() {
@@ -1773,6 +2334,13 @@
     }
 
     text = toDisplayText(text);
+    const cleaning = cleanImportedText(text, { fileName: file.name });
+    text = cleaning.text;
+    if (cleaning.removed > 0) {
+      extractionNote = [extractionNote, `已清理 ${cleaning.removed} 行页眉、页脚、水印或扫描噪点。`]
+        .filter(Boolean)
+        .join(' ');
+    }
     const split = splitAnswerSection(text);
     const body = toDisplayText(split.body);
     const answers = toDisplayText(split.answers);
@@ -1799,14 +2367,15 @@
     return {
       id,
       title: isPaper ? (detectExamTitle(body || text) || cleanTitle(file.name.replace(/\.[^.]+$/, ''), 'paper')) : classified.title,
-      type: isPaper ? 'paper' : classified.type,
+      type: isPaper ? 'paper' : normalizeType(classified.type),
       grade,
+      band: gradeBand(grade),
       tags,
       text,
       body,
       answers,
       answerMap,
-      sectionTypes: isPaper ? unique(sections.map((section) => section.type)) : [classified.type],
+      sectionTypes: isPaper ? unique(sections.map((section) => normalizeType(section.type))) : [normalizeType(classified.type)],
       note: unique(noteParts).join(' '),
       sourceName: file.name,
       sourceType: file.type || extension,
@@ -1988,7 +2557,7 @@
         const lines = groupPdfTextItems(content.items);
         if (lines.length) pages.push(lines.join('\n'));
       }
-      const text = toDisplayText(pages.join('\n\n'));
+      const text = toDisplayText(cleanPageTexts(pages).join('\n\n'));
       const notes = [];
       if (!text) notes.push('PDF 中没有提取到可复制的文字，可能是扫描版或纯图片；原文件已完整保存。');
       if (pdf.numPages > MAX_PDF_PAGES) notes.push(`PDF 共 ${pdf.numPages} 页，已提取前 ${MAX_PDF_PAGES} 页。`);
@@ -2347,7 +2916,7 @@
         const text = await recognizeOcrCanvas(worker, canvas, onProgress);
         if (text) pages.push(text);
       }
-      return { text: pages.join('\n\n'), pages: limit };
+      return { text: cleanPageTexts(pages).join('\n\n'), pages: limit };
     } finally {
       if (pdf) {
         try { await pdf.destroy(); } catch (error) { /* ignore */ }
@@ -2360,15 +2929,18 @@
      ------------------------------------------------------------------------ */
 
   const SECTION_TITLE_RULES = [
-    ['listening', /听力(?:理解|测试|部分)?/],
+    // 福建等地把听力写成“听音理解”，只认“听力”会把它并进后面的单选，
+    // 导致没有音频的听力小题被当成普通选择题抽进每日练习。
+    ['listening', /听音理解|听力(?:理解|测试|部分)?/],
     ['single', /选择填空|单项选择|单项填空/],
     ['cloze', /完形填空|完型填空/],
     ['reading', /阅读理解|任务型阅读/],
     ['five', /五选五|七选五|阅读还原|阅读填句|补全短文|信息匹配/],
     ['dialogue', /情景交际|补全对话|完成对话/],
     ['picture', /看图写话|看图作文/],
-    ['shortblank', /短文填空|首字母填空|选词填空|单词拼写|词汇运用|完成句子/],
-    ['grammar', /语法填空/],
+    // 各地叫法不同：语法填空、短文填空、短文填词、语篇填空、首字母填空、选词填空，
+    // 都是“在语篇中按语法/语境填空”，统一归入 grammar，避免同一份卷子被拆成两种题型。
+    ['grammar', /语法填空|短文填空|短文填词|语篇填空|首字母填空|选词填空|单词拼写|词汇运用|完成句子/],
     ['writing', /书面表达|写作|作文/]
   ];
 
@@ -2517,67 +3089,128 @@
       evidence[key] = unique(hits).slice(0, 5);
     });
 
+    // ---- 结构特征 ------------------------------------------------------
+    // 各地模拟卷的题型名称不完全相同，但“长什么样”相对稳定。先用结构特征判断，
+    // 再用文件名/标题里的关键词兜底，能明显减少把短文填空认成完形、把阅读认成单选的情况。
     const optionLines = (body.match(/(?:^|\n)\s*[A-DＡ-Ｄ][.、．)）]\s+/g) || []).length;
-    const questionNumbers = (body.match(/(?:^|\n)\s*\d{1,3}[.、．)）]\s+/g) || []).length;
-    const blankCount = (body.match(/_{2,}|\(\s*\)|（\s*）|\b\d{1,2}[.、．]?\s*_{2,}/g) || []).length;
     const blocks = parseQuestionBlocks(body);
+    const mcqBlocks = blocks.filter((block) => block.options.length >= 2);
+    const blankNumbers = collectBlankNumbers(body);
+    const rawBlankCount = (body.match(/_{2,}|\(\s*\)|（\s*）|\b\d{1,2}[.、．]?\s*_{2,}/g) || []).length;
+    const blankCount = Math.max(blankNumbers.length, rawBlankCount);
     const totalWords = englishWordTokens(body).length;
     const firstQuestion = blocks.length ? blocks[0].start : body.length;
     const passageWords = englishWordTokens(body.slice(0, firstQuestion)).length;
-    const hasWordPrompts = /\(\s*[A-Za-z][A-Za-z'-]*\s*\)|（\s*[A-Za-z][A-Za-z'-]*\s*）/.test(body);
+    const stemWordCounts = mcqBlocks.map((block) => englishWordTokens(block.stem || '').length);
+    const emptyStemRatio = stemWordCounts.length
+      ? stemWordCounts.filter((count) => count <= 3).length / stemWordCounts.length
+      : 0;
+    const optionBox = extractChoiceBox(body);
+    const sentenceChoiceCount = optionBox.filter((option) => englishWordTokens(option.text).length >= 3).length;
+    const passageLabelCount = (body.match(/(?:^|\n)\s*[A-E]\s*(?=(?:\n|$))/g) || []).length;
     const hasWordLimit = /(词左右|词数|字数|写一封|写一篇|写邮件|write an email|write a letter|write a composition)/i.test(body);
+    const hasDialogueMarks = /(?:^|\n)\s*(?:A|B|M|W|Man|Woman)\s*[:：]/.test(body)
+      || /补全对话|完成对话|情景交际/.test(baseName + head);
+    const hasPictureTitle = /看图写话|看图作文/.test(baseName + head);
+    const hasWritingTitle = /书面表达|应用文写作|作文|读后续写|写作/.test(baseName + head);
+    const hasListeningTitle = /听力理解|听力测试|听下面|listening comprehension/.test(baseName + head);
+    const hasFiveTitle = /五选五|七选五|阅读还原|阅读填句|补全短文/.test(baseName + head);
+    const hasClozeTitle = /完形填空|完型填空|cloze/i.test(baseName + head);
+    const hasGrammarTitle = /语法填空|短文填空|短文填词|语篇填空|首字母填空|选词填空|单词拼写|词汇运用/.test(baseName + head);
+    const hasReadingTitle = /阅读理解|阅读下列短文|reading comprehension|read the passage/i.test(baseName + head);
+    const hasSingleTitle = /单项选择|单项填空|选择填空|multiple choice|single choice/i.test(baseName + head);
 
-    scores.single = (scores.single || 0) + Math.min(optionLines, 24) * 0.32 + Math.min(questionNumbers, 20) * 0.16;
-    scores.grammar = (scores.grammar || 0) + Math.min(blankCount, 30) * 0.1;
-    scores.shortblank = (scores.shortblank || 0) + Math.min(blankCount, 30) * 0.08;
-    if (hasWordLimit) scores.writing = (scores.writing || 0) + 2.2;
-    if (scores.five > 0) scores.reading *= 0.55;
-    if (scores.grammar > 0) scores.single *= 0.9;
-    if (scores.cloze > 0) scores.reading *= 0.9;
-    if (scores.dialogue > 0) scores.single *= 0.75;
-    if (scores.shortblank > 0) scores.cloze *= 0.8;
+    // ---- 按“试卷上长什么样”依次判断 -----------------------------------
+    // 顺序很重要：先排除听力、写作等整块题型，再按“五选五 → 完形 → 语法/短文填空
+    // → 阅读 → 单选”的优先级判断，避免一篇阅读里的选择题把整份卷子带成单选。
+    let type = '';
+    let confidence = 0;
+    let evidenceText = '';
+    const choose = (candidate, score, evidence) => {
+      if (type) return;
+      type = candidate;
+      confidence = score;
+      evidenceText = evidence || '';
+    };
 
-    if (blocks.length >= 3 && optionLines >= 6 && passageWords < 100) {
-      scores.single += 2.6;
+    if (hasListeningTitle) {
+      choose('listening', 88, '标题或开头出现听力指令');
     }
-    if (blocks.length >= 2 && optionLines >= 6 && passageWords >= 120) {
-      scores.reading += 2.2;
+    if (!type && hasWritingTitle && mcqBlocks.length < 2 && blankCount < 3) {
+      choose('writing', 90, '出现书面表达标题，且没有成组的选择题');
     }
-    if (blocks.length >= 5 && optionLines >= 10 && blankCount >= 5 && passageWords >= 100) {
-      scores.cloze += 2.8;
+    if (!type && hasWordLimit && mcqBlocks.length < 2 && blankCount < 4) {
+      choose('writing', 84, '出现词数/写作任务要求');
     }
-    if (blankCount >= 5 && optionLines < 4) {
-      if (hasWordPrompts) scores.grammar += 2.2;
-      else scores.shortblank += 2.0;
+    if (!type && hasPictureTitle) {
+      choose('picture', 88, '出现看图写话标题');
     }
-    if (blankCount >= 4 && /(^|\n)\s*[A-G][.、．)）]\s+/im.test(body) && blocks.length < 4) {
-      scores.five += 2.4;
-    }
-    if (passageWords >= 180 && blocks.length >= 2 && optionLines < 4) {
-      scores.reading += 1.2;
+    if (!type && (hasDialogueMarks || /情景交际|补全对话|完成对话/.test(baseName + head)) && mcqBlocks.length < 3) {
+      choose('dialogue', 86, '出现对话双方标记或补全对话标题');
     }
 
-    const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-    const [bestType, bestScore] = ranked[0] || ['other', 0];
-    const total = ranked.reduce((sum, entry) => sum + Math.max(entry[1], 0), 0);
-    let confidence = total > 0 ? Math.round((bestScore / total) * 100) : 0;
-    let type = bestScore >= 3.2 ? bestType : 'other';
+    if (!type && (hasFiveTitle && blankCount >= 3
+      || (sentenceChoiceCount >= 4 && blankCount >= 4 && mcqBlocks.length < 3))) {
+      choose('five', hasFiveTitle ? 92 : 86, '文中有编号空格，文后是 A–E/G 整句选项');
+    }
+    if (!type && (hasClozeTitle && mcqBlocks.length >= 3
+      || (mcqBlocks.length >= 4 && blankCount >= 4 && passageWords >= 80
+        && optionLines >= 8 && emptyStemRatio >= 0.5))) {
+      choose('cloze', hasClozeTitle ? 92 : 86, '一篇短文里连续编号空格，每题配 A–D 选项，且小题题干很短');
+    }
+    if (!type && (hasGrammarTitle && blankCount >= 3 && mcqBlocks.length < 2
+      || (blankCount >= 4 && mcqBlocks.length < 2 && sentenceChoiceCount < 4))) {
+      choose('grammar', hasGrammarTitle ? 92 : 84, '语篇中有连续编号空格，但没有成组的选择题；短文填空、首字母、选词填空均归入此类');
+    }
+    if (!type && (hasReadingTitle && mcqBlocks.length >= 1
+      // 初中阅读短文常常只有 60–100 词，不能因为“没到 120 词”就误判成单选。
+      || (mcqBlocks.length >= 2 && passageWords >= 45 && blankCount < 4 && emptyStemRatio < 0.5)
+      || (mcqBlocks.length >= 3 && (passageLabelCount >= 2 || passageWords >= 120)
+        && passageWords >= 50 && emptyStemRatio < 0.5))) {
+      choose('reading', hasReadingTitle ? 90 : 82, '有一篇或几篇短文，后面跟带完整题干的选择题');
+    }
+    if (!type && (hasSingleTitle && mcqBlocks.length >= 2
+      || (mcqBlocks.length >= 3 && passageWords < 100 && emptyStemRatio < 0.6))) {
+      choose('single', hasSingleTitle ? 90 : 80, '多道独立选择题，题干短，前面没有成篇短文');
+    }
+    if (!type && blankCount >= 4) {
+      choose('grammar', 72, '连续编号空格较多，按语篇填空处理');
+    }
+    if (!type && mcqBlocks.length >= 3) {
+      choose('single', 68, '多道带选项的题目，按选择题处理');
+    }
+
+    // ---- 关键词兜底 ----------------------------------------------------
+    if (!type) {
+      const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+      const [bestType, bestScore] = ranked[0] || ['other', 0];
+      const total = ranked.reduce((sum, entry) => sum + Math.max(entry[1], 0), 0);
+      const ratio = total > 0 ? Math.round((bestScore / total) * 100) : 0;
+      if (bestScore >= 3.2) {
+        type = bestType === 'shortblank' ? 'grammar' : bestType;
+        confidence = ratio;
+        evidenceText = '标题关键词';
+      }
+    }
+
+    if (type === 'other') confidence = 0;
+    if (type === 'single' && optionLines < 2 && mcqBlocks.length < 2) type = 'other';
+    if (type === 'reading' && mcqBlocks.length === 0) type = 'other';
+    if (type === 'cloze' && mcqBlocks.length < 3) type = 'other';
+    if (type === 'five' && blankCount < 3 && !hasFiveTitle) type = 'other';
     if (type === 'other') confidence = 0;
 
-    if (type === 'single' && optionLines < 2) type = 'other';
-    if (type === 'writing' && !/(书面表达|作文|写作|writing|composition)/i.test(baseName + head)) {
-      type = 'other';
-    }
-    // 福建等地把“短文填空（含括号提示词）”单列一大题，不能因为出现 (go) 就改判语法填空。
-    if (type === 'shortblank' && hasWordPrompts && !/短文填空|首字母填空|选词填空/.test(baseName + head)) {
-      type = 'grammar';
-    }
-
     const title = cleanTitle(baseName, type);
-    const tags = [typeShort(type), ...(grade ? [grade] : [])];
+    const tags = unique([
+      typeShort(type),
+      ...(grade ? [grade] : []),
+      ...(type === 'grammar' ? ['语篇填空'] : [])
+    ]);
     const note = type === 'other'
       ? '暂未识别出明确题型，请在上传后核对并修改。'
-      : (confidence < 45 ? '按文本结构初步判断，建议核对题型。' : '');
+      : (confidence < 55
+        ? `按${evidenceText || '文本结构'}初步判断，建议核对题型。`
+        : '');
 
     return {
       type,
@@ -2590,16 +3223,34 @@
     };
   }
 
+  function gradeBand(grade) {
+    const text = String(grade || '');
+    if (/(七年级|八年级|九年级|初一|初二|初三|中考|初中)/.test(text)) return 'junior';
+    if (/(高一|高二|高三|高考|高中)/.test(text)) return 'senior';
+    return '';
+  }
+
+  function bandLabel(band) {
+    return BAND_LABELS[band] || '';
+  }
+
+  function materialBand(material) {
+    if (!material) return '';
+    return material.band || gradeBand(material.grade);
+  }
+
   function detectGrade(text) {
     const source = String(text || '');
+    // 先认具体年级，再认“中考 / 高考”，最后才用“初中 / 高中”兜底；
+    // 这样“2026 届初三中考模拟”不会被笼统识成“初中”。
     if (/(高一|高中一年级)/.test(source)) return '高一';
     if (/(高二|高中二年级)/.test(source)) return '高二';
     if (/(高三|高中三年级)/.test(source)) return '高三';
-    if (/(七年级|初一)/.test(source)) return '七年级';
-    if (/(八年级|初二)/.test(source)) return '八年级';
-    if (/(九年级|初三)/.test(source)) return '九年级';
-    if (/(中考)/.test(source)) return '中考';
-    if (/(高考)/.test(source)) return '高考';
+    if (/(七年级|初一|初一年级)/.test(source)) return '七年级';
+    if (/(八年级|初二|初二年级)/.test(source)) return '八年级';
+    if (/(九年级|初三|初三年级)/.test(source)) return '九年级';
+    if (/(初中学业水平|中考|中招考试)/.test(source)) return '中考';
+    if (/(普通高中学业水平|高考|高招考试)/.test(source)) return '高考';
     if (/(高中)/.test(source)) return '高中';
     if (/(初中)/.test(source)) return '初中';
     return '';
@@ -2672,14 +3323,33 @@
      题组拆分
      ------------------------------------------------------------------------ */
 
+  const INSTRUCTION_LINE_PATTERN = /(?:每小题\s*[\d一二三四五六七八九十]|满分\s*\d|选出.{0,8}答案|最佳答案|填入.{0,8}空白|补全.{0,8}(?:句子|对话|短文)|使短文.{0,10}(?:通顺|连贯|完整)|意思完整|所给.{0,10}(?:选项|单词)|从短文后所给|根据.{0,10}(?:提示|情景|语境)|每空不超过|完成对话|情景提示|阅读下面短文|阅读以下|阅读下列短文|短文后所给)/;
+
+  function isInstructionLine(line) {
+    const text = String(line || '').trim();
+    if (!text || text.length > 100) return false;
+    if (!INSTRUCTION_LINE_PATTERN.test(text)) return false;
+    const chinese = (text.match(/[一-鿿]/g) || []).length;
+    const visible = text.replace(/\s/g, '').length || 1;
+    // 说明文字以中文为主；英文正文里偶尔出现“答案”等词时不会被误删。
+    return chinese / visible >= 0.3;
+  }
+
   function cleanSectionContent(content) {
-    const lines = String(content || '').replace(/\r\n?/g, '\n').split('\n');
+    const lines = String(content || '').replace(/\r\n?/g, '\n').split('\n')
+      .filter((line) => !isPartHeadingLine(line));
     while (lines.length) {
       const line = lines[0].trim();
       if (!line) { lines.shift(); continue; }
       if (sectionTypeFromLine(line)) { lines.shift(); continue; }
       if (/^(?:第[一二三四五六七八九十]+[部分节]|第[一二三四五六七八九十]+节)/.test(line)
         || /^(?:阅读下列短文|阅读下面短文|阅读短文|从每题所给|根据短文内容|根据情景|根据每题所提供|听下面|听第)/.test(line)) {
+        lines.shift();
+        continue;
+      }
+      // 页眉页脚清掉后，大题说明常被拆成半句留在正文开头；篇目标签 A/B/C 也在
+      // 这里去掉，排版时由程序统一加“A 篇”，避免预览里出现两个 A。
+      if (isInstructionLine(line) || /^[A-E]$/.test(line)) {
         lines.shift();
         continue;
       }
@@ -2747,9 +3417,33 @@
 
   function makeSetItem(material, type, content, title, answerMap, order) {
     const cleaned = cleanSectionContent(content);
-    const parsed = splitPassageAndQuestions(cleaned);
-    const passage = parsed.passage || cleaned;
-    const questions = (parsed.questions || []).map((block) => questionMeta(block, type, passage, answerMap, material.grade));
+    const normalizedType = normalizeType(type);
+    // 书面表达/看图写话里的“1. 2. 3.”是写作要点，不是小题；若照常拆题，
+    // 会把一篇作文算成 3 道题，答案区也会出现 3 条重复的“写作提示”。
+    const writingLike = normalizedType === 'writing' || normalizedType === 'picture';
+    const parsed = writingLike
+      ? { passage: cleaned, questions: [] }
+      : splitPassageAndQuestions(cleaned, type);
+    // 语法填空/完成句子常常直接从“71.”开始，没有前置短文；这时 passage 必须是空的。
+    // 若回退成整段 content，渲染时会把每一小题再当短文印一遍。
+    const passage = parsed.passage || (parsed.questions && parsed.questions.length ? '' : cleaned);
+    let questions = (parsed.questions || []).map((block) => questionMeta(block, type, passage, answerMap, material.grade));
+    if (normalizedType === 'five') {
+      // 五选五的小题号直接嵌在短文里（66、67…），没有独立题干行；
+      // 不补出这些编号，抽题时会把一整篇只算成 1 小题，答案也无处可挂。
+      const existing = new Set(questions.map((question) => Number(question.number)));
+      collectInlineBlankNumbers(cleaned).forEach((number) => {
+        if (existing.has(number)) return;
+        questions.push(questionMeta({ number, stem: '', options: [] }, type, passage, answerMap, material.grade));
+      });
+      questions.sort((a, b) => Number(a.number) - Number(b.number));
+    }
+    // 图片选项在 PDF 文字层里是空的。一篇阅读若大部分题有选项、个别题没有，
+    // 说明那几题依赖插图；宁可少印一题，也不印一道没有选项的选择题。
+    const hasChoiceOptions = questions.some((question) => (question.options || []).length >= 2);
+    if (hasChoiceOptions && ['single', 'reading', 'cloze'].includes(normalizedType)) {
+      questions = questions.filter((question) => (question.options || []).length >= 2);
+    }
     const difficulty = difficultyForText(cleaned, { type, grade: material.grade });
     const levels = questions.map((question) => question.difficulty);
     const blanks = blankAnswerMap(cleaned, answerMap);
@@ -2761,8 +3455,9 @@
     return {
       id: uid(),
       materialId: material.id,
-      type,
+      type: normalizeType(type),
       grade: material.grade || '',
+      band: material.band || gradeBand(material.grade),
       kind: 'set',
       order,
       title: title || typeLabel(type),
@@ -2786,8 +3481,9 @@
     return {
       id: uid(),
       materialId: material.id,
-      type,
+      type: normalizeType(type),
       grade: material.grade || '',
+      band: material.band || gradeBand(material.grade),
       kind: 'question',
       order,
       content: block.raw,
@@ -2804,15 +3500,34 @@
     };
   }
 
+  function listeningQuestionLimit(section) {
+    const text = `${section.heading || ''}\n${String(section.content || '').slice(0, 180)}`;
+    const range = text.match(/(\d{1,3})\s*[-—－~～至]\s*(\d{1,3})\s*小题/);
+    if (range) return Math.max(Number(range[1]), Number(range[2]));
+    const count = text.match(/共?\s*(\d{1,3})\s*小题/);
+    if (count) return Number(count[1]);
+    return 20;
+  }
+
+  function splitListeningContent(content, limit) {
+    const blocks = parseQuestionBlocks(content);
+    const firstSingle = blocks.find((block) => block.number > limit);
+    if (!firstSingle) return { listening: content, rest: '' };
+    return {
+      listening: content.slice(0, firstSingle.start).trim(),
+      rest: content.slice(firstSingle.start).trim()
+    };
+  }
+
   function itemsForSection(material, section, answerMap, startOrder) {
-    const type = section.type;
-    let content = section.content || '';
-    content = cleanSectionContent(content);
-    if (!content.trim()) return [];
+    const type = normalizeType(section.type);
+    const rawContent = section.content || '';
     const answerSource = answerMap || {};
 
     if (type === 'reading') {
-      const passages = splitReadingPassages(content, type);
+      // 必须先在原始正文里按 A/B/C 标签分篇，再逐篇清理开头的“A”标签。
+      // 顺序反过来会把 A 标签当说明文字删掉，导致 B 篇并进 A 篇。
+      const passages = splitReadingPassages(rawContent, type);
       return passages.map((passage, index) => makeSetItem(
         material,
         type,
@@ -2821,6 +3536,22 @@
         answerSource,
         startOrder + index
       ));
+    }
+
+    const content = cleanSectionContent(rawContent);
+    if (!content.trim()) return [];
+
+    if (type === 'listening') {
+      // 听力题依赖录音，PDF 文字层里的图片选项还常常只剩“A B C”。
+      // 这类题不进每日练习；但有些卷子漏印了“II. 单项选择”标题，
+      // 听力后面的 21–35 题会落在同一块里，要按题号范围接回单选。
+      const parts = splitListeningContent(content, listeningQuestionLimit(section));
+      if (!parts.rest) return [];
+      return itemsForSection(material, {
+        ...section,
+        type: 'single',
+        content: parts.rest
+      }, answerMap, startOrder);
     }
 
     if (type === 'single' || type === 'dialogue' || type === 'picture') {
@@ -2898,7 +3629,7 @@
     }
 
     return itemsForSection(material, {
-      type: material.type,
+      type: normalizeType(material.type),
       heading: material.title,
       content: body
     }, mergedMap, 1);
@@ -2943,15 +3674,17 @@
       material.sourceName || '',
       formatDate(material.createdAt)
     ].filter(Boolean).map((item) => escapeHtml(item)).join(' · ');
-    const answerBlock = answers
-      ? `<section class="doc-answers"><h2>参考答案</h2>${textToDocHtml(answers)}</section>`
+    const cleanBody = cleanImportedText(body || '').text;
+    const cleanAnswers = cleanImportedText(answers || '').text;
+    const answerBlock = cleanAnswers
+      ? `<section class="doc-answers"><h2>参考答案</h2>${textToDocHtml(cleanAnswers)}</section>`
       : '';
     return watermarkLayerHtml('doc-watermark') +
       `<article class="doc">` +
-      `<p class="doc-kicker">阮蔡顺 · 初高中英语 · 教学资料</p>` +
+      `<p class="doc-kicker">${escapeHtml(BRAND_SIGNATURE)} · 教学资料</p>` +
       `<h1>${escapeHtml(material.title)}</h1>` +
       `<p class="doc-meta">${meta}</p>` +
-      `<div class="doc-body">${textToDocHtml(body)}</div>` +
+      `<div class="doc-body">${textToDocHtml(cleanBody)}</div>` +
       `${answerBlock}` +
       `<footer class="doc-footer">${escapeHtml(watermarkText())}</footer>` +
       `</article>`;
@@ -3048,7 +3781,8 @@
     return { count: null, unit: '' };
   }
 
-  function defaultRequests() {
+  function defaultRequests(band = '') {
+    const inBand = (item) => !band || materialBand(item) === band;
     const preferred = [
       { type: 'single', count: 5 },
       { type: 'cloze', count: 1 },
@@ -3056,7 +3790,7 @@
       { type: 'grammar', count: 1 },
       { type: 'writing', count: 1 }
     ];
-    const available = preferred.filter((request) => state.items.some((item) => item.type === request.type));
+    const available = preferred.filter((request) => state.items.some((item) => normalizeType(item.type) === request.type && inBand(item)));
     if (available.length) return available;
     return [
       { type: 'single', count: 5 },
@@ -3083,9 +3817,13 @@
     };
   }
 
-  function parseCommand(raw) {
+  function parseCommand(raw, fallbackBand = '') {
     const text = normalizeCommandText(raw);
     const grade = detectGrade(text);
+    // 指令里的“初中 / 高中”优先；没写时沿用页面上的学段开关。
+    const band = gradeBand(grade) || (/(初中|初中学段)/.test(text) ? 'junior' : '')
+      || (/(高中|高中学段)/.test(text) ? 'senior' : '')
+      || fallbackBand || '';
     const level = parseLevelTarget(text);
     const requests = [];
     const explicit = new Set();
@@ -3124,8 +3862,10 @@
     let notes = [];
     let effectiveRequests = requests;
     if (!effectiveRequests.length) {
-      effectiveRequests = defaultRequests();
-      notes.push('未指定题型，已按今日默认组合抽取。');
+      effectiveRequests = defaultRequests(band);
+      notes.push(band
+        ? `未指定题型，已按${bandLabel(band)}题库的默认组合抽取。`
+        : '未指定题型，已按今日默认组合抽取。');
     }
 
     const order = new Map(TYPE_ORDER.map((type, index) => [type, index]));
@@ -3134,6 +3874,7 @@
     return {
       raw: text,
       grade,
+      band,
       level,
       requests: effectiveRequests,
       explicit: Array.from(explicit),
@@ -3173,15 +3914,28 @@
 
   function selectItemsForRequest(request, requestedGrade, options = {}) {
     const label = typeShort(request.type);
-    const kind = request.type === 'single' ? 'question' : 'set';
+    // 单选、情景交际、看图写句在入库时按“逐题”拆开；其余题型按“整组”抽。
+    const kind = ['single', 'dialogue', 'picture'].includes(request.type) ? 'question' : 'set';
     const usedItemIds = options.usedItemIds || new Set();
     const usedMaterialIds = options.usedMaterialIds || new Set();
-    let pool = state.items.filter((item) => item.type === request.type && item.kind === kind && !usedItemIds.has(item.id));
+    const type = normalizeType(request.type);
+    let pool = state.items.filter((item) => normalizeType(item.type) === type && item.kind === kind && !usedItemIds.has(item.id));
     if (!pool.length) {
       return { items: [], warning: `资料库中还没有可用的「${label}」题目。` };
     }
 
     let warnings = [];
+    const band = options.band || '';
+    if (band) {
+      const inBand = pool.filter((item) => materialBand(item) === band);
+      if (inBand.length) {
+        pool = inBand;
+      } else {
+        // 学段是硬边界：初中卷不拿高中题凑数，高中卷也不拿初中题凑数。
+        return { items: [], warning: `${bandLabel(band)}题库中暂无「${label}」，已跳过这一项。` };
+      }
+    }
+
     if (requestedGrade) {
       const strict = pool.filter((item) => gradeMatches(item.grade, requestedGrade));
       if (strict.length) {
@@ -3240,10 +3994,18 @@
         const questionNumbers = (item.questions || []).map((question) => Number(question.number)).filter(Number.isFinite);
         const blankNumbers = collectBlankNumbers(item.content || '');
         const sourceNumbers = unique([...questionNumbers, ...blankNumbers]).sort((a, b) => a - b);
-        sourceNumbers.forEach((number) => {
-          item.numberMap[number] = next;
+        const isWriting = normalizeType(section.type) === 'writing';
+        if (isWriting) {
+          // 书面表达整篇只占一个连续题号；即使提示语里有下划线，也不当小题编号。
+          item.writingNumber = next;
+          item.paperNumbers = [next];
           next += 1;
-        });
+        } else {
+          sourceNumbers.forEach((number) => {
+            item.numberMap[number] = next;
+            next += 1;
+          });
+        }
         (item.questions || []).forEach((question) => {
           question.paperNumber = item.numberMap[question.number] || null;
           if (question.paperNumber) levels.push(Number(question.difficulty) || itemDifficultyOf(item));
@@ -3254,7 +4016,9 @@
             levels.push(Number(blankLevel) || itemDifficultyOf(item));
           }
         });
-        item.paperNumbers = Object.values(item.numberMap);
+        if (!isWriting) {
+          item.paperNumbers = Object.values(item.numberMap);
+        }
         item.paperDifficulty = levels.length
           ? Math.round(levels.reduce((sum, level) => sum + level, 0) / levels.length)
           : itemDifficultyOf(item);
@@ -3288,8 +4052,80 @@
     return parts.length ? `/${parts.join(' ')}/` : '';
   }
 
+  function vocabularyMinRank(paper) {
+    const grade = `${paper.grade || ''} ${paper.band || ''}`;
+    if (/高三|高考/.test(grade)) return 4200;
+    if (/高二/.test(grade)) return 3900;
+    if (/高中|高一/.test(grade) || paper.band === 'senior') return 3600;
+    if (/九年级|中考/.test(grade)) return 2600;
+    if (/八年级/.test(grade)) return 2200;
+    return 1800;
+  }
+
+  function selectPaperVocabulary(vocabulary, text, questionTotal, focusText, minRank = 1100) {
+    const frequency = new Map();
+    englishWordTokens(text).forEach((token) => {
+      const key = normalizeWordKey(token);
+      if (key) frequency.set(key, (frequency.get(key) || 0) + 1);
+    });
+    const focus = new Set(englishWordTokens(focusText || '').map((token) => normalizeWordKey(token)).filter(Boolean));
+    const cap = Math.min(48, Math.max(20, Math.round((Number(questionTotal) || 40) * 0.6)));
+    const seenKeys = new Set();
+    const ranked = [];
+    vocabulary.words
+      .map((entry) => canonicalWordEntry(entry))
+      .filter((entry) => entry.meaning && !VOCAB_STOPWORDS.has(entry.key))
+      .filter((entry) => String(entry.word || '').replace(/[^A-Za-z]/g, '').length >= 3)
+      .forEach((entry) => {
+        // 先把 crabs 归到 crab、Dynasties 归到 dynasty，再按原形去重，
+        // 否则同一家族会占掉好几个词表位置。
+        if (seenKeys.has(entry.key)) return;
+        seenKeys.add(entry.key);
+        ranked.push({ entry, rank: dictionaryFrequencyRank(entry.word) });
+      });
+    // 只留略高于当前年级的词。若某份卷子生词太少，就退回全部候选，
+    // 以免词表空着；但通常阅读/完形会提供足够的进阶词。
+    const aboveLevel = ranked
+      .filter(({ entry, rank }) => entry.source === 'ai' || rank == null || rank >= minRank)
+      .map(({ entry }) => entry);
+    const pool = aboveLevel.length >= Math.min(12, cap) ? aboveLevel : ranked.map(({ entry }) => entry);
+    const words = pool
+      .sort((a, b) => {
+        const advancedSuffix = /(?:tion|sion|ment|ness|ity|ous|ive|able|ible|less|ful|ence|ance|ify|ize|ise)$/i;
+        const score = (entry) => {
+          const word = String(entry.word || '').toLowerCase();
+          const letters = word.replace(/[^a-z]/g, '').length;
+          // 长词、学术后缀、文中反复出现、以及出现在题干/选项里的词优先；
+          // 这样 “structure / underlined” 这类考试高频词不会被日常词挤下去。
+          return letters
+            + (advancedSuffix.test(word) ? 8 : 0)
+            + Math.min(frequency.get(entry.key) || 1, 5) * 3
+            + (focus.has(entry.key) ? 10 : 0);
+        };
+        return score(b) - score(a) || String(a.word).localeCompare(String(b.word));
+      })
+      .slice(0, cap)
+      .sort((a, b) => String(a.word).localeCompare(String(b.word), 'en', { sensitivity: 'base' }));
+    const phrases = vocabulary.phrases.filter((entry) => entry.meaning).slice(0, 20);
+    return { words, phrases };
+  }
+
+  function paperFocusText(paper) {
+    const parts = [];
+    (paper.sections || []).forEach((section) => {
+      section.items.forEach((item) => {
+        (item.questions || []).forEach((question) => {
+          parts.push(question.stem || '');
+          (question.options || []).forEach((option) => parts.push(option.text || ''));
+        });
+      });
+    });
+    return parts.join('\n');
+  }
+
   function buildPaperVocabulary(paper) {
-    const vocabulary = buildVocabulary(paperVocabularyText(paper), paper.aiVocab || []);
+    const sourceText = paperVocabularyText(paper);
+    const vocabulary = buildVocabulary(sourceText, paper.aiVocab || []);
     const apply = (entry) => {
       const found = dictionaryLookup(entry.word);
       if (found) {
@@ -3308,7 +4144,13 @@
     };
     vocabulary.words.forEach(apply);
     vocabulary.phrases.forEach(apply);
-    return vocabulary;
+    return selectPaperVocabulary(
+      vocabulary,
+      sourceText,
+      paper.questionTotal || paper.total,
+      paperFocusText(paper),
+      vocabularyMinRank(paper)
+    );
   }
 
   function generatePaperFromCommand(parsed) {
@@ -3323,6 +4165,7 @@
     parsed.requests.forEach((request) => {
       const selection = selectItemsForRequest(request, parsed.grade, {
         level: parsed.level,
+        band: parsed.band,
         usedItemIds,
         usedMaterialIds
       });
@@ -3366,7 +4209,8 @@
       weekday: cnWeekday(date),
       createdAt: nowIso(),
       command: parsed.raw,
-      grade: parsed.grade || '',
+      grade: parsed.grade || bandLabel(parsed.band) || '',
+      band: parsed.band || '',
       level: parsed.level || null,
       sections,
       warnings: unique(warnings),
@@ -3387,8 +4231,13 @@
   }
 
   function cleanPaperText(text) {
-    return String(text || '')
-      .replace(/\r\n?/g, '\n')
+    // 渲染时再清一次：旧资料里已经存进去的页眉、水印和页码也不会跟着练习印出来。
+    const cleaned = cleanImportedText(text).text;
+    return String(cleaned || '')
+      .split('\n')
+      .map((line) => stripPartHeading(line))
+      .filter((line) => !isPartHeadingLine(line))
+      .join('\n')
       .replace(/^[ \t]*[A-E][.、．]?[ \t]*$/gm, '')
       .replace(/[ \t]+\n/g, '\n')
       .replace(/\n{4,}/g, '\n\n\n')
@@ -3414,8 +4263,12 @@
     return blocks.map((block) => `<p class="${escapeAttr(className)}">${escapeHtml(block).replace(/\n/g, '<br>')}</p>`).join('');
   }
 
-  function renderPassage(item, label, overrideText) {
-    const source = overrideText == null ? (item.passage || item.content || '') : overrideText;
+  function renderPassage(item, label, overrideText, allowContentFallback = true) {
+    const source = overrideText != null
+      ? overrideText
+      : (String(item.passage || '').trim()
+        ? item.passage
+        : (allowContentFallback ? item.content || '' : ''));
     let text = remapNumberedBlanks(source, item.numberMap);
     if (['cloze', 'shortblank', 'five', 'grammar'].includes(item.type)) {
       text = markBareBlanks(text, item.numberMap);
@@ -3430,6 +4283,8 @@
     const texts = options.map((option) => String(option.text || ''));
     const longest = texts.reduce((max, text) => Math.max(max, text.length), 0);
     if (options.length <= 4 && longest <= 12) return 4;
+    // 三个选项的初中题很多；只要不太长就让 A/B/C 排成一行，比两列更整齐。
+    if (options.length === 3 && longest <= 20) return 3;
     if (longest <= 34) return 2;
     return 1;
   }
@@ -3482,7 +4337,7 @@
       const item = markers[index];
       const next = markers[index + 1];
       const end = next ? next.start : source.length;
-      const textValue = source.slice(item.contentStart, end).replace(/\s+/g, ' ').trim();
+      const textValue = stripPartHeading(source.slice(item.contentStart, end).replace(/\s+/g, ' '));
       if (!textValue) continue;
       const expected = String.fromCharCode(65 + options.length);
       if (item.letter !== expected) break;
@@ -3517,8 +4372,20 @@
   }
 
   function paperSectionLabel(section) {
-    const def = TYPES[section.type] || TYPES.other;
-    if (section.type !== 'five') return def.label;
+    const type = normalizeType(section.type);
+    const def = TYPES[type] || TYPES.other;
+    if (type === 'grammar') {
+      // “语法填空”是一大类，卷面上的实际叫法要跟着来源走：完成句子、
+      // 选词填空、首字母填空各有各的作答方式，标题写错会误导学生。
+      const source = section.items
+        .map((item) => `${item.title || ''} ${item.content || ''}`)
+        .join(' ');
+      if (/完成句子/.test(source)) return '完成句子';
+      if (/选词填空/.test(source)) return '选词填空';
+      if (/首字母(?:填空|提示)/.test(source)) return '首字母填空';
+      return '语法填空';
+    }
+    if (type !== 'five') return def.label;
     const source = section.items
       .map((item) => `${item.title || ''} ${item.content || ''}`)
       .join(' ');
@@ -3526,6 +4393,18 @@
     if (/七选五|七个选项|A[—–-]G|A、B、C、D、E、F、G/.test(source)) return '七选五';
     if (/五选五|五个选项|A[—–-]E|A、B、C、D、E/.test(source)) return '五选五';
     return '阅读填句';
+  }
+
+  function sectionNoteFor(section) {
+    const type = normalizeType(section.type);
+    if (type === 'grammar') {
+      const label = paperSectionLabel(section);
+      if (label === '完成句子') return '根据语境或括号内提示，补全下列句子。';
+      if (label === '选词填空') return '从方框中选择恰当的单词，并用其正确形式填空。';
+      if (label === '首字母填空') return '根据首字母提示和语境，在空白处填入恰当的单词。';
+      return '阅读下面短文，在空白处填入 1 个适当的单词或括号内单词的正确形式。';
+    }
+    return SECTION_NOTES[type] || '';
   }
 
   function sectionQuestionCount(section) {
@@ -3556,11 +4435,11 @@
   function renderPaperItem(item, section, index) {
     if (section.type === 'writing') {
       const writingQuestion = (item.questions || [])[0];
-      const paperNumber = writingQuestion && writingQuestion.paperNumber;
+      const paperNumber = (writingQuestion && writingQuestion.paperNumber) || item.writingNumber;
       // 书面表达的提示语里通常带原卷题号，这里改成当前练习卷的连续题号。
       const promptText = paperNumber
-        ? String(item.content || '').replace(/^\s*\d{1,3}\s*[.、．)）]\s*/, `${paperNumber}. `)
-        : item.content;
+        ? String(cleanPaperText(item.content || '')).replace(/^\s*\d{1,3}\s*[.、．)）]\s*/, `${paperNumber}. `)
+        : cleanPaperText(item.content || '');
       return `<div class="writing-block">${renderParagraphs(promptText, 'writing-prompt')}` +
         `<div class="writing-lines" aria-hidden="true">${'<i></i>'.repeat(12)}</div></div>`;
     }
@@ -3569,7 +4448,10 @@
     const standalone = item.kind === 'question' && !String(item.passage || '').trim();
     const isFiveSet = section.type === 'five' && !standalone;
     const passageText = isFiveSet ? stripChoiceOptions(item.passage || item.content) : '';
-    const passage = standalone ? '' : renderPassage(item, label, isFiveSet ? passageText : null);
+    // 语法填空的小题是一条条带编号的句子，已经由 question 区块逐题渲染；
+    // 若 passage 为空又回退到 content，就会把整组题再印一遍。
+    const hasParsedQuestions = (item.questions || []).some((question) => question.paperNumber || question.stem || (question.options || []).length);
+    const passage = standalone ? '' : renderPassage(item, label, isFiveSet ? passageText : null, !hasParsedQuestions);
     const questions = (item.questions || []).filter((question) => question.paperNumber || question.stem || question.options.length);
     // 五选五的选项整块印刷在语篇之后，小题号已嵌在文中，不再重复渲染成单题。
     const choiceBox = isFiveSet ? renderChoiceBox(extractChoiceBox(item.content)) : '';
@@ -3803,7 +4685,7 @@
         if (section.type === 'writing') {
           const writingQuestion = (item.questions || [])[0];
           add({
-            number: (writingQuestion && writingQuestion.paperNumber) || '',
+            number: (writingQuestion && writingQuestion.paperNumber) || item.writingNumber || '',
             answer: item.answer || (writingQuestion && writingQuestion.answer) || '',
             explanation: item.explanation || (writingQuestion && writingQuestion.explanation) || '',
             skill: 'writing',
@@ -3826,13 +4708,13 @@
   function renderAnswerEntry(entry) {
     const answer = answerDisplay(entry);
     const skill = skillLabel(entry.skill || inferSkill('', entry.type));
-    const difficulty = entry.difficulty ? `难度 ${entry.difficulty}/10` : '';
+    const difficulty = entry.difficulty ? `难度 ${entry.difficulty}/10 ${starsForLevel(entry.difficulty)}` : '';
     const meta = [skill, difficulty].filter(Boolean).join(' · ');
     const hint = entry.explanation || localExplanation(entry);
     const formattedHint = escapeHtml(hint).replace(/\r?\n/g, '<br>');
     const answerLine = entry.type === 'writing'
       ? `<p class="answer-text"><strong>参考范文 / 写作提示：</strong>${escapeHtml(answer)}</p>`
-      : `<p class="answer-text"><strong>答案：</strong><span class="answer-letter${answer === '—' ? ' is-missing' : ''}">${escapeHtml(answer)}</span><span class="answer-meta">${escapeHtml(meta)}</span></p>`;
+      : `<p class="answer-text"><strong>答案：</strong><span class="answer-letter${answer === '—' ? ' is-missing' : ''}">${escapeHtml(answer)}</span><span class="answer-meta">${meta ? ' · ' : ''}${escapeHtml(meta)}</span></p>`;
     return `<div class="answer-item">` +
       `<div class="answer-number">${entry.number ? escapeHtml(entry.number) + '.' : '写作'}</div>` +
       `<div class="answer-content">${answerLine}` +
@@ -3969,7 +4851,7 @@
     const sections = (paper.sections || []).map((section, index) => {
       const count = sectionQuestionCount(section);
       const countText = section.type === 'writing' ? '共 1 篇' : `共 ${count} 小题`;
-      const note = SECTION_NOTES[section.type] || '';
+      const note = sectionNoteFor(section);
       const items = section.items.map((item, itemIndex) => renderPaperItem(item, section, itemIndex)).join('');
       return `<section class="exam-section">` +
         `<div class="section-heading">` +
@@ -3989,7 +4871,7 @@
     const questionTotal = paper.questionTotal || paper.total || 0;
     return watermarkLayerHtml('watermark-layer') +
       `<header class="exam-head">` +
-      `<p class="exam-owner">${escapeHtml(state.settings.examOwner || '阮蔡顺')} · 初高中英语</p>` +
+      `<p class="exam-owner">${escapeHtml(state.settings.examOwner || BRAND_NAME)} · ${escapeHtml(BRAND_TAGLINE)}</p>` +
       `<h1><span class="exam-date">${escapeHtml(dateText)}</span> <span class="exam-name">${escapeHtml(examName)}</span></h1>` +
       `<p class="exam-sub">${grade}共 ${escapeHtml(questionTotal)} 小题${levelText}　·　建议用时 ______ 分钟</p>` +
       `<div class="exam-fields"><span>姓名：<i></i></span><span>班级：<i></i></span><span>得分：<i></i></span></div>` +
@@ -3998,7 +4880,7 @@
       buildAnswerSection(paper) +
       buildVocabularySection(paper) +
       buildDictationSection(paper) +
-      `<footer class="paper-foot">${escapeHtml(watermarkText())} · ${escapeHtml(state.settings.examOwner || '阮蔡顺')} · 初高中英语</footer>`;
+      `<footer class="paper-foot">${escapeHtml(watermarkText())}</footer>`;
   }
 
   function paperStyles() {
@@ -4048,39 +4930,42 @@
       .exam-fields span { display: inline-flex; align-items: flex-end; gap: 2px; white-space: nowrap; }
       .exam-fields i { display: inline-block; width: 28mm; border-bottom: 1px solid #111; height: 1.1em; }
 
-      .exam-section { margin-top: 16px; }
-      .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 4px; border-bottom: 1.5px solid #111; }
-      .section-heading h2 { margin: 0; color: #111; font-family: "SimHei", "Microsoft YaHei", Arial, sans-serif; font-size: 12.5pt; line-height: 1.45; }
+      .exam-section { margin-top: 28px; }
+      .exam-section + .exam-section { margin-top: 32px; }
+      .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 6px; border-bottom: 1.5px solid #111; }
+      .section-heading h2 { margin: 0; color: #111; font-family: "SimHei", "Microsoft YaHei", Arial, sans-serif; font-size: 12.5pt; line-height: 1.5; }
       .section-heading h2 em { font-style: normal; font-weight: 400; font-size: 9.5pt; }
       .section-index { display: inline-block; margin-right: 6px; }
-      .section-note { margin: 5px 0 0; color: #333; font-size: 9pt; line-height: 1.65; }
+      .section-note { margin: 7px 0 0; color: #333; font-size: 9pt; line-height: 1.75; }
 
-      .passage-block { position: relative; margin-top: 9px; }
+      .passage-block { position: relative; margin-top: 15px; }
       .passage-label { float: left; width: 18px; margin-left: -18px; color: #111; font-weight: 700; }
       .passage-body { margin-left: 0; }
-      .passage-body p { margin: 0 0 5px; text-align: justify; text-justify: inter-word; }
+      .passage-body p { margin: 0 0 7px; line-height: 1.85; text-align: justify; text-justify: inter-word; }
       .passage-body p:last-child { margin-bottom: 0; }
 
-      .question-block { margin-top: 8px; break-inside: avoid; page-break-inside: avoid; }
-      .question-stem { text-align: justify; text-justify: inter-word; }
+      .question-block { margin-top: 16px; padding-bottom: 2px; break-inside: avoid; page-break-inside: avoid; }
+      .passage-block + .question-block { margin-top: 13px; }
+      .question-stem { line-height: 1.8; text-align: left; }
       .question-number { font-weight: 700; }
       .blank-line { display: inline-block; min-width: 55mm; border-bottom: 1px solid #111; height: 1em; }
-      .option-table { width: 100%; margin: 2px 0 0 0; border-collapse: collapse; table-layout: fixed; }
-      .option-table td { padding: 1px 8px 1px 0; vertical-align: top; line-height: 1.55; }
+      .option-table { width: 100%; margin: 4px 0 0 0; border-collapse: collapse; table-layout: fixed; }
+      .option-table td { padding: 2px 14px 2px 0; vertical-align: top; line-height: 1.7; }
       .option-table.cols-1 td { width: 100%; }
       .option-table.cols-2 td { width: 50%; }
+      .option-table.cols-3 td { width: 33.333%; }
       .option-table.cols-4 td { width: 25%; }
       .option-letter { font-weight: 700; }
 
-      .choice-box { margin: 9px 0 2px; padding: 7px 10px; border: 1px solid #111; }
-      .choice-box-item { display: inline-block; width: 49%; padding: 1px 6px 1px 0; vertical-align: top; }
+      .choice-box { margin: 15px 0 4px; padding: 9px 12px; border: 1px solid #111; }
+      .choice-box-item { display: inline-block; width: 49%; padding: 2px 8px 2px 0; line-height: 1.65; vertical-align: top; }
 
-      .writing-block { margin-top: 9px; break-inside: avoid; page-break-inside: avoid; }
-      .writing-prompt { margin: 0; }
-      .writing-lines { margin-top: 8px; }
+      .writing-block { margin-top: 15px; break-inside: avoid; page-break-inside: avoid; }
+      .writing-prompt { margin: 0; line-height: 1.85; }
+      .writing-lines { margin-top: 10px; }
       .writing-lines i { display: block; height: 27px; border-bottom: 1px solid #b9b9b9; }
 
-      .answer-section, .vocab-section, .dictation-section { margin-top: 22px; }
+      .answer-section, .vocab-section, .dictation-section { margin-top: 28px; }
       .page-break { break-before: page; page-break-before: always; }
       .answer-title { display: flex; align-items: baseline; gap: 8px; margin: 0 0 6px; padding-bottom: 5px; border-bottom: 2px solid #111; font-family: "SimHei", "Microsoft YaHei", Arial, sans-serif; font-size: 14pt; }
       .answer-title em { color: #555; font-family: Arial, sans-serif; font-size: 8.5pt; font-style: normal; font-weight: 400; letter-spacing: 0.08em; }
@@ -4089,13 +4974,13 @@
       .quick-answer em { font-style: normal; color: #555; }
       .answer-group { margin-top: 13px; }
       .answer-group h3 { margin: 0 0 5px; font-family: "SimHei", "Microsoft YaHei", Arial, sans-serif; font-size: 11pt; }
-      .answer-item { display: flex; gap: 8px; padding: 6px 0 6px; border-top: 1px dashed #d2d2d2; break-inside: avoid; page-break-inside: avoid; }
+      .answer-item { display: flex; gap: 8px; padding: 8px 0 8px; border-top: 1px dashed #d2d2d2; break-inside: avoid; page-break-inside: avoid; }
       .answer-number { flex: 0 0 22px; color: #111; font-weight: 700; text-align: right; }
       .answer-content { flex: 1 1 auto; min-width: 0; }
       .answer-text { margin: 0; }
       .answer-letter { font-weight: 700; }
       .answer-letter.is-missing { color: #777; font-weight: 400; }
-      .answer-meta { margin-left: 10px; color: #666; font-size: 8.5pt; }
+      .answer-meta { margin-left: 2px; color: #666; font-size: 8.5pt; }
       .answer-explain { margin: 2px 0 0; color: #222; font-size: 9.5pt; text-align: justify; }
       .answer-tag { font-weight: 700; }
       .section-vocab { margin: 6px 0 0; padding: 5px 8px; border-left: 3px solid #999; background: #f8f8f8; font-size: 8.8pt; }
@@ -4129,8 +5014,19 @@
       .paper-foot { margin-top: 18px; padding-top: 6px; border-top: 1px solid #bbb; color: #777; font-size: 8pt; text-align: center; }
 
       @media (max-width: 720px) {
-        body { font-size: 10pt; }
+        body { font-size: 10pt; line-height: 1.8; }
         .sheet { width: 100%; min-height: 0; margin: 0; padding: 20px 14px 28px; box-shadow: none; }
+        .exam-section { margin-top: 24px; }
+        .exam-section + .exam-section { margin-top: 28px; }
+        .section-heading { padding-bottom: 5px; }
+        .section-note { line-height: 1.7; }
+        .passage-block { margin-top: 13px; }
+        .passage-body p { margin-bottom: 6px; line-height: 1.8; }
+        .question-block { margin-top: 14px; }
+        .question-stem { line-height: 1.75; }
+        .option-table { margin-top: 3px; }
+        .option-table td { padding: 2px 6px 2px 0; line-height: 1.65; }
+        .choice-box { margin-top: 13px; padding: 8px 10px; }
         .exam-head h1 { font-size: 15.5pt; }
         .exam-date { display: block; margin-bottom: 1px; font-size: 10pt; letter-spacing: 0.04em; }
         .exam-name { display: block; margin-left: 0; font-size: 16pt; }
@@ -4140,8 +5036,6 @@
         .exam-fields i { width: 22mm; }
         .section-heading { flex-wrap: wrap; gap: 0 8px; }
         .section-heading h2 { font-size: 11.5pt; }
-        .option-table.cols-2 td, .option-table.cols-4 td { display: block; width: 100%; padding-right: 0; }
-        .option-table.cols-4 td { padding-bottom: 0; }
         .choice-box-item { width: 100%; }
         .passage-label { float: none; display: inline-block; width: auto; margin: 0 5px 0 0; }
         .quick-answers { gap: 2px 10px; }
@@ -4151,6 +5045,12 @@
         .vocab-table th, .vocab-table td, .dictation-table th, .dictation-table td { padding: 3px 3px; }
         .section-vocab span { white-space: normal; }
         .watermark-layer { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 40mm; }
+      }
+
+      /* 手机屏幕确实放不下四列；电脑上的预览区虽然不到 A4 宽，仍按试卷排成 2/4 列。 */
+      @media (max-width: 520px) {
+        .option-table.cols-2 td, .option-table.cols-3 td, .option-table.cols-4 td { display: block; width: 100%; padding-right: 0; }
+        .option-table.cols-4 td { padding-bottom: 0; }
       }
 
       @page { size: A4; margin: 15mm 14mm; }
@@ -4226,7 +5126,8 @@
   function filteredMaterials() {
     const query = state.filters.q.trim().toLowerCase();
     let list = state.materials.filter((material) => {
-      if (state.filters.type && material.type !== state.filters.type) return false;
+      if (state.filters.type && normalizeType(material.type) !== normalizeType(state.filters.type)) return false;
+      if (state.filters.level && materialBand(material) !== state.filters.level) return false;
       if (state.filters.grade && material.grade !== state.filters.grade) return false;
       if (query) {
         const haystack = [
@@ -4257,7 +5158,8 @@
       .map((item) => itemDifficultyOf(item))
       .filter((level) => Number.isFinite(level));
     if (!levels.length) return '';
-    return `难度 ${rangeText(levels)}`;
+    const average = levels.reduce((sum, level) => sum + level, 0) / levels.length;
+    return `难度 ${rangeText(levels)} · ${starsForLevel(average)}`;
   }
 
   function renderLibrary() {
@@ -4279,8 +5181,9 @@
     }
 
     container.innerHTML = materials.map((material) => {
-      const def = TYPES[material.type] || TYPES.other;
-      const unit = material.type === 'single' ? '道' : '篇';
+      const normalized = normalizeType(material.type);
+      const def = TYPES[normalized] || TYPES.other;
+      const unit = normalized === 'single' ? '道' : '篇';
       const count = material.questionCount || 0;
       const tags = (material.tags || []).slice(0, 5).map((tag) => `<span class="mini-tag">${escapeHtml(tag)}</span>`).join('');
       const confidence = Number.isFinite(material.confidence) && material.confidence > 0
@@ -4294,11 +5197,11 @@
         ? `<button class="icon-btn" type="button" data-action="download-processed" title="下载整理版" aria-label="下载整理版"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg></button>`
         : '';
       return `<article class="material-card" data-id="${escapeAttr(material.id)}">` +
-        `<span class="type-badge" data-type="${escapeAttr(material.type)}">${escapeHtml(def.short)}</span>` +
+        `<span class="type-badge" data-type="${escapeAttr(normalized)}">${escapeHtml(def.short)}</span>` +
         `<div class="material-main">` +
         `<h3 class="material-title" title="${escapeAttr(material.title)}">${escapeHtml(material.title)}</h3>` +
         `<p class="material-meta">` +
-        `<span>${escapeHtml(material.grade || '未标注年级')}</span><i class="dot"></i>` +
+        `<span>${escapeHtml(material.grade || bandLabel(materialBand(material)) || '未标注年级')}</span><i class="dot"></i>` +
         `<span>${escapeHtml(formatDate(material.createdAt))}</span><i class="dot"></i>` +
         `<span>${count ? `${count} ${unit}` : '仅存档'}</span>${confidence}` +
         (difficulty ? `<i class="dot"></i><span>${escapeHtml(difficulty)}</span>` : '') +
@@ -4359,6 +5262,7 @@
     const chips = parsed.requests.map((request) => (
       `<span class="result-chip">${escapeHtml(typeShort(request.type))}<em>${request.count}${escapeHtml(typeUnit(request.type))}</em></span>`
     )).join('');
+    const band = parsed.band ? `<span class="result-chip">${escapeHtml(bandLabel(parsed.band))}题库</span>` : '';
     const grade = parsed.grade ? `<span class="result-chip">${escapeHtml(parsed.grade)}</span>` : '';
     const level = parsed.level
       ? `<span class="result-chip">难度 <em>${escapeHtml(parsed.level.min)}–${escapeHtml(parsed.level.max)}</em></span>`
@@ -4366,7 +5270,7 @@
     const warnings = paper && paper.warnings && paper.warnings.length
       ? `<p class="result-warning">${escapeHtml(paper.warnings.join(' '))}</p>`
       : '';
-    container.innerHTML = `<span>识别为</span>${grade}${level}${chips}${warnings}`;
+    container.innerHTML = `<span>识别为</span>${band}${grade}${level}${chips}${warnings}`;
     container.classList.add('is-visible');
   }
 
@@ -4402,7 +5306,7 @@
       const level = paper.level ? ` · 目标难度 ${paper.level.min}–${paper.level.max}` : '';
       meta.textContent = `${paper.grade || '综合'} · ${paper.questionTotal || paper.total} 小题${level} · ${formatDate(paper.createdAt, true)}`;
     }
-    const buttons = ['reshuffle', 'download-word', 'print-pdf', 'save-paper', 'ai-analysis', 'ai-vocab', 'download-vocab', 'download-dictation'];
+    const buttons = ['reshuffle', 'download-word', 'print-pdf', 'save-paper', 'ai-analysis', 'ai-vocab', 'download-vocab', 'download-dictation', 'download-long-sentences'];
     buttons.forEach((action) => {
       const button = $(`[data-action="${action}"]`);
       if (button) button.disabled = false;
@@ -4423,7 +5327,7 @@
     }
     const meta = $('#paper-meta-label');
     if (meta) meta.textContent = '生成后会在这里排版预览。';
-    ['reshuffle', 'download-word', 'print-pdf', 'save-paper', 'ai-analysis', 'ai-vocab', 'download-vocab', 'download-dictation'].forEach((action) => {
+    ['reshuffle', 'download-word', 'print-pdf', 'save-paper', 'ai-analysis', 'ai-vocab', 'download-vocab', 'download-dictation', 'download-long-sentences'].forEach((action) => {
       const button = $(`[data-action="${action}"]`);
       if (button) button.disabled = true;
     });
@@ -4531,9 +5435,10 @@
     const updated = {
       ...material,
       title: title || `${typeLabel(type)} · ${todayCn()}`,
-      type,
+      type: normalizeType(type),
       grade,
-      tags: unique([...tags, ...(grade ? [grade] : [])]),
+      band: gradeBand(grade),
+      tags: unique([...tags, ...(grade ? [grade] : []), ...(gradeBand(grade) ? [bandLabel(gradeBand(grade))] : [])]),
       text,
       body,
       answers,
@@ -4652,7 +5557,7 @@
       toast('资料库还没有可抽取的题目，请先上传资料或载入示例。', 'error', 5200);
       return;
     }
-    const parsed = parseCommand(rawCommand);
+    const parsed = parseCommand(rawCommand, state.practiceLevel);
     await loadWordDictionary();
     const paper = generatePaperFromCommand(parsed);
     if (!paper) {
@@ -4674,7 +5579,7 @@
       return;
     }
     await loadWordDictionary();
-    const parsed = parseCommand(state.currentParsed.raw);
+    const parsed = parseCommand(state.currentParsed.raw, state.currentParsed.band || state.practiceLevel);
     const paper = generatePaperFromCommand(parsed);
     if (!paper) {
       toast('没有可替换的题目。', 'error');
@@ -4754,7 +5659,7 @@
     const title = $('#paste-title').value.trim();
     const type = $('#paste-type').value;
     const grade = $('#paste-grade').value;
-    const text = toDisplayText($('#paste-text').value);
+    const text = cleanImportedText(toDisplayText($('#paste-text').value)).text;
     if (!title || !text) return;
     const split = splitAnswerSection(text);
     const body = toDisplayText(split.body);
@@ -4762,8 +5667,9 @@
     const material = {
       id: uid(),
       title,
-      type,
+      type: normalizeType(type),
       grade,
+      band: gradeBand(grade),
       tags: unique([typeShort(type), grade, '手动录入'].filter(Boolean)),
       text,
       body,
@@ -5232,8 +6138,19 @@ Li Hua`,
     }
   }
 
+  function setFilterLevel(level) {
+    state.filters.level = level === 'junior' || level === 'senior' ? level : '';
+    $$('#filter-level [data-level]').forEach((button) => {
+      const active = (button.dataset.level || '') === state.filters.level;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    populateGradeFilter();
+    renderLibrary();
+  }
+
   function resetFilters() {
-    state.filters = { q: '', type: '', grade: '', sort: 'newest' };
+    state.filters = { q: '', type: '', grade: '', level: '', sort: 'newest' };
     const search = $('#library-search');
     const type = $('#filter-type');
     const grade = $('#filter-grade');
@@ -5242,6 +6159,7 @@ Li Hua`,
     if (type) type.value = '';
     if (grade) grade.value = '';
     if (sort) sort.value = 'newest';
+    setFilterLevel('');
     renderLibrary();
   }
 
@@ -5307,6 +6225,29 @@ Li Hua`,
         state.filters.q = search.value;
         renderLibrary();
       }, 160));
+    }
+    const levelFilter = $('#filter-level');
+    if (levelFilter) {
+      levelFilter.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-level]');
+        if (!button) return;
+        setFilterLevel(button.dataset.level || '');
+      });
+    }
+    const practiceLevel = $('#practice-level');
+    if (practiceLevel) {
+      practiceLevel.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-level]');
+        if (!button) return;
+        state.practiceLevel = button.dataset.level === 'junior' || button.dataset.level === 'senior'
+          ? button.dataset.level
+          : '';
+        $$('#practice-level [data-level]').forEach((item) => {
+          const active = (item.dataset.level || '') === state.practiceLevel;
+          item.classList.toggle('is-active', active);
+          item.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+      });
     }
     const typeFilter = $('#filter-type');
     if (typeFilter) {
@@ -5510,6 +6451,9 @@ Li Hua`,
           break;
         case 'download-dictation':
           downloadPaperVocabulary(state.currentPaper, 'dictation');
+          break;
+        case 'download-long-sentences':
+          downloadLongSentences(state.currentPaper);
           break;
         default:
           break;
