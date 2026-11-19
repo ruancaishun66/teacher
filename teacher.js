@@ -1667,7 +1667,10 @@
   /* ------------------------------- 周计划：难度自动调整 ------------------------------- */
 
   function adjustLevelFromTasks(student, tasks) {
-    const scored = (tasks || []).filter((task) => hasScore(task));
+    const scored = (tasks || [])
+      .filter((task) => hasScore(task))
+      .sort((a, b) => String(b.submittedAt || '').localeCompare(String(a.submittedAt || '')))
+      .slice(0, 5);
     if (!scored.length) return null;
     const avg = mean(scored.map((task) => Number(task.score)));
     const lowIntegrity = scored.some((task) => task.integrityScore != null && Number(task.integrityScore) < 45);
