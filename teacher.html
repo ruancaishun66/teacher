@@ -9,6 +9,8 @@
 <link rel="icon" href="logo.svg?v=20261118c" type="image/svg+xml">
 <link rel="stylesheet" href="portal.css">
 <link rel="stylesheet" href="teacher.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-192.png">
 </head>
 <body>
 
@@ -81,9 +83,11 @@
         <h1>因势利导，<em>看见每一个学生。</em></h1>
         <p class="hero-tip">把资料库里的练习卷拆成任务码，发给学生；学生回传汇报码后，这里会自动生成学情总览与认知画像。所有数据只在本机。</p>
         <div class="hero-actions">
-          <button class="p-btn" type="button" id="hero-assign">布置一次任务</button>
+          <button class="p-btn" type="button" id="hero-words">发布单词打卡</button>
+          <button class="p-btn ghost" type="button" id="hero-assign">布置练习任务</button>
           <button class="p-btn ghost" type="button" id="hero-import">导入学生汇报</button>
           <button class="p-btn ghost" type="button" id="hero-add">添加学生</button>
+          <a class="p-btn ghost" href="library.html" id="hero-library">组卷工作台 ↗</a>
         </div>
       </div>
       <div class="teacher-hero-mark" aria-hidden="true">
@@ -103,6 +107,7 @@
       <button type="button" class="active" data-tab="overview">总览</button>
       <button type="button" data-tab="students">学生</button>
       <button type="button" data-tab="assignments">任务</button>
+      <button type="button" data-tab="words">单词打卡</button>
       <button type="button" data-tab="reports">汇报</button>
       <button type="button" data-tab="insights">心得</button>
       <button type="button" data-tab="settings">设置</button>
@@ -150,11 +155,30 @@
       <div class="roster-toolbar">
         <div>
           <h2 class="pane-title">已布置的任务</h2>
-          <p class="pane-sub">任务码一人一码，学生用学号和密码导入。任务内容来自教师工作台已保存的练习卷。</p>
+          <p class="pane-sub">任务码一人一码，学生用学号和密码导入。练习卷来自组卷工作台，单词任务在“单词打卡”里发布。</p>
         </div>
-        <button class="p-btn small" type="button" id="assignment-add">＋ 布置任务</button>
+        <div class="toolbar-actions">
+          <a class="p-btn small ghost" href="library.html">组卷工作台 ↗</a>
+          <button class="p-btn small" type="button" id="assignment-add">＋ 布置任务</button>
+        </div>
       </div>
       <div class="assignment-list" id="assignment-list"></div>
+    </section>
+
+    <!-- 单词打卡 -->
+    <section class="teacher-pane" data-pane="words">
+      <div class="roster-toolbar">
+        <div>
+          <h2 class="pane-title">单词打卡 <small>WORD QUEST</small></h2>
+          <p class="pane-sub">粘贴一本单词书，或从资料库的文章里提取生词，发布成闯关任务。学生在学生端逐词作答，交回汇报码后，这里显示完成进度与错词。</p>
+        </div>
+        <div class="toolbar-actions">
+          <a class="p-btn small ghost" href="library.html">组卷工作台 ↗</a>
+          <button class="p-btn small" type="button" id="word-add">＋ 发布单词任务</button>
+        </div>
+      </div>
+      <div class="word-dash" id="word-stats"></div>
+      <div class="assignment-list" id="word-list"></div>
     </section>
 
     <!-- 汇报 -->
@@ -492,6 +516,103 @@
   </div>
 </dialog>
 
+<!-- 发布单词打卡 -->
+<dialog class="p-dialog" id="word-dialog" style="width:min(900px,calc(100% - 20px));">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>发布单词打卡</h2>
+        <p>粘贴单词书，或从资料库的文章提取生词。释义会自动补全，也可以逐个修改。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="form-row">
+        <div class="field">
+          <label for="word-title">任务名称</label>
+          <input class="input" id="word-title" maxlength="60" placeholder="例如：Unit 3 核心词 · 第一轮">
+        </div>
+        <div class="field">
+          <label for="word-due">截止日期</label>
+          <input class="input" id="word-due" type="date">
+        </div>
+      </div>
+
+      <div class="word-source">
+        <div class="word-source-head">
+          <h3 class="dialog-subtitle">1. 单词来源</h3>
+          <div class="word-source-tabs">
+            <button class="word-source-tab active" type="button" data-word-source="paste">粘贴单词书</button>
+            <button class="word-source-tab" type="button" data-word-source="library">从资料库提取</button>
+          </div>
+        </div>
+
+        <div class="word-source-pane active" data-word-pane="paste">
+          <div class="field">
+            <label for="word-input">单词表 <span class="field-note">每行一个；也可以写“abandon 放弃”</span></label>
+            <textarea class="textarea" id="word-input" rows="6" placeholder="abandon 放弃&#10;benefit 益处，好处&#10;confident 自信的&#10;……"></textarea>
+          </div>
+        </div>
+
+        <div class="word-source-pane" data-word-pane="library">
+          <p class="hint">从组卷工作台保存过的阅读、完形或试卷里提取生词。系统会跳过常见虚词，最多取 40 个。</p>
+          <div class="word-library-row">
+            <select class="select" id="word-material"></select>
+            <button class="p-btn small" type="button" id="word-extract">提取到单词表</button>
+          </div>
+          <p class="hint" id="word-material-status">正在读取资料库…</p>
+        </div>
+      </div>
+
+      <div class="word-preview-head">
+        <h3 class="dialog-subtitle">2. 核对释义</h3>
+        <div class="word-preview-tools">
+          <span class="word-count-chip" id="word-build-count">0 个词</span>
+          <button class="p-btn small ghost" type="button" id="word-build">生成预览</button>
+        </div>
+      </div>
+      <div class="word-preview" id="word-preview">
+        <p class="hint">粘贴单词后点“生成预览”，会从本机释义库补全音标和中文意思。</p>
+      </div>
+      <p class="hint" id="word-glossary-status"></p>
+
+      <div class="word-assign-grid">
+        <div class="field">
+          <label for="word-xp">完成经验</label>
+          <input class="input" id="word-xp" type="number" min="20" max="600" step="10" value="80">
+        </div>
+        <div class="field">
+          <label>发给谁</label>
+          <div class="check-list" id="word-students"></div>
+        </div>
+      </div>
+      <p class="hint">学生端会把每个词做成四选一闯关：先英译中，错词再中译英重练。进度条会实时增长，完成后回传汇报码。</p>
+    </div>
+    <div class="p-dialog-foot">
+      <span class="hint" style="margin-right:auto;" id="word-foot-hint">至少 4 个词，才能生成选项。</span>
+      <button class="p-btn ghost" type="button" data-close>取消</button>
+      <button class="p-btn" type="button" id="word-generate">生成任务码</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 单词任务学情 -->
+<dialog class="p-dialog" id="word-detail-dialog" style="width:min(820px,calc(100% - 20px));">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>单词打卡学情</h2>
+        <p id="word-detail-sub">—</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body" id="word-detail-body"></div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" data-close>关闭</button>
+    </div>
+  </div>
+</dialog>
+
 <!-- 导入汇报 -->
 <dialog class="p-dialog" id="import-report-dialog">
   <div class="p-dialog-inner">
@@ -618,5 +739,6 @@
 <script src="insights.js"></script>
 <script src="portal.js"></script>
 <script src="teacher.js"></script>
+<script src="pwa.js" defer></script>
 </body>
 </html>

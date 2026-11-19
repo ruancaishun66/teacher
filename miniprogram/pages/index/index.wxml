@@ -1,0 +1,22 @@
+<view class="page">
+  <view class="brand">
+    <image class="mark" src="/assets/logo.png" mode="aspectFit" />
+    <view>
+      <view class="title">顺势英语</view>
+      <view class="sub">SHUNSHI · ENGLISH</view>
+    </view>
+  </view>
+
+  <view class="hint">
+    点击下面任一入口进入。第一次打开会加载网页，之后会快一些。
+  </view>
+
+  <button class="entry primary" bindtap="open" data-page="student">学生端 · 打卡与任务</button>
+  <button class="entry" bindtap="open" data-page="teacher">教师端 · 发布与学情</button>
+  <button class="entry" bindtap="open" data-page="library">组卷工作台</button>
+  <button class="entry ghost" bindtap="open" data-page="home">主页</button>
+
+  <view class="foot">
+    若提示“不支持打开非业务域名”，请先把备案域名配置到小程序后台，或改用浏览器/PWA。
+  </view>
+</view>

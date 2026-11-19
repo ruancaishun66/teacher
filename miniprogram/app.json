@@ -1,0 +1,14 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/web/web"
+  ],
+  "window": {
+    "navigationBarTitleText": "顺势英语",
+    "navigationBarBackgroundColor": "#fdf6e8",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f6f1e6"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

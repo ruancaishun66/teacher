@@ -39,6 +39,7 @@
   function findTask(id) { return data && data.tasks.find((task) => task.id === id) || null; }
 
   function taskQuestionCount(task) {
+    if (task.mode === 'words') return (task.words || []).length || Number(task.wordTotal) || 1;
     let count = 0;
     (task.blocks || []).forEach((block) => {
       if (block.type === 'writing' || block.prompt) count += 1;
@@ -61,6 +62,10 @@
   }
 
   function answeredCount(task) {
+    if (task.mode === 'words') {
+      const run = task.wordRun;
+      return run && Number.isFinite(Number(run.i)) ? Math.min(Number(run.i), taskQuestionCount(task)) : 0;
+    }
     let count = 0;
     (task.blocks || []).forEach((block) => {
       if (block.type === 'writing' || block.prompt) {
@@ -353,7 +358,7 @@
           `<h3 class="task-title">${S.escapeHtml(task.title || '未命名任务')}</h3>` +
           `<div class="task-meta">` +
             `<span>${S.escapeHtml(task.grade || '未标注')}</span>` +
-            `<span>${taskQuestionCount(task)} 题</span>` +
+            `<span>${task.mode === 'words' ? `单词闯关 · ${taskQuestionCount(task)} 词` : `${taskQuestionCount(task)} 题`}</span>` +
             `<span>${scoreText}</span>` +
             (task.due ? `<span>截止 ${S.escapeHtml(S.fmtDate(task.due))}</span>` : '') +
           `</div>` +
@@ -378,6 +383,7 @@
     { id: 'perfect', icon: '💯', name: '满分一击', earned: (p, tasks) => tasks.some((t) => t.status === 'done' && t.score === 100 && (t.total || 0) >= 3) },
     { id: 'reader', icon: '📖', name: '阅读行者', earned: (p, tasks) => countDoneBlocks(tasks, ['reading', 'cloze', 'five']) >= 5 },
     { id: 'writer', icon: '✍️', name: '落笔生花', earned: (p, tasks) => countDoneBlocks(tasks, ['writing', 'picture']) >= 3 },
+    { id: 'wordsmith', icon: '📚', name: '词海行者', earned: (p, tasks) => tasks.filter((t) => t.status === 'done' && t.mode === 'words').length >= 3 },
     { id: 'level5', icon: '👑', name: '五星学者', earned: (p) => S.levelInfo(p.xp).level >= 5 }
   ];
 
@@ -488,6 +494,11 @@
   }
 
   function renderRunner(task) {
+    if (task.mode === 'words') {
+      renderWordRunner(task);
+      return;
+    }
+    $('#submit-task').textContent = '提交任务';
     const done = task.status === 'done';
     $('#runner-title').textContent = task.title || '任务';
     $('#runner-sub').textContent = done
@@ -594,6 +605,368 @@
     }
   }
 
+  /* ------------------------------- 单词闯关 ------------------------------- */
+
+  const WORD_FALLBACK_ZH = ['环境', '机会', '影响', '经历', '建议', '决定', '发展', '提供', '减少', '提高', '保护', '表达', '支持', '避免', '承认', '安静的', '勇敢的', '复杂的'];
+  const WORD_FALLBACK_EN = ['apple', 'brave', 'climate', 'gather', 'honest', 'island', 'journey', 'kindness', 'memory', 'nature', 'opinion', 'polite', 'quiet', 'reason', 'simple', 'travel', 'useful', 'village', 'wonder', 'youth'];
+
+  function hashString(text) {
+    let hash = 2166136261;
+    for (let i = 0; i < String(text).length; i += 1) {
+      hash ^= String(text).charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  }
+
+  function seededShuffle(list, seed) {
+    const array = list.slice();
+    let state = seed >>> 0;
+    for (let i = array.length - 1; i > 0; i -= 1) {
+      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+      const j = state % (i + 1);
+      const temp = array[i];
+      array[i] = array[j];
+      array[j] = temp;
+    }
+    return array;
+  }
+
+  function ensureWordRun(task) {
+    if (!task.wordRun || typeof task.wordRun !== 'object') {
+      task.wordRun = {
+        i: 0,
+        phase: 'main',
+        results: {},
+        combo: 0,
+        maxCombo: 0,
+        reviewQueue: [],
+        reviewI: 0,
+        reviewResults: {},
+        startedAt: Date.now()
+      };
+    }
+    const run = task.wordRun;
+    if (!run.results || typeof run.results !== 'object') run.results = {};
+    if (!Array.isArray(run.reviewQueue)) run.reviewQueue = [];
+    if (!run.reviewResults || typeof run.reviewResults !== 'object') run.reviewResults = {};
+    if (!Number.isFinite(Number(run.i))) run.i = 0;
+    if (!Number.isFinite(Number(run.combo))) run.combo = 0;
+    if (!Number.isFinite(Number(run.maxCombo))) run.maxCombo = 0;
+    if (!Number.isFinite(Number(run.reviewI))) run.reviewI = 0;
+    if (!['main', 'review', 'done'].includes(run.phase)) run.phase = 'main';
+    return run;
+  }
+
+  function wordAccuracy(task, run) {
+    const words = task.words || [];
+    if (!words.length) return 0;
+    const correct = words.filter((word, index) => run.results[index] && run.results[index].firstOk).length;
+    return correct / words.length;
+  }
+
+  function wordXp(task, run) {
+    const base = Number(task.xp) || 80;
+    const accuracy = wordAccuracy(task, run);
+    return Math.round(base * (0.4 + 0.6 * accuracy)) + Math.min(30, Number(run.maxCombo) * 2);
+  }
+
+  function wordOptionsFor(task, word, index) {
+    const others = (task.words || []).map((item) => item.zh).filter((zh) => zh && zh !== word.zh);
+    const pool = Array.from(new Set((task.pool || []).concat(WORD_FALLBACK_ZH, others)))
+      .filter((zh) => zh && zh !== word.zh);
+    const distractors = seededShuffle(pool, hashString(`${word.w}|${index}|zh`)).slice(0, 3);
+    return seededShuffle([word.zh].concat(distractors), hashString(`${word.w}|${index}|options`));
+  }
+
+  function reviewOptionsFor(task, word) {
+    const others = (task.words || []).map((item) => item.w).filter((w) => w && w !== word.w);
+    const pool = Array.from(new Set(others.concat(WORD_FALLBACK_EN))).filter((w) => w !== word.w);
+    const distractors = seededShuffle(pool, hashString(`${word.w}|review`)).slice(0, 3);
+    return seededShuffle([word.w].concat(distractors), hashString(`${word.w}|review-options`));
+  }
+
+  function speakWord(text, label) {
+    if (!('speechSynthesis' in window)) {
+      S.toast('这台设备不支持朗读，可以看音标。', 'error');
+      return;
+    }
+    try {
+      const utterance = new SpeechSynthesisUtterance(String(text || ''));
+      utterance.lang = 'en-US';
+      utterance.rate = 0.9;
+      utterance.pitch = 1;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+      if (label) label.classList.add('speaking');
+      utterance.onend = () => { if (label) label.classList.remove('speaking'); };
+    } catch (error) {
+      S.toast('朗读没有启动，可以看音标。', 'error');
+    }
+  }
+
+  function wordResultTable(task, run) {
+    const words = task.words || [];
+    return `<table class="word-result-table"><thead><tr><th>单词</th><th>释义</th><th>第一次</th><th>错词重练</th></tr></thead><tbody>` +
+      words.map((word, index) => {
+        const result = run.results[index] || {};
+        const review = run.reviewResults[index] || {};
+        return `<tr>` +
+          `<td><strong>${S.escapeHtml(word.w)}</strong>${word.kk ? `<br><span class="hint">${S.escapeHtml(word.kk)}</span>` : ''}</td>` +
+          `<td>${S.escapeHtml(word.zh || '—')}</td>` +
+          `<td class="${result.firstOk ? 'ok' : 'no'}">${result.firstOk ? '答对' : '答错'}</td>` +
+          `<td>${review.ok === true ? '<span class="ok">已订正</span>' : review.ok === false ? '<span class="no">仍错</span>' : '—'}</td>` +
+        `</tr>`;
+      }).join('') +
+      `</tbody></table>`;
+  }
+
+  function renderWordRunner(task) {
+    const run = ensureWordRun(task);
+    const words = task.words || [];
+    const total = words.length;
+    const done = task.status === 'done';
+    $('#runner-title').textContent = task.title || '单词打卡';
+    $('#runner-sub').textContent = done
+      ? `${task.title || '单词打卡'} · 已完成`
+      : `${task.title || '单词打卡'} · 已用时 0:00`;
+    $('#runner-report').hidden = !done;
+
+    if (done) {
+      $('#submit-task').hidden = true;
+      $('#runner-count').textContent = '已完成';
+      $('#runner-fill').style.width = '100%';
+      $('#runner-body').innerHTML = resultHero(task) + `<div class="word-run">${wordResultTable(task, run)}</div>`;
+      $('#runner-body').onclick = null;
+      $('#runner-body').onchange = null;
+      $('#runner-body').oninput = null;
+      return;
+    }
+
+    if (run.phase === 'done') {
+      const accuracy = wordAccuracy(task, run);
+      const score = Math.round(accuracy * 100);
+      const firstCorrect = words.filter((word, index) => run.results[index] && run.results[index].firstOk).length;
+      const wrong = words.filter((word, index) => !(run.results[index] && run.results[index].firstOk));
+      const reviewRight = Object.values(run.reviewResults || {}).filter((item) => item.ok).length;
+      const xp = wordXp(task, run);
+      $('#submit-task').hidden = false;
+      $('#submit-task').textContent = '完成打卡';
+      $('#runner-count').textContent = `${firstCorrect} / ${total} 一次答对`;
+      $('#runner-fill').style.width = '100%';
+      $('#runner-body').innerHTML =
+        `<div class="word-run"><div class="word-summary">` +
+          `<div class="word-summary-ring" style="--score:${score}%"><div><b>${score}</b><small>ACCURACY</small></div></div>` +
+          `<h2>这一轮打卡完成</h2>` +
+          `<p>${score >= 90 ? '词感很稳，保持这个节奏。' : score >= 70 ? '大部分已经拿下，错词再看一遍就稳了。' : '错词已经重练过，睡前再回看一次会更牢。'}</p>` +
+          `<div class="word-summary-stats">` +
+            `<div><b>${firstCorrect} / ${total}</b><span>一次答对</span></div>` +
+            `<div><b>x${run.maxCombo || 0}</b><span>最高连击</span></div>` +
+            `<div><b>+${xp}</b><span>预计 EXP</span></div>` +
+          `</div>` +
+          (wrong.length
+            ? `<p class="word-summary-wrong">错词 ${wrong.length} 个，重练答对 ${reviewRight} 个：${wrong.map((word) => `<span class="word-wrong-chip">${S.escapeHtml(word.w)}</span>`).join('')}</p>`
+            : `<p class="word-summary-wrong">全部一次答对，没有错词。</p>`) +
+          `<div class="word-summary-actions"><button class="p-btn" type="button" data-word-finish>完成打卡，交给老师</button></div>` +
+          `<p class="word-review-note">点击后成绩会写进本机档案。回主界面生成“汇报码”，老师导入后才能看到这次记录。</p>` +
+        `</div></div>`;
+      bindWordClicks(task, run);
+      return;
+    }
+
+    const reviewMode = run.phase === 'review';
+    const index = reviewMode ? Number(run.reviewQueue[run.reviewI]) : Number(run.i);
+    const word = words[index];
+    if (!word) {
+      run.phase = 'done';
+      save();
+      renderWordRunner(task);
+      return;
+    }
+    const isReview = reviewMode;
+    const options = isReview ? reviewOptionsFor(task, word) : wordOptionsFor(task, word, index);
+    const correctText = isReview ? word.w : word.zh;
+    const progress = isReview
+      ? (run.reviewQueue.length ? run.reviewI / run.reviewQueue.length : 1)
+      : (total ? index / total : 0);
+    const combo = Number(run.combo) || 0;
+
+    $('#submit-task').hidden = true;
+    $('#submit-task').textContent = '完成打卡';
+    $('#runner-fill').style.width = `${Math.round(progress * 100)}%`;
+    $('#runner-count').textContent = isReview
+      ? `错词重练 ${Math.min(run.reviewI + 1, run.reviewQueue.length)} / ${run.reviewQueue.length}`
+      : `${Math.min(index + 1, total)} / ${total}`;
+
+    const stage = isReview
+      ? `<div class="word-stage review">` +
+          `<div class="word-stage-label"><span>错词回炉 · ${word.w}</span><span class="word-phase">中 → 英</span></div>` +
+          `<div class="word-main"><p class="word-big cn">${S.escapeHtml(word.zh || '')}</p>` +
+          `<p class="word-phon">选回对应的英文单词</p></div>` +
+        `</div>`
+      : `<div class="word-stage">` +
+          `<div class="word-stage-label"><span>${task.title || '单词打卡'}</span><span class="word-phase">英 → 中</span></div>` +
+          `<div class="word-main"><p class="word-big">${S.escapeHtml(word.w)}</p>` +
+          `<p class="word-phon">${S.escapeHtml(word.kk || '')}${word.pos ? `<span class="word-pos">${S.escapeHtml(word.pos)}</span>` : ''}</p>` +
+          `<button class="word-speak" type="button" data-word-speak="${S.escapeHtml(word.w)}">🔊 听读音</button></div>` +
+        `</div>`;
+
+    $('#runner-body').innerHTML = `<div class="word-run">` +
+      `<div class="word-run-top">` +
+        `<span class="word-run-kicker">${isReview ? 'REVIEW' : 'WORD QUEST'} · ${run.phase === 'review' ? '错词重练' : '第一轮'}</span>` +
+        `<span class="word-combo ${combo >= 3 ? 'hot' : ''}" id="word-combo">${combo >= 3 ? '🔥' : '⚡'} 连击 x${combo}</span>` +
+      `</div>` +
+      `<div class="word-progress-game"><i id="word-progress-fill" style="width:${Math.round(progress * 100)}%"></i></div>` +
+      stage +
+      `<p class="word-question">${isReview ? '选出正确英文' : '选出正确的中文意思'}</p>` +
+      `<div class="word-options" id="word-options">` +
+        options.map((option) => `<button class="word-option" type="button" data-word-option="${S.escapeHtml(option)}">${S.escapeHtml(option)}</button>`).join('') +
+      `</div>` +
+      `<div class="word-feedback" id="word-feedback" hidden></div>` +
+      `<p class="word-review-note">${isReview ? '这次答对会记为“已订正”，但得分仍按第一次作答计算。' : '选错会自动进入最后的错词回炉，不影响你继续闯关。'}</p>` +
+    `</div>`;
+
+    bindWordClicks(task, run, { index, word, correctText, isReview });
+    if (!done) startTimer();
+  }
+
+  function bindWordClicks(task, run, context) {
+    const body = $('#runner-body');
+    body.onchange = null;
+    body.oninput = null;
+    body.onclick = (event) => {
+      const speakBtn = event.target.closest('[data-word-speak]');
+      if (speakBtn) {
+        speakWord(speakBtn.dataset.wordSpeak, speakBtn);
+        return;
+      }
+      const finishBtn = event.target.closest('[data-word-finish]');
+      if (finishBtn) {
+        submitWordTask();
+        return;
+      }
+      const option = event.target.closest('[data-word-option]');
+      if (!option || !context || run.locked) return;
+      answerWordOption(task, run, context, option);
+    };
+  }
+
+  function answerWordOption(task, run, context, option) {
+    const picked = option.dataset.wordOption;
+    const ok = picked === context.correctText;
+    run.locked = true;
+    const optionButtons = $$('#word-options .word-option');
+    optionButtons.forEach((button) => {
+      button.disabled = true;
+      if (button.dataset.wordOption === context.correctText) button.classList.add('correct');
+      else if (button !== option) button.classList.add('dim');
+    });
+    if (!ok) option.classList.add('wrong');
+
+    if (context.isReview) {
+      run.reviewResults[context.index] = { ok, answer: picked };
+      run.reviewI = Number(run.reviewI) + 1;
+    } else {
+      run.results[context.index] = { firstOk: ok, answer: picked };
+      if (ok) {
+        run.combo = Number(run.combo) + 1;
+        run.maxCombo = Math.max(Number(run.maxCombo) || 0, run.combo);
+      } else {
+        run.combo = 0;
+        if (!run.reviewQueue.includes(context.index)) run.reviewQueue.push(context.index);
+      }
+      run.i = Number(run.i) + 1;
+    }
+
+    const feedback = $('#word-feedback');
+    if (feedback) {
+      feedback.hidden = false;
+      feedback.className = `word-feedback ${ok ? 'ok' : 'no'}`;
+      feedback.innerHTML = ok
+        ? `<b>${context.isReview ? '订正成功' : '答对了'} · 连击 x${run.combo}</b>` +
+          `<div class="word-answer-line">${S.escapeHtml(context.word.w)} · ${S.escapeHtml(context.word.zh || '')}${context.isReview ? '' : '　已记入本轮成绩'}</div>`
+        : `<b>${context.isReview ? '这次还没记住' : '先记一下'}</b>` +
+          `<div class="word-answer-line"><strong>${S.escapeHtml(context.word.w)}</strong> · ${S.escapeHtml(context.word.zh || '')}${context.word.kk ? ` · ${S.escapeHtml(context.word.kk)}` : ''}</div>` +
+          `<div class="word-answer-line">${context.isReview ? '下一轮再遇到它，试着先回想发音。' : '这个词会在最后再考一次。'}</div>`;
+    }
+    const comboEl = $('#word-combo');
+    if (comboEl) {
+      comboEl.classList.toggle('hot', Number(run.combo) >= 3);
+      comboEl.textContent = `${Number(run.combo) >= 3 ? '🔥' : '⚡'} 连击 x${run.combo}`;
+    }
+    save();
+
+    const delay = ok ? 850 : 1600;
+    setTimeout(() => {
+      run.locked = false;
+      if (activeTaskId !== task.id) return;
+      if (!context.isReview && Number(run.i) >= (task.words || []).length) {
+        if (run.reviewQueue.length) {
+          run.phase = 'review';
+          run.reviewI = 0;
+        } else {
+          run.phase = 'done';
+        }
+      } else if (context.isReview && Number(run.reviewI) >= run.reviewQueue.length) {
+        run.phase = 'done';
+      }
+      save();
+      renderWordRunner(task);
+    }, delay);
+  }
+
+  function submitWordTask() {
+    const task = activeTaskId ? findTask(activeTaskId) : null;
+    if (!task || task.status === 'done' || task.mode !== 'words') return;
+    const run = ensureWordRun(task);
+    if (run.phase !== 'done') { S.toast('先把这一轮词答完。', 'error'); return; }
+    const words = task.words || [];
+    const total = words.length;
+    const firstCorrect = words.filter((word, index) => run.results[index] && run.results[index].firstOk).length;
+    const accuracy = total ? firstCorrect / total : 0;
+    const score = Math.round(accuracy * 100);
+    const xpEarned = wordXp(task, run);
+    const wordStats = words.map((word, index) => ({
+      w: word.w,
+      zh: word.zh || '',
+      kk: word.kk || '',
+      ok: !!(run.results[index] && run.results[index].firstOk),
+      reviewOk: run.reviewResults[index] ? !!run.reviewResults[index].ok : null,
+      attempts: 1 + (run.results[index] && run.results[index].firstOk ? 0 : 1)
+    }));
+    const review = wordStats.map((word, index) => ({
+      n: index + 1,
+      stem: word.w,
+      userAnswer: word.ok ? word.zh : '选错',
+      correctAnswer: word.zh,
+      ok: word.ok,
+      type: 'vocab',
+      explanation: ''
+    })).filter((item) => !item.ok);
+    task.status = 'done';
+    task.submittedAt = S.nowIso();
+    task.timeSpent = Math.max(1, Math.round((Date.now() - taskStartedAt) / 1000));
+    task.score = score;
+    task.accuracy = accuracy;
+    task.correct = firstCorrect;
+    task.total = total;
+    task.ungraded = 0;
+    task.xpEarned = xpEarned;
+    task.wordStats = wordStats;
+    task.blockStats = [{ type: 'vocab', label: '单词打卡', total, correct: firstCorrect }];
+    task.review = review;
+    task.writing = '';
+    task.result = { correct: firstCorrect, total, ungraded: 0, accuracy, blockStats: task.blockStats, word: true };
+    profile().attrs = profile().attrs || S.emptyAttrs();
+    S.applyAttrResult(profile().attrs, 'vocab', firstCorrect, total);
+    addXp(xpEarned);
+    save();
+    renderAll();
+    renderRunner(task);
+    stopTimer();
+    S.toast(`打卡完成，一次答对 ${firstCorrect}/${total}，+${xpEarned} EXP。回主界面生成汇报码发给老师。`, 'ok', 6000);
+  }
+
   function resultHero(task) {
     const result = task.result || {};
     const score = task.score == null ? '—' : task.score;
@@ -605,7 +978,7 @@
     return `<div class="result-hero">` +
       `<div class="result-ring" style="--score:${scoreValue}%"><span>${score}</span><small>SCORE</small></div>` +
       `<h2 class="result-title">${task.score == null ? '已提交，等待批改' : '任务完成'}</h2>` +
-      `<p class="result-sub">${task.score == null ? '这份任务没有可自动判分的答案，老师会在汇报里看到你的作答。' : `答对 ${correct} / ${total} 题，获得 ${task.xpEarned || 0} EXP。`}</p>` +
+      `<p class="result-sub">${task.score == null ? '这份任务没有可自动判分的答案，老师会在汇报里看到你的作答。' : `答对 ${correct} / ${total} ${task.mode === 'words' ? '词' : '题'}，获得 ${task.xpEarned || 0} EXP。`}</p>` +
       `<div class="result-stats">` +
         `<div class="result-stat"><b>${accuracy}</b><span>正确率</span></div>` +
         `<div class="result-stat"><b>${minutes}′</b><span>用时</span></div>` +
@@ -618,6 +991,7 @@
   function submitTask() {
     const task = activeTaskId ? findTask(activeTaskId) : null;
     if (!task || task.status === 'done') return;
+    if (task.mode === 'words') { submitWordTask(); return; }
     const totalQuestions = taskQuestionCount(task);
     const answered = answeredCount(task);
     if (answered < totalQuestions && !window.confirm(`还有 ${totalQuestions - answered} 题没写，确定提交吗？`)) return;
@@ -726,7 +1100,13 @@
       S.toast('任务码和当前密码不匹配，可能不是发给你的。', 'error', 6000);
       return;
     }
-    if (!Array.isArray(payload.blocks) || !payload.blocks.length) {
+    const wordMode = payload.mode === 'words';
+    if (wordMode) {
+      if (!Array.isArray(payload.words) || payload.words.length < 4) {
+        S.toast('单词任务里的词不够 4 个，请让老师重新生成。', 'error');
+        return;
+      }
+    } else if (!Array.isArray(payload.blocks) || !payload.blocks.length) {
       S.toast('任务里没有题目，请让老师重新生成。', 'error');
       return;
     }
@@ -738,6 +1118,7 @@
     const task = {
       ...payload,
       answers: existing ? existing.answers || {} : {},
+      wordRun: existing ? existing.wordRun || null : null,
       status: 'new',
       importedAt: S.nowIso()
     };
@@ -789,6 +1170,10 @@
         submittedAt: task.submittedAt,
         timeSpent: task.timeSpent,
         avgDifficulty: taskAvgDifficulty(task),
+        mode: task.mode || '',
+        wordTotal: task.wordTotal || (task.words || []).length || 0,
+        wordStats: task.wordStats || [],
+        maxCombo: task.wordRun ? Number(task.wordRun.maxCombo) || 0 : 0,
         blockStats: task.blockStats || [],
         review: task.review || [],
         writing: task.writing || '',

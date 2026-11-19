@@ -1,0 +1,9 @@
+<!-- #ifdef MP-WEIXIN -->
+<web-view src="{{url}}" binderror="onError"></web-view>
+<!-- #endif -->
+<!-- #ifndef MP-WEIXIN -->
+<view class="fallback">
+  <view class="fallback-title">网页壳需要在微信小程序里打开</view>
+  <view class="fallback-hint">请用微信开发者工具运行，或把本模板编译到微信小程序。</view>
+</view>
+<!-- #endif -->

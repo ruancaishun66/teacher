@@ -1,0 +1,17 @@
+.fallback {
+  padding: 120rpx 48rpx;
+  text-align: center;
+}
+
+.fallback-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #234c57;
+}
+
+.fallback-hint {
+  margin-top: 20rpx;
+  font-size: 26rpx;
+  line-height: 1.7;
+  color: #7c8d8d;
+}

@@ -8,6 +8,8 @@
 <title>顺势 · 学生端｜因势利导，循循善诱</title>
 <link rel="icon" href="logo.svg?v=20261118c" type="image/svg+xml">
 <link rel="stylesheet" href="portal.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-192.png">
 </head>
 <body>
 
@@ -169,7 +171,7 @@
       <section class="p-card p-col-12" id="badges">
         <div class="p-card-head">
           <h2 class="p-card-title">成就徽章 <small>ACHIEVEMENTS</small></h2>
-          <span class="p-dim" style="font-size:.64rem;" id="badge-count">0 / 8</span>
+          <span class="p-dim" style="font-size:.64rem;" id="badge-count">0 / 9</span>
         </div>
         <div class="badge-grid" id="badge-grid"></div>
       </section>
@@ -216,7 +218,7 @@
         <label for="import-code">任务码</label>
         <textarea class="textarea" id="import-code" rows="7" placeholder="SS1.…"></textarea>
       </div>
-      <p class="hint">微信里长按复制即可，换行不影响。任务码只包含题目，不含老师的资料库。</p>
+      <p class="hint">微信里长按复制即可，换行不影响。任务码只包含题目或单词，不含老师的资料库。单词任务导入后会直接进入闯关。</p>
     </div>
     <div class="p-dialog-foot">
       <button class="p-btn ghost" type="button" data-close>取消</button>
@@ -379,5 +381,6 @@
 
 <script src="portal.js"></script>
 <script src="student.js"></script>
+<script src="pwa.js" defer></script>
 </body>
 </html>

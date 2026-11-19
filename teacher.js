@@ -53,6 +53,12 @@
   let lastCodes = [];
   let lastEnroll = null;
   let editingInsightId = null;
+  let glossaryPromise = null;
+  let wordMaterials = [];
+  let wordDraft = [];
+  let wordSourceMode = 'paste';
+  let wordAssignStudentId = null;
+  let wordDetailId = null;
 
   /* ------------------------------- 存储 ------------------------------- */
 
@@ -240,6 +246,116 @@
     }
   }
 
+  /* ------------------------------- 单词库与资料库 ------------------------------- */
+
+  function loadGlossary() {
+    if (!glossaryPromise) {
+      glossaryPromise = fetch('vendor/glossary.json', { cache: 'force-cache' })
+        .then((response) => (response.ok ? response.json() : {}))
+        .catch((error) => {
+          console.warn('释义库读取失败', error);
+          return {};
+        });
+    }
+    return glossaryPromise;
+  }
+
+  async function loadWordMaterials() {
+    try {
+      const db = await openLibrary();
+      const list = await new Promise((resolve, reject) => {
+        const transaction = db.transaction('materials', 'readonly');
+        const request = transaction.objectStore('materials').getAll();
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error || new Error('读取资料库失败。'));
+      });
+      wordMaterials = list
+        .filter((material) => material && (material.text || material.body))
+        .sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
+    } catch (error) {
+      console.warn(error);
+      wordMaterials = [];
+    }
+    renderWordMaterials();
+    return wordMaterials;
+  }
+
+  const WORD_STOP = new Set(('a an the and or but if because so that this these those i you he she it we they me him her us them my your his its our their ' +
+    'is are was were be been being am do does did have has had will would can could shall should may might must not no yes of to in on at by for with from as than then there here ' +
+    'what which who whom whose when where why how all any both each few more most other some such only own same too very just about into over after before between during through ' +
+    'up down out off again once also however therefore while although though until unless since whether either neither nor per via etc').split(/\s+/));
+
+  function extractWordsFromText(text, glossary) {
+    const counts = new Map();
+    String(text || '')
+      .toLowerCase()
+      .replace(/[’]/g, "'")
+      .split(/[^a-z'-]+/)
+      .forEach((raw) => {
+        const word = raw.replace(/^[-']+|[-']+$/g, '');
+        if (word.length < 3 || word.length > 24) return;
+        if (!/^[a-z][a-z'-]*$/.test(word)) return;
+        if (WORD_STOP.has(word)) return;
+        counts.set(word, (counts.get(word) || 0) + 1);
+      });
+    const candidates = [];
+    counts.forEach((count, word) => {
+      const entry = glossary[word];
+      if (!entry || !entry.zh) return;
+      candidates.push({ w: word, count, zh: entry.zh, kk: entry.kk || '', pos: entry.pos || '' });
+    });
+    candidates.sort((a, b) => b.count - a.count || b.w.length - a.w.length || a.w.localeCompare(b.w));
+    const picked = [];
+    const seenBase = new Set();
+    candidates.forEach((item) => {
+      const base = item.w.replace(/(?:s|es|ed|ing)$/i, '');
+      if (base.length >= 3 && seenBase.has(base) && base !== item.w) return;
+      seenBase.add(item.w);
+      if (picked.length < 40) picked.push(item);
+    });
+    return picked;
+  }
+
+  function parseWordLines(text) {
+    const list = [];
+    const seen = new Set();
+    String(text || '').split(/\r?\n+/).forEach((line) => {
+      const raw = line.trim().replace(/^[0-9]+[.、)\s]+/, '');
+      if (!raw) return;
+      let word = '';
+      let meaning = '';
+      const separated = raw.split(/\s*[=,，;；\t]\s*/);
+      if (separated.length >= 2) {
+        word = separated[0].trim();
+        meaning = separated.slice(1).join(' ').trim();
+      } else {
+        const tokens = raw.split(/\s+/);
+        word = tokens[0] || '';
+        const rest = tokens.slice(1);
+        if (rest.length && /^[A-Za-z][A-Za-z'’.-]*$/.test(rest[0])
+          && !/^(v|n|adj|adv|prep|pron|conj|num|art|aux|vt|vi|phr|abbr)\.?$/i.test(rest[0])
+          && /[\u4e00-\u9fff\/]/.test(rest.slice(1).join(' ') || rest.join(' '))) {
+          word += ' ' + rest.shift();
+        }
+        meaning = rest.join(' ').trim();
+      }
+      word = word.replace(/^[-'"“”]+|[-'"“”]+$/g, '').trim();
+      if (!word) return;
+      if (!/^[A-Za-z][A-Za-z'’ .-]*$/.test(word)) return;
+      const key = word.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      list.push({ w: word, zh: meaning, kk: '', pos: '' });
+      if (list.length >= 100) return;
+    });
+    return list;
+  }
+
+  function wordPoolFor(words) {
+    const extra = ['环境', '机会', '影响', '经历', '建议', '决定', '发展', '提供', '减少', '提高', '保护', '表达', '支持', '避免', '承认', '依靠', '属于', '安静的', '勇敢的', '复杂的'];
+    return Array.from(new Set(words.map((word) => word.zh).concat(extra).filter(Boolean))).slice(0, 30);
+  }
+
   /* ------------------------------- 练习卷转任务 ------------------------------- */
 
   function cnNumber(index) {
@@ -352,7 +468,7 @@
 
   async function taskCodeFor(assignment, student) {
     const auth = await S.sha256Hex(`${student.id}|${student.pin}|${assignment.id}`);
-    return S.packCode({
+    const base = {
       v: 1,
       kind: 'task',
       id: assignment.id,
@@ -366,9 +482,21 @@
       createdAt: assignment.createdAt,
       paperId: assignment.paperId,
       paperTitle: assignment.paperTitle,
-      avgDifficulty: assignment.avgDifficulty || null,
-      blocks: assignment.blocks,
       auth
+    };
+    if (assignment.kind === 'words') {
+      return S.packCode({
+        ...base,
+        mode: 'words',
+        wordTotal: assignment.wordTotal || (assignment.words || []).length,
+        words: assignment.words || [],
+        pool: assignment.pool || wordPoolFor(assignment.words || [])
+      });
+    }
+    return S.packCode({
+      ...base,
+      avgDifficulty: assignment.avgDifficulty || null,
+      blocks: assignment.blocks
     });
   }
 
@@ -442,6 +570,7 @@
     renderTodo();
     renderStudentGrid();
     renderAssignments();
+    renderWords();
     renderReportList();
     renderInsights();
     renderSettings();
@@ -581,7 +710,7 @@
   }
 
   function renderAssignments() {
-    const list = (data.assignments || []).slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    const list = (data.assignments || []).filter((assignment) => assignment.kind !== 'words').slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     if (!list.length) {
       $('#assignment-list').innerHTML = emptyState('还没有布置任务', '从教师工作台保存一份练习卷，再回来点“布置任务”。');
       return;
@@ -825,6 +954,7 @@
     $$('#teacher-tabs button').forEach((button) => button.classList.toggle('active', button.dataset.tab === name));
     $$('.teacher-pane').forEach((pane) => pane.classList.toggle('active', pane.dataset.pane === name));
     if (name === 'insights') renderInsights();
+    if (name === 'words') renderWords();
   }
 
   /* ------------------------------- 学生管理 ------------------------------- */
@@ -1074,6 +1204,351 @@
     await showCodes(assignment);
   }
 
+  /* ------------------------------- 单词打卡：发布 ------------------------------- */
+
+  function wordAssignments() {
+    return (data.assignments || []).filter((assignment) => assignment.kind === 'words');
+  }
+
+  function wordAssignmentStats(assignment) {
+    const rows = (assignment.studentIds || []).map((id) => {
+      const student = getStudent(id);
+      const task = student ? (student.tasks || []).find((item) => item.id === assignment.id && item.status === 'done') : null;
+      return {
+        student,
+        task,
+        words: task && Array.isArray(task.wordStats) ? task.wordStats : []
+      };
+    });
+    const done = rows.filter((row) => row.task);
+    const scores = done.map((row) => Number(row.task.score)).filter((value) => Number.isFinite(value));
+    const wrongMap = new Map();
+    done.forEach((row) => {
+      row.words.filter((word) => !word.ok).forEach((word) => {
+        const key = String(word.w || '').toLowerCase();
+        if (!key) return;
+        const item = wrongMap.get(key) || { w: word.w, zh: word.zh || '', count: 0 };
+        item.count += 1;
+        wrongMap.set(key, item);
+      });
+    });
+    const wrong = Array.from(wrongMap.values()).sort((a, b) => b.count - a.count).slice(0, 12);
+    return {
+      rows,
+      total: rows.length,
+      done: done.length,
+      avgScore: scores.length ? Math.round(mean(scores)) : null,
+      wrong
+    };
+  }
+
+  function renderWords() {
+    const listEl = $('#word-list');
+    if (!listEl) return;
+    const list = wordAssignments().slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    const allStats = list.map((assignment) => ({ assignment, stats: wordAssignmentStats(assignment) }));
+    const totalWords = list.reduce((sum, assignment) => sum + (assignment.wordTotal || (assignment.words || []).length), 0);
+    const participants = new Set();
+    list.forEach((assignment) => (assignment.studentIds || []).forEach((id) => participants.add(id)));
+    const doneCount = allStats.reduce((sum, item) => sum + item.stats.done, 0);
+    const expected = allStats.reduce((sum, item) => sum + item.stats.total, 0);
+    const scores = [];
+    allStats.forEach((item) => item.stats.rows.forEach((row) => {
+      if (row.task && Number.isFinite(Number(row.task.score))) scores.push(Number(row.task.score));
+    }));
+
+    const statsEl = $('#word-stats');
+    if (statsEl) {
+      statsEl.innerHTML =
+        `<div class="word-dash-tile" style="--tile-color:var(--red)"><b>${list.length}</b><span>单词任务</span></div>` +
+        `<div class="word-dash-tile" style="--tile-color:var(--gold)"><b>${participants.size}</b><span>参与学生</span></div>` +
+        `<div class="word-dash-tile" style="--tile-color:var(--blue)"><b>${doneCount} / ${expected}</b><span>已交汇报</span></div>` +
+        `<div class="word-dash-tile" style="--tile-color:var(--green)"><b>${scores.length ? Math.round(mean(scores)) + '%' : '—'}</b><span>一次答对率</span></div>`;
+    }
+
+    if (!list.length) {
+      listEl.innerHTML = emptyState('还没有单词打卡', '点右上角“发布单词任务”：粘贴一本单词书，或从资料库的文章里提取生词，再发给学生。');
+      return;
+    }
+
+    listEl.innerHTML = allStats.map(({ assignment, stats }) => {
+      const total = (assignment.studentIds || []).length;
+      const percent = total ? Math.round((stats.done / total) * 100) : 0;
+      const overdue = assignment.due && assignment.due < S.todayIso();
+      const wrongHtml = stats.wrong.length
+        ? `高频错词：${stats.wrong.slice(0, 8).map((word) => `<span class="word-wrong-chip">${S.escapeHtml(word.w)}${word.count > 1 ? ` ×${word.count}` : ''}</span>`).join('')}`
+        : '还没有收到汇报，交回后这里会出现高频错词。';
+      return `<article class="assignment-card word" data-word-id="${S.escapeHtml(assignment.id)}">` +
+        `<div class="assignment-main">` +
+          `<h3>${S.escapeHtml(assignment.title)}<span class="word-badge">WORD</span></h3>` +
+          `<div class="assignment-meta">` +
+            `<span>${assignment.wordTotal || (assignment.words || []).length} 词</span>` +
+            `<span>经验 <b>+${assignment.xp || 80}</b></span>` +
+            `<span style="${overdue ? 'color:var(--red-bright);' : ''}">截止 ${assignment.due ? S.escapeHtml(S.fmtDate(assignment.due)) : '未设置'}${overdue ? '（已过）' : ''}</span>` +
+            `<span>${stats.avgScore == null ? '平均正确率 —' : `平均正确率 ${stats.avgScore}%`}</span>` +
+          `</div>` +
+          `<div class="word-wrong-line">${wrongHtml}</div>` +
+        `</div>` +
+        `<div class="assignment-progress">` +
+          `<div class="progress-label"><span>已交汇报</span><b>${stats.done} / ${total}</b></div>` +
+          `<div class="mini-track"><i style="width:${percent}%"></i></div>` +
+        `</div>` +
+        `<div class="assignment-actions">` +
+          `<button class="p-btn small" type="button" data-word-action="codes">任务码</button>` +
+          `<button class="p-btn small ghost" type="button" data-word-action="detail">学情</button>` +
+          `<button class="p-btn small ghost" type="button" data-word-action="delete">删除</button>` +
+        `</div>` +
+      `</article>`;
+    }).join('');
+  }
+
+  function renderWordStudents() {
+    const list = sortedStudents();
+    const box = $('#word-students');
+    if (!box) return;
+    if (!list.length) {
+      box.innerHTML = '<p class="hint">还没有学生。先在“学生”里添加。</p>';
+      return;
+    }
+    box.innerHTML = list.map((student) => (
+      `<label class="check-chip">` +
+        `<input type="checkbox" name="word-student" value="${S.escapeHtml(student.id)}" ${wordAssignStudentId ? (student.id === wordAssignStudentId ? 'checked' : '') : 'checked'}>` +
+        `${S.escapeHtml(student.avatar)} ${S.escapeHtml(student.name)}` +
+      `</label>`
+    )).join('');
+  }
+
+  function setWordSource(mode) {
+    wordSourceMode = mode;
+    $$('.word-source-tab').forEach((button) => button.classList.toggle('active', button.dataset.wordSource === mode));
+    $$('.word-source-pane').forEach((pane) => pane.classList.toggle('active', pane.dataset.wordPane === mode));
+    if (mode === 'library' && !wordMaterials.length) loadWordMaterials();
+  }
+
+  function renderWordMaterials() {
+    const select = $('#word-material');
+    const status = $('#word-material-status');
+    if (!select) return;
+    if (!wordMaterials.length) {
+      select.innerHTML = '<option value="">资料库还没有可提取的文章</option>';
+      if (status) status.textContent = '先去组卷工作台保存一份阅读、完形或试卷，再回来提取。';
+      return;
+    }
+    select.innerHTML = wordMaterials.map((material) => (
+      `<option value="${S.escapeHtml(material.id)}">${S.escapeHtml(material.title || '未命名资料')} · ${S.escapeHtml(TYPE_LABELS[material.type] || material.type || '资料')}</option>`
+    )).join('');
+    if (status) status.textContent = `已读取 ${wordMaterials.length} 份资料。提取会跳过常见虚词，最多取 40 个词。`;
+  }
+
+  function openWordDialog(studentId) {
+    wordAssignStudentId = studentId || null;
+    wordDraft = [];
+    wordSourceMode = 'paste';
+    $('#word-title').value = '';
+    $('#word-due').value = S.addDays(S.todayIso(), 3);
+    $('#word-xp').value = '80';
+    $('#word-input').value = '';
+    $('#word-preview').innerHTML = '<p class="hint">粘贴单词后点“生成预览”，会从本机释义库补全音标和中文意思。</p>';
+    $('#word-build-count').textContent = '0 个词';
+    $('#word-glossary-status').textContent = '正在读取本机释义库…';
+    $('#word-foot-hint').textContent = '至少 4 个词，才能生成选项。';
+    $$('.word-source-tab').forEach((button) => button.classList.toggle('active', button.dataset.wordSource === 'paste'));
+    $$('.word-source-pane').forEach((pane) => pane.classList.toggle('active', pane.dataset.wordPane === 'paste'));
+    renderWordStudents();
+    S.openDialog($('#word-dialog'));
+    loadGlossary().then((glossary) => {
+      const count = Object.keys(glossary).length;
+      $('#word-glossary-status').textContent = count
+        ? `本机释义库已就绪（${count.toLocaleString()} 个词条）。点“生成预览”即可自动补全。`
+        : '释义库没有读到（可能是离线打开）。请在每行单词后面手动写中文意思。';
+    });
+  }
+
+  async function extractWordsFromMaterial() {
+    const select = $('#word-material');
+    const id = select && select.value;
+    if (!id) { S.toast('资料库里没有可提取的文章。', 'error'); return; }
+    const material = wordMaterials.find((item) => item.id === id);
+    if (!material) return;
+    const status = $('#word-material-status');
+    if (status) status.textContent = '正在提取生词…';
+    const glossary = await loadGlossary();
+    const textParts = [material.text || ''];
+    if (Array.isArray(material.body)) textParts.push(material.body.join('\n'));
+    else if (material.body) textParts.push(String(material.body));
+    if (Array.isArray(material.items)) {
+      material.items.forEach((item) => textParts.push(item.content || '', item.passage || ''));
+    }
+    const words = extractWordsFromText(textParts.join('\n'), glossary);
+    if (words.length < 4) {
+      S.toast('这篇文章里可提取的生词太少，换一篇或直接粘贴单词书。', 'error', 5000);
+      if (status) status.textContent = '可提取的词不足 4 个。';
+      return;
+    }
+    $('#word-input').value = words.map((word) => word.w).join('\n');
+    if (status) status.textContent = `已提取 ${words.length} 个词，已填入“粘贴单词书”，可以继续删改。`;
+    setWordSource('paste');
+    await buildWordPreview();
+    const titleInput = $('#word-title');
+    if (titleInput && !titleInput.value.trim()) {
+      titleInput.value = `${material.title || '资料'} · 生词打卡`;
+    }
+  }
+
+  function renderWordPreview() {
+    const box = $('#word-preview');
+    if (!box) return;
+    if (!wordDraft.length) {
+      box.innerHTML = '<p class="hint">还没有预览。粘贴单词后点“生成预览”。</p>';
+      updateWordDraftCount();
+      return;
+    }
+    box.innerHTML = wordDraft.map((word, index) => {
+      const missing = !String(word.zh || '').trim();
+      return `<div class="word-preview-row ${missing ? 'missing' : ''}" data-word-row="${index}">` +
+        `<span class="word-index">${String(index + 1).padStart(2, '0')}</span>` +
+        `<span class="word-en">${S.escapeHtml(word.w)}</span>` +
+        `<span class="word-phon" title="${S.escapeHtml(word.kk || '')}">${S.escapeHtml(word.kk || '—')}</span>` +
+        `<input type="text" value="${S.escapeHtml(word.zh || '')}" data-word-meaning="${index}" placeholder="补一个中文释义" aria-label="${S.escapeHtml(word.w)} 的中文释义">` +
+        `<button class="word-remove" type="button" data-word-remove="${index}" aria-label="移除 ${S.escapeHtml(word.w)}">×</button>` +
+      `</div>`;
+    }).join('');
+    updateWordDraftCount();
+  }
+
+  function updateWordDraftCount() {
+    const missing = wordDraft.filter((word) => !String(word.zh || '').trim()).length;
+    const countEl = $('#word-build-count');
+    if (countEl) countEl.textContent = `${wordDraft.length} 个词`;
+    const foot = $('#word-foot-hint');
+    if (foot) {
+      foot.textContent = wordDraft.length < 4
+        ? '至少 4 个词，才能生成选项。'
+        : missing
+          ? `还有 ${missing} 个词没有释义，填好才能发布。`
+          : '核对无误后，生成一人一码的任务码。';
+    }
+  }
+
+  async function buildWordPreview() {
+    const text = $('#word-input').value;
+    const parsed = parseWordLines(text);
+    if (!parsed.length) { S.toast('先粘贴至少一行单词。', 'error'); return; }
+    if (parsed.length > 80) S.toast('一次最多 80 个词，已截取前 80 个。', 'error', 5000);
+    const source = parsed.slice(0, 80);
+    const glossary = await loadGlossary();
+    let filled = 0;
+    wordDraft = source.map((word) => {
+      const entry = glossary[word.w.toLowerCase()] || {};
+      const zh = String(word.zh || entry.zh || '').trim();
+      if (!word.zh && entry.zh) filled += 1;
+      return {
+        w: word.w,
+        zh,
+        kk: word.kk || entry.kk || '',
+        pos: word.pos || entry.pos || ''
+      };
+    });
+    renderWordPreview();
+    const missing = wordDraft.filter((word) => !word.zh).length;
+    const status = $('#word-glossary-status');
+    if (status) {
+      status.textContent = missing
+        ? `已自动补全 ${filled} 个释义；还有 ${missing} 个需要手动填写（红色的行）。`
+        : `释义齐全，共 ${wordDraft.length} 个词。可以发布。`;
+    }
+  }
+
+  async function generateWordAssignment() {
+    const students = $$('#word-students input[name="word-student"]:checked').map((input) => input.value);
+    if (!students.length) { S.toast('至少勾选一位学生。', 'error'); return; }
+    if (wordDraft.length < 4) { S.toast('至少需要 4 个词，才能生成四选一选项。', 'error'); return; }
+    const missing = wordDraft.filter((word) => !String(word.zh || '').trim());
+    if (missing.length) {
+      S.toast(`还有 ${missing.length} 个词没有中文释义，请在预览里补好。`, 'error', 5000);
+      const row = $(`[data-word-row="${wordDraft.indexOf(missing[0])}"]`);
+      if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return;
+    }
+    const title = $('#word-title').value.trim() || `单词打卡 · ${wordDraft.length} 词`;
+    const due = $('#word-due').value || S.addDays(S.todayIso(), 3);
+    const xp = clamp(Number($('#word-xp').value) || 80, 20, 600);
+    const words = wordDraft.map((word) => ({ w: word.w, zh: word.zh, kk: word.kk || '', pos: word.pos || '' }));
+    const assignment = {
+      id: S.uid('W'),
+      kind: 'words',
+      mode: 'words',
+      title,
+      paperTitle: '单词打卡',
+      paperGrade: '',
+      due,
+      xp,
+      createdAt: S.nowIso(),
+      studentIds: students,
+      wordTotal: words.length,
+      words,
+      pool: wordPoolFor(words)
+    };
+    data.assignments.unshift(assignment);
+    save();
+    renderAll();
+    S.closeDialog($('#word-dialog'));
+    wordDraft = [];
+    wordAssignStudentId = null;
+    S.toast(`单词任务已创建，共 ${words.length} 个词。正在生成一人一码…`, 'ok');
+    await showCodes(assignment);
+  }
+
+  function openWordDetail(assignmentId) {
+    const assignment = (data.assignments || []).find((item) => item.id === assignmentId && item.kind === 'words');
+    if (!assignment) return;
+    wordDetailId = assignmentId;
+    const stats = wordAssignmentStats(assignment);
+    const sub = $('#word-detail-sub');
+    if (sub) sub.textContent = `${assignment.title} · ${assignment.wordTotal || (assignment.words || []).length} 词 · 截止 ${assignment.due ? S.fmtDate(assignment.due) : '未设置'}`;
+    const rows = stats.rows.map((row) => {
+      if (!row.student) return '';
+      const task = row.task;
+      const score = task && Number.isFinite(Number(task.score)) ? Number(task.score) : null;
+      const scoreClass = score == null ? '' : score >= 85 ? 'score-good' : score >= 60 ? 'score-mid' : 'score-low';
+      const wrong = row.words.filter((word) => !word.ok);
+      const wrongHtml = wrong.length
+        ? wrong.slice(0, 8).map((word) => `<span class="word-wrong-chip">${S.escapeHtml(word.w)}</span>`).join('')
+        : (task ? '无' : '—');
+      return `<tr>` +
+        `<td><strong>${S.escapeHtml(row.student.name)}</strong><br><span class="hint">${S.escapeHtml(row.student.id)}</span></td>` +
+        `<td>${task ? '已交汇报' : '未交'}</td>` +
+        `<td>${task ? `${task.correct || 0} / ${task.total || row.words.length}` : '—'}</td>` +
+        `<td class="${scoreClass}">${score == null ? '—' : score + '%'}</td>` +
+        `<td>${wrongHtml}</td>` +
+      `</tr>`;
+    }).join('');
+    const common = stats.wrong.length
+      ? `<div class="word-common"><h3>全班高频错词</h3><p>${stats.wrong.map((word) => `<span class="word-wrong-chip">${S.escapeHtml(word.w)} · ${S.escapeHtml(word.zh || '')} ×${word.count}</span>`).join(' ')}</p><p class="hint">可以下一轮只挑这些词，做一次“错词回炉”。</p></div>`
+      : '';
+    $('#word-detail-body').innerHTML =
+      `<div class="word-detail-summary">` +
+        `<span>参与 <b>${stats.total}</b> 人</span>` +
+        `<span>已交 <b>${stats.done}</b> 人</span>` +
+        `<span>平均一次答对率 <b>${stats.avgScore == null ? '—' : stats.avgScore + '%'}</b></span>` +
+      `</div>` +
+      (stats.done
+        ? `<table class="word-detail-table"><thead><tr><th>学生</th><th>状态</th><th>一次答对</th><th>正确率</th><th>错词</th></tr></thead><tbody>${rows}</tbody></table>`
+        : `<div class="word-detail-empty">还没有收到这个任务的汇报。学生在学生端完成后生成汇报码，老师导入后这里才会更新；学生答题时的进度条是实时的，但跨设备不会自动同步。</div>`) +
+      common;
+    S.openDialog($('#word-detail-dialog'));
+  }
+
+  function deleteWordAssignment(assignmentId) {
+    const assignment = (data.assignments || []).find((item) => item.id === assignmentId);
+    if (!assignment) return;
+    if (!window.confirm(`删除单词任务《${assignment.title}》？已经发出的任务码仍然可用。`)) return;
+    data.assignments = data.assignments.filter((item) => item.id !== assignmentId);
+    save();
+    renderAll();
+    S.toast('单词任务已删除。');
+  }
+
   /* ------------------------------- 汇报导入 ------------------------------- */
 
   async function importReportCode() {
@@ -1227,6 +1702,7 @@
     const blockAgg = {};
     const reviewAgg = {};
     const allReviews = [];
+    const wordStats = [];
     tasks.forEach((task) => {
       (task.blockStats || []).forEach((block) => {
         if (!block || !block.total) return;
@@ -1234,6 +1710,10 @@
         if (!blockAgg[key]) blockAgg[key] = { total: 0, correct: 0, label: block.label || S.blockLabel(key) };
         blockAgg[key].total += Number(block.total) || 0;
         blockAgg[key].correct += Number(block.correct) || 0;
+      });
+      (task.wordStats || []).forEach((word) => {
+        if (!word || !word.w) return;
+        wordStats.push({ ...word, taskTitle: task.title || '单词打卡', submittedAt: task.submittedAt || '' });
       });
       (task.review || []).forEach((review) => {
         const key = review.type || 'other';
@@ -1360,6 +1840,11 @@
     } else {
       html += `<p>目前没有可自动判分的错题记录。可能是任务未附答案，或学生尚未提交。</p>`;
     }
+    if (wordStats.length) {
+      const wordWrong = wordStats.filter((word) => !word.ok);
+      const topWrong = wordWrong.slice(-8).reverse().map((word) => S.escapeHtml(word.w)).join('、');
+      html += `<p>单词打卡累计 <strong>${wordStats.length}</strong> 词，一次答对 ${wordStats.length - wordWrong.length} 词，错词 ${wordWrong.length} 个${wordWrong.length ? `；最近错词：${topWrong}` : ''}。错词已在学生端重练，但得分只按第一次作答计算，避免“练完就算会”。</p>`;
+    }
     html += `<p>任务结构：${S.escapeHtml(bloomLabel)}${bloomHighRatio == null ? '' : `（理解/分析/表达类约占 ${Math.round(bloomHighRatio * 100)}%）`}。这只能说明练了什么，不等于 cognitive level 的正式测评。</p>`;
 
     html += `<h4>四、最近发展区</h4>`;
@@ -1400,13 +1885,14 @@
       `近 30 天打卡 ${active30} 天，当前连击 ${streak} 天；完成任务 ${tasks.length} 次${avgScore == null ? '' : `，平均正确率 ${avgScore}%`}；最近汇报 ${reportDays == null ? '无' : reportDays + ' 天前'}。`,
       assessed.length ? `五维：${assessed.map((item) => `${item.attr.name} ${item.value}`).join('，')}；风格：${styleTitle}。` : '五维：样本不足。',
       reviewRows.length ? `错题：${reviewRows.map((row) => `${row.label} 正确率 ${row.accuracy}%`).join('；')}。` : '错题：暂无。',
+      wordStats.length ? `单词打卡：${wordStats.length} 词，一次答对 ${wordStats.filter((word) => word.ok).length} 词，错词 ${wordStats.filter((word) => !word.ok).map((word) => word.w).slice(-10).join('、') || '无'}。` : '',
       zpd ? `最近发展区：${zpd.attr.attr.name}，目标 ${zpd.targetLow}–${zpd.targetHigh}，优先 ${zpd.types.join('、')}。` : '最近发展区：样本不足。',
       risks.length ? `风险：${risks.join(' ')}` : '风险：暂无明显风险。'
     ].join('\n');
 
     return {
       attrs, values, assessed, gradedCount, tasks, avgScore, streak, active30, submitRate, reportDays,
-      blockRows, reviewRows, wrongReviews, totalReviews, wrongCount, blankCount,
+      blockRows, reviewRows, wrongReviews, totalReviews, wrongCount, blankCount, wordStats,
       strengths, weaknesses, styleTitle, bloomLabel, bloomHighRatio, trend, risks, zpd, html, plain
     };
   }
@@ -1420,7 +1906,8 @@
       timeSpent: task.timeSpent,
       submittedAt: task.submittedAt,
       avgDifficulty: task.avgDifficulty || null,
-      blockStats: (task.blockStats || []).map((block) => ({ type: block.type, label: block.label, total: block.total, correct: block.correct }))
+      blockStats: (task.blockStats || []).map((block) => ({ type: block.type, label: block.label, total: block.total, correct: block.correct })),
+      wordStats: (task.wordStats || []).map((word) => ({ w: word.w, zh: word.zh, ok: word.ok }))
     }));
     const wrongSamples = (profile.wrongReviews || []).slice(-12).map((review) => ({
       number: review.n,
@@ -1543,8 +2030,9 @@
     const rows = tasks.map((task) => {
       const score = hasScore(task) ? `${task.score}%` : '待批';
       const minutes = task.timeSpent ? Math.max(1, Math.round(task.timeSpent / 60)) : null;
+      const wordMark = task.mode === 'words' ? ' <span class="word-badge">WORD</span>' : '';
       return `<tr>` +
-        `<td><strong>${S.escapeHtml(task.title || '任务')}</strong></td>` +
+        `<td><strong>${S.escapeHtml(task.title || '任务')}</strong>${wordMark}</td>` +
         `<td>${S.escapeHtml(task.submittedAt ? S.fmtDate(task.submittedAt) : '—')}</td>` +
         `<td><b>${score}</b></td>` +
         `<td>${task.correct == null ? '—' : `${task.correct}/${task.total || 0}`}</td>` +
@@ -1563,6 +2051,29 @@
           `<td><b>${S.escapeHtml(review.correctAnswer || '—')}</b></td></tr>`
         )).join('') +
         `</tbody></table>`;
+    }
+    const wordTasks = tasks.filter((task) => Array.isArray(task.wordStats) && task.wordStats.length);
+    if (wordTasks.length) {
+      const wordRows = [];
+      wordTasks.forEach((task) => {
+        task.wordStats.filter((word) => !word.ok).forEach((word) => {
+          wordRows.push({ ...word, taskTitle: task.title || '单词打卡', submittedAt: task.submittedAt || '' });
+        });
+      });
+      html += `<h3 class="dialog-subtitle" style="margin-top:20px;">单词打卡记录</h3>` +
+        `<p class="hint" style="margin-bottom:8px;">共 ${wordTasks.length} 次单词任务，累计错词 ${wordRows.length} 个。一次答对率按第一次作答计算，错词重练不计入得分。</p>`;
+      if (wordRows.length) {
+        html += `<table class="history-table"><thead><tr><th>单词</th><th>释义</th><th>任务</th><th>提交</th></tr></thead><tbody>` +
+          wordRows.slice(0, 24).map((word) => (
+            `<tr><td><strong>${S.escapeHtml(word.w || '')}</strong></td>` +
+            `<td>${S.escapeHtml(word.zh || '—')}</td>` +
+            `<td>${S.escapeHtml(word.taskTitle)}</td>` +
+            `<td>${S.escapeHtml(word.submittedAt ? S.fmtDate(word.submittedAt) : '—')}</td></tr>`
+          )).join('') +
+          `</tbody></table>`;
+      } else {
+        html += `<p class="hint">单词任务全部一次答对，没有错词。</p>`;
+      }
     }
     $('#detail-task-table').innerHTML = html;
   }
@@ -1742,6 +2253,7 @@
     $('#teacher-restore-btn').addEventListener('click', restoreTeacher);
 
     $('#nav-assign').addEventListener('click', () => openAssign(null));
+    $('#hero-words').addEventListener('click', () => openWordDialog(null));
     $('#nav-import').addEventListener('click', () => {
       $('#import-report-code').value = '';
       S.openDialog($('#import-report-dialog'));
@@ -1753,6 +2265,28 @@
     });
     $('#hero-add').addEventListener('click', () => openStudentDialog(null));
     $('#assignment-add').addEventListener('click', () => openAssign(null));
+    $('#word-add').addEventListener('click', () => openWordDialog(null));
+    $('#word-build').addEventListener('click', buildWordPreview);
+    $('#word-generate').addEventListener('click', generateWordAssignment);
+    $('#word-extract').addEventListener('click', extractWordsFromMaterial);
+    $$('.word-source-tab').forEach((button) => {
+      button.addEventListener('click', () => setWordSource(button.dataset.wordSource));
+    });
+    $('#word-preview').addEventListener('input', (event) => {
+      const input = event.target.closest('[data-word-meaning]');
+      if (!input) return;
+      const index = Number(input.dataset.wordMeaning);
+      if (!wordDraft[index]) return;
+      wordDraft[index].zh = input.value;
+      input.closest('.word-preview-row').classList.toggle('missing', !input.value.trim());
+      updateWordDraftCount();
+    });
+    $('#word-preview').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-word-remove]');
+      if (!button) return;
+      wordDraft.splice(Number(button.dataset.wordRemove), 1);
+      renderWordPreview();
+    });
     $('#report-import').addEventListener('click', () => {
       $('#import-report-code').value = '';
       S.openDialog($('#import-report-dialog'));
@@ -1853,6 +2387,18 @@
         renderAll();
         S.toast('任务记录已删除。');
       }
+    });
+
+    $('#word-list').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-word-action]');
+      if (!button) return;
+      const card = button.closest('[data-word-id]');
+      if (!card) return;
+      const assignmentId = card.dataset.wordId;
+      const action = button.dataset.wordAction;
+      if (action === 'codes') openCodesForAssignment(assignmentId);
+      else if (action === 'detail') openWordDetail(assignmentId);
+      else if (action === 'delete') deleteWordAssignment(assignmentId);
     });
 
     $('#detail-back').addEventListener('click', closeDetail);
