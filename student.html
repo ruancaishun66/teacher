@@ -117,8 +117,13 @@
         <label for="login-pin">密码</label>
         <input class="input" id="login-pin" type="password" maxlength="12" placeholder="输入你的密码" autocomplete="current-password">
       </div>
+      <label class="remember-line">
+        <input type="checkbox" id="login-remember" checked>
+        <span>记住密码，下次点一下就能进入<small>只保存在这台设备，不会上传</small></span>
+      </label>
       <button class="p-btn block" type="button" id="login-btn">进入学习终端</button>
-      <p class="auth-switch">忘记密码？<button type="button" id="reset-link">重设档案</button> · <button type="button" id="restore-link-2">恢复档案</button></p>
+      <p class="auth-switch">忘记密码？<button type="button" id="forgot-link">用老师的重置码找回</button> · <button type="button" id="restore-link-2">恢复档案</button></p>
+      <p class="auth-switch auth-switch-quiet">实在找不到？<button type="button" id="reset-link">清空本机档案</button></p>
     </div>
   </section>
 
@@ -161,7 +166,7 @@
     <div class="p-grid" style="margin-top:18px;">
       <section class="p-card p-col-12 pet-card" id="pet-card">
         <div class="pet-home">
-          <div class="pet-scene" id="pet-scene" aria-hidden="true"></div>
+          <div class="pet-scene" id="pet-scene" role="button" tabindex="0" aria-label="戳一戳学习伙伴"></div>
           <div class="pet-home-copy">
             <p class="pet-kicker">学习伙伴 · STUDY COMPANION</p>
             <h2 class="pet-title"><span id="pet-name">小潮獭</span> <small id="pet-stage-name">幼獭</small></h2>
@@ -170,6 +175,7 @@
             <p class="pet-growth-text" id="pet-growth-text">成长值 0 / 220</p>
             <div class="pet-actions">
               <button class="p-btn small" type="button" id="pet-feed-btn">喂一条小鱼干 <span id="pet-snack-count">×0</span></button>
+              <button class="p-btn small ghost" type="button" id="pet-motion-btn" aria-pressed="true">动感：开</button>
               <span class="pet-mood" id="pet-mood">去单词打卡里赚点小鱼干吧。</span>
             </div>
             <div class="pet-mini-stats" id="pet-stats"></div>
@@ -396,6 +402,31 @@
   </div>
 </dialog>
 
+<!-- 忘记密码：用老师的重置码找回 -->
+<dialog class="p-dialog" id="forgot-dialog" style="width:min(480px,calc(100% - 24px));">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>用重置码找回密码</h2>
+        <p>不用清空档案。请老师到“学生 → 编辑 → 重设密码”生成一段重置码，再发给你。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="field">
+        <label for="forgot-code">老师发来的重置码</label>
+        <textarea class="textarea" id="forgot-code" rows="7" placeholder="SS1.… 整段粘贴"></textarea>
+      </div>
+      <p class="hint" style="text-align:left;">重置码会写入老师新设的密码，并自动帮你进入。原来的等级、任务和宠物都保留。</p>
+      <p class="hint warn" id="forgot-status" style="text-align:left;" hidden></p>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" data-close>取消</button>
+      <button class="p-btn" type="button" id="forgot-confirm">验证并进入</button>
+    </div>
+  </div>
+</dialog>
+
 <!-- 重设确认 -->
 <dialog class="p-dialog" id="reset-dialog" style="width:min(420px,calc(100% - 28px));">
   <div class="p-dialog-inner">
@@ -407,7 +438,7 @@
       <button class="p-close" type="button" data-close aria-label="关闭">×</button>
     </div>
     <div class="p-dialog-body">
-      <p class="hint warn">如果只是忘了密码，建议先用“恢复档案”把之前的汇报码找回来。确实要重新开始，再点下面的按钮。</p>
+      <p class="hint warn">如果只是忘了密码，请先点“用老师的重置码找回”，档案不会丢。只有确实要重新开始，才点下面的按钮。</p>
     </div>
     <div class="p-dialog-foot">
       <button class="p-btn ghost" type="button" data-close>取消</button>
@@ -442,7 +473,7 @@
         </li>
         <li>
           <b>语法小营：一天 5 分钟</b>
-          <span>老师发来“语法打卡码”后，导入一次就有 7 天课。首页会多一张“30 天语法小营”卡片，点“开始今天的语法课”即可：先看故事句，点“遮住标签”自己猜成分，再读规则，做 3 道小题 + 1 道隔日复习，最后仿写一句。提交后能看到参考写法。</span>
+          <span>老师发来“语法打卡码”后，导入一次就有 7 天课。首页会多一张“60 天语法小营”卡片，点“开始今天的语法课”即可：先看故事句，点“遮住标签”自己猜成分，再读规则，做 3 道小题 + 1 道隔日复习，最后仿写一句。提交后能看到参考写法。</span>
         </li>
         <li>
           <b>做完题：提交并生成汇报码</b>
@@ -484,6 +515,7 @@
   </div>
 </div>
 
+<script src="grammar-advanced.js"></script>
 <script src="grammar-data.js"></script>
 <script src="portal.js"></script>
 <script src="student.js"></script>

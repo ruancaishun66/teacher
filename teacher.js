@@ -106,6 +106,8 @@
       accountType: raw.accountType === 'trial' ? 'trial' : 'regular',
       trialDays: Math.max(1, Math.min(30, Number(raw.trialDays) || 3)),
       planLevel: Math.max(1, Math.min(10, Number(raw.planLevel) || 5)),
+      wordLevel: Math.max(1, Math.min(10, Number(raw.wordLevel) || Number(raw.planLevel) || 5)),
+      wordLevelHistory: Array.isArray(raw.wordLevelHistory) ? raw.wordLevelHistory.slice(0, 24) : [],
       levelHistory: Array.isArray(raw.levelHistory) ? raw.levelHistory.slice(0, 30) : [],
       trialRequestAt: String(raw.trialRequestAt || '')
     };
@@ -370,6 +372,57 @@
     return Array.from(new Set(words.map((word) => word.zh).concat(extra).filter(Boolean))).slice(0, 30);
   }
 
+  function wordDifficultyScore(word) {
+    const text = String(word.w || '').toLowerCase();
+    const abstractEnding = /(?:tion|sion|ment|ness|ity|ance|ence|able|ible|ive|ous|ify|ize|ise)$/.test(text) ? 2.6 : 0;
+    const prefix = /^(?:un|re|pre|dis|mis|inter|trans|over|under)/.test(text) ? 1.4 : 0;
+    const letters = text.replace(/[^a-z]/g, '').length;
+    const vowels = (text.match(/[aeiouy]+/g) || []).length;
+    const concrete = /(?:house|door|key|book|bag|cat|dog|rain|road|box|hand|water|food|light|night|train|phone|letter|window|street)/.test(text) ? -1.8 : 0;
+    return letters * 0.62 + vowels * 0.7 + abstractEnding + prefix + concrete;
+  }
+
+  function studentWordLevel(student) {
+    return clamp(Number(student.wordLevel) || Number(student.planLevel) || 5, 1, 10);
+  }
+
+  function adaptiveWordsFor(assignment, student) {
+    const words = Array.isArray(assignment.words) ? assignment.words : [];
+    if (!assignment.adaptive || words.length < 8) return words;
+    const level = studentWordLevel(student);
+    const count = clamp(8 + level, 9, 18);
+    const sorted = words.slice().sort((a, b) => (
+      wordDifficultyScore(a) - wordDifficultyScore(b) || String(a.w).localeCompare(String(b.w))
+    ));
+    const maxStart = Math.max(0, sorted.length - count);
+    const start = Math.round(((level - 1) / 9) * maxStart);
+    return sorted.slice(start, start + count);
+  }
+
+  function updateWordLevelFromTasks(student, tasks) {
+    const wordTasks = (tasks || []).filter((task) => task.mode === 'words' && Array.isArray(task.wordStats) && task.wordStats.length);
+    if (!wordTasks.length) return null;
+    const stats = [];
+    wordTasks.forEach((task) => task.wordStats.forEach((word) => stats.push(word)));
+    if (!stats.length) return null;
+    const accuracy = stats.filter((word) => word.ok).length / stats.length;
+    const before = studentWordLevel(student);
+    let after = before;
+    if (accuracy >= 0.9 && before < 10) after = before + 1;
+    else if (accuracy < 0.62 && before > 1) after = before - 1;
+    student.wordLevel = after;
+    student.wordLevelHistory = student.wordLevelHistory || [];
+    student.wordLevelHistory.unshift({
+      at: S.nowIso(),
+      before,
+      after,
+      accuracy: Math.round(accuracy * 100),
+      words: stats.length
+    });
+    student.wordLevelHistory = student.wordLevelHistory.slice(0, 24);
+    return { before, after, accuracy: Math.round(accuracy * 100) };
+  }
+
   /* ------------------------------- 练习卷转任务 ------------------------------- */
 
   function cnNumber(index) {
@@ -499,18 +552,116 @@
       auth
     };
     if (assignment.kind === 'words') {
+      const studentWords = adaptiveWordsFor(assignment, student);
       return S.packCode({
         ...base,
         mode: 'words',
-        wordTotal: assignment.wordTotal || (assignment.words || []).length,
-        words: assignment.words || [],
-        pool: assignment.pool || wordPoolFor(assignment.words || [])
+        wordTotal: studentWords.length,
+        words: studentWords,
+        pool: wordPoolFor(studentWords)
       });
     }
     return S.packCode({
       ...base,
       avgDifficulty: assignment.avgDifficulty || null,
       blocks: assignment.blocks
+    });
+  }
+
+  function wordTaskPayload(assignment, student) {
+    const studentWords = adaptiveWordsFor(assignment, student);
+    return {
+      v: 1,
+      kind: 'task',
+      id: assignment.id,
+      studentId: student.id,
+      studentName: student.name,
+      teacherName: data.teacherName || '阮老师',
+      title: assignment.title,
+      grade: assignment.paperGrade || student.grade || '',
+      due: assignment.due || '',
+      xp: assignment.xp,
+      createdAt: assignment.createdAt,
+      paperId: '',
+      paperTitle: assignment.paperTitle || '单词打卡',
+      mode: 'words',
+      wordTotal: studentWords.length,
+      words: studentWords,
+      pool: wordPoolFor(studentWords)
+    };
+  }
+
+  async function bundleCodeFor(assignment, student, grammarPlan) {
+    const wordTask = wordTaskPayload(assignment, student);
+    wordTask.auth = await S.sha256Hex(`${student.id}|${student.pin}|${assignment.id}`);
+    const tasks = [wordTask];
+    if (grammarPlan) {
+      for (const day of grammarPlan.days || []) {
+        const task = planTaskPayload(grammarPlan, day, student, data.teacherName || '阮老师');
+        task.auth = await S.sha256Hex(`${student.id}|${student.pin}|${day.taskId}`);
+        tasks.push(task);
+      }
+    }
+    const bundleId = `${assignment.id}-B`;
+    const auth = await S.sha256Hex(`${student.id}|${student.pin}|${bundleId}`);
+    return S.packCode({
+      v: 1,
+      kind: 'plan',
+      id: bundleId,
+      studentId: student.id,
+      studentName: student.name,
+      teacherName: data.teacherName || '阮老师',
+      title: `本周单词 + 语法 · ${student.name}`,
+      planStart: grammarPlan ? grammarPlan.weekStart : assignment.createdAt.slice(0, 10),
+      planTotal: tasks.length,
+      level: student.planLevel || 5,
+      createdAt: S.nowIso(),
+      auth,
+      tasks
+    });
+  }
+
+  async function showBundleCodes(items, grammarUsed) {
+    lastCodes = items;
+    const title = $('#codes-title');
+    const sub = $('#codes-sub');
+    if (title) title.textContent = '本周合码（单词 + 语法）';
+    if (sub) {
+      sub.textContent = grammarUsed
+        ? '一位学生一码：导入一次，本周单词和 7 天语法都在里面。学生每天完成当天语法，第二天自动解锁；完成后只发一个汇报码。'
+        : '一位学生一码：本周单词任务。完成后发汇报码即可。';
+    }
+    $('#codes-list').innerHTML = items.map((item, index) => {
+      if (!item.code) {
+        return `<div class="code-card"><div class="code-card-head"><strong>${S.escapeHtml(item.student.name)} · ${S.escapeHtml(item.student.id)}</strong></div>` +
+          `<p class="hint warn">${S.escapeHtml(item.error)}</p></div>`;
+      }
+      const note = item.grammarDays
+        ? `单词 ${item.wordCount} 个 · 语法 ${item.grammarDays} 天`
+        : `单词 ${item.wordCount} 个 · 语法已学完，只含单词`;
+      return `<div class="code-card">` +
+        `<div class="code-card-head">` +
+          `<div><strong>${S.escapeHtml(item.student.name)}</strong> <span>${S.escapeHtml(item.student.id)} · ${note}</span></div>` +
+          `<button class="p-btn small ghost" type="button" data-copy-index="${index}">复制</button>` +
+        `</div>` +
+        `<textarea class="code-text" readonly>${S.escapeHtml(item.code)}</textarea>` +
+      `</div>`;
+    }).join('');
+    S.openDialog($('#codes-dialog'));
+  }
+
+  async function buildResetCode(student) {
+    const createdAt = S.nowIso();
+    const auth = await S.sha256Hex(`reset|${student.id}|${student.pin}|${createdAt}`);
+    return S.packCode({
+      v: 1,
+      kind: 'reset',
+      studentId: student.id,
+      studentName: student.name,
+      pin: student.pin,
+      teacherName: data.teacherName || '阮老师',
+      createdAt,
+      auth
     });
   }
 
@@ -630,6 +781,10 @@
             (student.accountType === 'trial' ? `<span class="account-badge">体验</span>` : '') +
           `</div>` +
           `<span class="sid">${S.escapeHtml(student.id)}</span>` +
+        `</div>` +
+        `<div class="student-card-tools">` +
+          `<button class="student-remove student-reset" type="button" data-student-reset="${S.escapeHtml(student.id)}" title="生成 ${S.escapeHtml(student.name)} 的重置码">重置密码</button>` +
+          `<button class="student-remove" type="button" data-student-delete="${S.escapeHtml(student.id)}" title="删除 ${S.escapeHtml(student.name)}" aria-label="删除 ${S.escapeHtml(student.name)}">删除</button>` +
         `</div>` +
       `</div>` +
       `<div class="student-card-stats">` +
@@ -989,6 +1144,7 @@
       if (!planPapers.length) loadPlanPapers().then(() => renderPlanTab());
     }
     if (name === 'grammar') renderGrammarTab();
+    if (name === 'weekly') renderWeeklyTab();
     if (name === 'guide') {
       const frame = $('#guide-frame');
       if (frame && !frame.getAttribute('src')) frame.setAttribute('src', frame.dataset.src || 'guide.html?embed=1');
@@ -1015,9 +1171,12 @@
     $('#student-id-input').value = student ? student.id : '';
     $('#student-grade-input').value = student ? student.grade : '';
     $('#student-pin-input').value = student ? student.pin : randomPin();
+    $('#student-pin-input').type = 'password';
+    const pinToggle = $('#student-pin-toggle');
+    if (pinToggle) { pinToggle.textContent = '显示'; pinToggle.setAttribute('aria-label', '显示学生密码'); }
     $('#student-delete').hidden = !student;
     $('#student-pin-note').textContent = student
-      ? '修改密码后，之前发给这个学生的任务码会失效，需要重新生成。'
+      ? '修改密码后，旧任务码会失效；保存后会自动生成“密码重置码”，发给学生本人即可同步新密码。'
       : '学生端和学生端之间靠“学号 + 密码”绑定。密码要给到学生本人，不要发在公开群里。';
     $$('#student-avatar-picker input').forEach((input) => {
       input.checked = input.value === (student ? student.avatar : '🦊');
@@ -1053,7 +1212,8 @@
     if (editingStudentId) {
       const student = getStudent(editingStudentId);
       if (!student) return;
-      if (student.pin !== pin && !window.confirm('改密码后，之前发出去的任务码会失效。确定修改吗？')) return;
+      const pinChanged = student.pin !== pin;
+      if (pinChanged && !window.confirm('改密码后，之前发出去的任务码会失效。确定修改吗？')) return;
       if (student.id !== id && !window.confirm('改学号后，旧学号的任务码和旧汇报码会失效。确定修改吗？')) return;
       student.id = id;
       student.name = name;
@@ -1069,7 +1229,12 @@
         detailStudentId = id;
         renderDetail();
       }
-      S.toast('学生信息已更新。', 'ok');
+      if (pinChanged) {
+        S.toast('密码已更新。正在生成学生密码重置码，请发给学生本人。', 'ok', 6500);
+        openResetCode(student);
+      } else {
+        S.toast('学生信息已更新。', 'ok');
+      }
       return;
     }
 
@@ -1089,6 +1254,8 @@
       accountType,
       trialDays,
       planLevel: 5,
+      wordLevel: 5,
+      wordLevelHistory: [],
       levelHistory: []
     };
     data.students.push(student);
@@ -1099,18 +1266,26 @@
     openEnroll(student.id);
   }
 
-  function deleteStudent() {
-    if (!editingStudentId) return;
-    const student = getStudent(editingStudentId);
+  function deleteStudent(studentId) {
+    const id = typeof studentId === 'string' ? studentId : editingStudentId;
+    if (!id) return;
+    const student = getStudent(id);
     if (!student) return;
     if (!window.confirm(`删除学生 ${student.name}（${student.id}）？`)) return;
-    if (!window.confirm('该学生的汇报、任务历史和画像会一起删除，且无法恢复。最后确认一次。')) return;
+    if (!window.confirm('该学生的汇报、任务历史、语法计划和画像会一起删除，且无法恢复。学生自己设备上的档案不会自动消失。最后确认一次。')) return;
     data.students = data.students.filter((item) => item.id !== student.id);
+    (data.assignments || []).forEach((assignment) => {
+      assignment.studentIds = (assignment.studentIds || []).filter((studentIdItem) => studentIdItem !== student.id);
+    });
+    data.assignments = (data.assignments || []).filter((assignment) => (assignment.studentIds || []).length);
+    data.plans = (data.plans || []).filter((plan) => plan.studentId !== student.id);
+    if (editingStudentId === student.id) editingStudentId = null;
+    if (detailStudentId === student.id) detailStudentId = null;
     save();
     S.closeDialog($('#student-dialog'));
-    detailStudentId = null;
-    showApp();
-    S.toast('学生已删除。');
+    closeDetail();
+    renderAll();
+    S.toast(`${student.name} 已从教师端删除。`);
   }
 
   /* ------------------------------- 开通码 ------------------------------- */
@@ -1128,6 +1303,24 @@
       S.openDialog($('#enroll-dialog'));
     } catch (error) {
       S.toast(error.message || '开通码生成失败。', 'error');
+    }
+  }
+
+  async function openResetCode(student) {
+    if (!student || !student.pin) { S.toast('这个学生还没有密码。', 'error'); return; }
+    try {
+      const code = await buildResetCode(student);
+      const summary = $('#reset-code-summary');
+      if (summary) {
+        summary.innerHTML = `<span class="student-avatar">${S.escapeHtml(student.avatar || '🦊')}</span>` +
+          `<div><strong>${S.escapeHtml(student.name)}</strong>` +
+          `<b>${S.escapeHtml(student.id)} · 新密码 ${S.escapeHtml(student.pin)}</b>` +
+          `<span>学生粘贴重置码后会自动改用这个密码</span></div>`;
+      }
+      $('#reset-code-output').value = code;
+      S.openDialog($('#reset-code-dialog'));
+    } catch (error) {
+      S.toast(error.message || '重置码生成失败。', 'error');
     }
   }
 
@@ -1723,7 +1916,7 @@
     return { before, after, avg: Math.round(avg), reason };
   }
 
-  /* ------------------------------- 30 天语法小营 ------------------------------- */
+  /* ------------------------------- 60 天语法小营 ------------------------------- */
 
   function grammarPlans() {
     return (data.plans || []).filter((plan) => plan.kind === 'grammar');
@@ -1744,7 +1937,7 @@
     const done = grammarDoneDays(student);
     let day = 1;
     while (day <= G.total && done.has(day)) day += 1;
-    return Math.min(day, G.total);
+    return day;
   }
 
   function grammarPlanDone(plan, student) {
@@ -1818,7 +2011,7 @@
       const done = grammarDoneDays(student).size;
       const next = nextGrammarDay(student);
       const finished = done >= G.total;
-      const status = finished ? '30 天已完成' : `已学 ${done} 天 · 下一课 D${next}`;
+      const status = finished ? '60 天已完成' : `已学 ${done} 天 · 下一课 D${next}`;
       return `<label class="grammar-student${finished ? ' is-finished' : ''}">` +
         `<input type="checkbox" value="${S.escapeHtml(student.id)}" ${grammarStudentIds.has(student.id) && !finished ? 'checked' : ''} ${finished ? 'disabled' : ''}>` +
         `<span class="student-avatar">${S.escapeHtml(student.avatar || '🦊')}</span>` +
@@ -1867,7 +2060,7 @@
       studentId: student.id,
       studentName: student.name,
       weekStart,
-      title: `30 天语法小营 · ${student.name}`,
+      title: `60 天语法小营 · ${student.name}`,
       level: 0,
       createdAt: S.nowIso(),
       days
@@ -1887,7 +2080,7 @@
     const plans = [];
     students.forEach((student) => {
       const start = mode === 'auto' ? nextGrammarDay(student) : clamp(fixedStart, 1, G.total);
-      if (start > G.total) { S.toast(`${student.name} 已经学完 30 天，已跳过。`, 'ok'); return; }
+      if (start > G.total) { S.toast(`${student.name} 已经学完 60 天，已跳过。`, 'ok'); return; }
       const plan = buildGrammarPlan(student, start, weekStart);
       if (!plan.days.length) { S.toast(`${student.name} 没有可发的语法课，已跳过。`, 'error'); return; }
       data.plans.unshift(plan);
@@ -2214,7 +2407,7 @@
     wordDraft = [];
     wordSourceMode = 'paste';
     $('#word-title').value = '';
-    $('#word-due').value = S.addDays(S.todayIso(), 3);
+    $('#word-due').value = S.addDays(S.todayIso(), 7);
     $('#word-xp').value = '80';
     $('#word-input').value = '';
     $('#word-preview').innerHTML = '<p class="hint">粘贴单词后点“生成预览”，会从本机释义库补全音标和中文意思。</p>';
@@ -2358,14 +2551,67 @@
       words,
       pool: wordPoolFor(words)
     };
+    const withGrammar = Boolean(($('#word-with-grammar') || {}).checked);
+    assignment.adaptive = Boolean(($('#word-adaptive') || {}).checked);
     data.assignments.unshift(assignment);
     save();
     renderAll();
     S.closeDialog($('#word-dialog'));
     wordDraft = [];
     wordAssignStudentId = null;
-    S.toast(`单词任务已创建，共 ${words.length} 个词。正在生成一人一码…`, 'ok');
-    await showCodes(assignment);
+
+    if (!withGrammar) {
+      S.toast(`单词任务已创建，共 ${words.length} 个词。正在生成一人一码…`, 'ok');
+      await showCodes(assignment);
+      return;
+    }
+
+    if (!G) {
+      S.toast('语法课程没有加载成功，这次先只发单词任务码。', 'error', 6000);
+      await showCodes(assignment);
+      return;
+    }
+
+    const studentObjects = students.map(getStudent).filter(Boolean);
+    const missingPin = studentObjects.find((student) => !student.pin);
+    if (missingPin) {
+      S.toast(`${missingPin.name} 还没有密码，无法生成合码。`, 'error', 6000);
+      await showCodes(assignment);
+      return;
+    }
+    const weekStart = S.todayIso();
+    const items = [];
+    assignment.grammarPlans = {};
+    for (const student of studentObjects) {
+      try {
+        const start = nextGrammarDay(student);
+        let grammarPlan = null;
+        if (start <= G.total) {
+          grammarPlan = buildGrammarPlan(student, start, weekStart);
+          if (grammarPlan.days.length) {
+            data.plans.unshift(grammarPlan);
+            assignment.grammarPlans[student.id] = grammarPlan.id;
+          } else {
+            grammarPlan = null;
+          }
+        }
+        const code = await bundleCodeFor(assignment, student, grammarPlan);
+        items.push({
+          student,
+          code,
+          wordCount: adaptiveWordsFor(assignment, student).length,
+          grammarDays: grammarPlan ? grammarPlan.days.length : 0
+        });
+      } catch (error) {
+        items.push({ student, code: '', error: error.message || '生成失败' });
+      }
+    }
+    save();
+    renderGrammarList();
+    renderGrammarStudents();
+    const grammarUsed = items.some((item) => item.grammarDays);
+    S.toast(`本周合码已生成：${words.length} 个单词 + ${grammarUsed ? '7 天语法' : '语法已学完'}，正在打开…`, 'ok', 6000);
+    await showBundleCodes(items, grammarUsed);
   }
 
   function openWordDetail(assignmentId) {
@@ -2484,8 +2730,10 @@
     student.tasks.sort((a, b) => String(b.submittedAt || '').localeCompare(String(a.submittedAt || '')));
 
     let levelChange = null;
+    let wordLevelChange = null;
     if (student.lastLevelReportId !== payload.reportId) {
       levelChange = adjustLevelFromTasks(student, tasks);
+      wordLevelChange = updateWordLevelFromTasks(student, tasks);
       student.lastLevelReportId = payload.reportId;
     }
 
@@ -2513,7 +2761,10 @@
     const levelNote = levelChange && levelChange.after !== levelChange.before
       ? ` 难度档自动 ${levelChange.before} → ${levelChange.after}（${levelChange.reason}）。`
       : levelChange && levelChange.reason ? ` ${levelChange.reason}。` : '';
-    S.toast(`已导入 ${student.name} 的汇报，共 ${summary.taskCount} 个任务。${levelNote}`, 'ok', 8000);
+    const wordNote = wordLevelChange && wordLevelChange.after !== wordLevelChange.before
+      ? ` 单词难度自动 ${wordLevelChange.before} → ${wordLevelChange.after}（一次答对 ${wordLevelChange.accuracy}%）。`
+      : '';
+    S.toast(`已导入 ${student.name} 的汇报，共 ${summary.taskCount} 个任务。${levelNote}${wordNote}`, 'ok', 9000);
     openDetail(student.id);
   }
 
@@ -2638,8 +2889,10 @@
     const blankCount = allReviews.filter((review) => !review.ok && !String(review.userAnswer || '').trim()).length;
 
     const sortedAttrs = assessed.slice().sort((a, b) => b.value - a.value);
-    const strengths = sortedAttrs.filter((item) => item.value >= sortedAttrs[0].value - 5).slice(0, 2);
-    const weaknessCutoff = sortedAttrs[0].value - 10;
+    const strengths = sortedAttrs.length
+      ? sortedAttrs.filter((item) => item.value >= sortedAttrs[0].value - 5).slice(0, 2)
+      : [];
+    const weaknessCutoff = sortedAttrs.length ? sortedAttrs[0].value - 10 : 0;
     const weaknesses = sortedAttrs.filter((item) => item.value <= weaknessCutoff).slice(-2).reverse();
     const gap = assessed.length >= 2 ? sortedAttrs[0].value - sortedAttrs[sortedAttrs.length - 1].value : 0;
     const styleTitle = assessed.length < 2
@@ -2922,8 +3175,9 @@
       const score = hasScore(task) ? `${task.score}%` : '待批';
       const minutes = task.timeSpent ? Math.max(1, Math.round(task.timeSpent / 60)) : null;
       const wordMark = task.mode === 'words' ? ' <span class="word-badge">WORD</span>' : '';
-      return `<tr>` +
-        `<td><strong>${S.escapeHtml(task.title || '任务')}</strong>${wordMark}</td>` +
+      return `<tr data-task-id="${S.escapeHtml(task.id)}">` +
+        `<td><strong>${S.escapeHtml(task.title || '任务')}</strong>${wordMark}` +
+          `<button class="task-answer-link" type="button" data-task-answer="${S.escapeHtml(task.id)}">看作答</button></td>` +
         `<td>${S.escapeHtml(task.submittedAt ? S.fmtDate(task.submittedAt) : '—')}</td>` +
         `<td><b>${score}</b></td>` +
         `<td>${task.correct == null ? '—' : `${task.correct}/${task.total || 0}`}</td>` +
@@ -2970,6 +3224,62 @@
     $('#detail-task-table').innerHTML = html;
   }
 
+  function openTaskAnswer(taskId) {
+    const student = getStudent(detailStudentId);
+    if (!student) return;
+    const task = (student.tasks || []).find((item) => item.id === taskId);
+    if (!task) { S.toast('找不到这次任务记录。', 'error'); return; }
+    const sub = $('#task-answer-sub');
+    if (sub) {
+      sub.textContent = `${student.name} · ${task.title || '任务'} · ${task.submittedAt ? S.fmtDateTime(task.submittedAt) : '未记录提交时间'}`;
+    }
+    const body = $('#task-answer-body');
+    if (!body) return;
+    let html = `<div class="task-answer-meta">` +
+      `<span>得分 <b>${task.score == null ? '待批' : task.score + '%'}</b></span>` +
+      `<span>答对 <b>${task.correct == null ? '—' : `${task.correct}/${task.total || 0}`}</b></span>` +
+      `<span>用时 <b>${task.timeSpent ? Math.max(1, Math.round(task.timeSpent / 60)) + ' 分钟' : '—'}</b></span>` +
+      `<span>可信度 <b>${task.integrityScore == null ? '未采集' : task.integrityScore}</b></span>` +
+    `</div>`;
+
+    if (task.mode === 'words' && Array.isArray(task.wordStats) && task.wordStats.length) {
+      html += `<h3 class="dialog-subtitle">单词作答（第一次作答）</h3>` +
+        `<table class="history-table task-answer-table"><thead><tr><th>#</th><th>单词</th><th>释义</th><th>第一次</th><th>错词重练</th></tr></thead><tbody>` +
+        task.wordStats.map((word, index) => (
+          `<tr><td>${index + 1}</td><td><strong>${S.escapeHtml(word.w || '')}</strong></td>` +
+          `<td>${S.escapeHtml(word.zh || '—')}</td>` +
+          `<td class="${word.ok ? 'answer-ok' : 'answer-wrong'}">${word.ok ? '答对' : '答错'}</td>` +
+          `<td>${word.reviewOk == null ? '—' : word.reviewOk ? '已订正' : '仍错'}</td></tr>`
+        )).join('') + `</tbody></table>`;
+    }
+
+    const review = Array.isArray(task.review) ? task.review : [];
+    if (review.length) {
+      html += `<h3 class="dialog-subtitle">题目与作答</h3>` +
+        `<div class="task-answer-list">` +
+        review.map((item, index) => (
+          `<article class="task-answer-item ${item.ok ? 'is-ok' : 'is-wrong'}">` +
+            `<div class="task-answer-head"><b>第 ${S.escapeHtml(item.n || index + 1)} 题</b>` +
+              `<span>${item.ok ? '✓ 答对' : '✕ 答错'}</span>` +
+              `<small>${S.escapeHtml(S.blockLabel(item.type))}</small></div>` +
+            (item.stem ? `<p class="task-answer-stem">${S.escapeHtml(item.stem)}</p>` : '') +
+            `<div class="task-answer-row"><span>学生答案</span><b class="${item.ok ? 'answer-ok' : 'answer-wrong'}">${S.escapeHtml(item.userAnswer || '未作答')}${item.userText ? ` · ${S.escapeHtml(item.userText)}` : ''}</b></div>` +
+            `<div class="task-answer-row"><span>正确答案</span><b class="answer-ok">${S.escapeHtml(item.correctAnswer || '老师未附答案')}${item.correctText ? ` · ${S.escapeHtml(item.correctText)}` : ''}</b></div>` +
+            (item.explanation ? `<p class="task-answer-explain">${S.escapeHtml(item.explanation)}</p>` : '') +
+          `</article>`
+        )).join('') + `</div>`;
+    } else if (!task.mode || task.mode !== 'words') {
+      html += `<p class="hint">这次任务的逐题原文没有记录。让学生更新学生端后重新生成一次汇报码，就会带回完整作答；已有的分数和错题记录仍然保留。</p>`;
+    }
+
+    if (String(task.writing || '').trim()) {
+      html += `<h3 class="dialog-subtitle">书面表达</h3>` +
+        `<div class="task-answer-writing">${S.escapeHtml(task.writing)}</div>`;
+    }
+    body.innerHTML = html;
+    S.openDialog($('#task-answer-dialog'));
+  }
+
   function renderDetailReports(student) {
     const reports = (student.reports || []).slice().sort((a, b) => String(b.generatedAt || '').localeCompare(String(a.generatedAt || '')));
     $('#detail-report-list').innerHTML = reports.length
@@ -2982,6 +3292,364 @@
         `</div>`
       )).join('')
       : emptyState('还没有汇报记录', '学生生成汇报码后，老师导入即可。');
+  }
+
+  /* ------------------------------- 周备课 ------------------------------- */
+
+  let weeklyAdvice = null;
+  let weeklyAiText = '';
+
+  function weeklyStudents() {
+    return sortedStudents();
+  }
+
+  function renderWeeklyStudents() {
+    const box = $('#weekly-students');
+    if (!box) return;
+    const list = weeklyStudents();
+    if (!list.length) {
+      box.innerHTML = '<p class="hint">还没有学生，先到“学生”页添加。</p>';
+      return;
+    }
+    box.innerHTML = list.map((student) => (
+      `<label class="grammar-student weekly-student"><input type="checkbox" name="weekly-student" value="${S.escapeHtml(student.id)}" checked>` +
+        `<span class="student-avatar">${S.escapeHtml(student.avatar || '🦊')}</span>` +
+        `<span class="grammar-student-copy"><strong>${S.escapeHtml(student.name)}</strong>` +
+        `<small>${S.escapeHtml(student.id)} · ${S.escapeHtml(student.grade || '未标注')}</small></span>` +
+      `</label>`
+    )).join('');
+  }
+
+  function renderWeeklyTab() {
+    const start = $('#weekly-start');
+    if (start && !start.value) start.value = S.todayIso();
+    renderWeeklyStudents();
+    if (weeklyAdvice) renderWeeklyAdvice(weeklyAdvice);
+  }
+
+  function inWeekRange(value, start, end) {
+    const date = String(value || '').slice(0, 10);
+    return Boolean(date && date >= start && date <= end);
+  }
+
+  function weeklyRows(start, ids) {
+    const end = S.addDays(start, 6);
+    const wanted = new Set(ids);
+    return weeklyStudents().filter((student) => wanted.has(student.id)).map((student) => {
+      const profile = student.profile || {};
+      const checkins = Array.isArray(profile.checkins) ? profile.checkins : [];
+      const checkinDays = new Set(checkins.filter((date) => inWeekRange(date, start, end)));
+      const doneTasks = (student.tasks || []).filter((task) => task.status === 'done' && inWeekRange(task.submittedAt, start, end));
+      const wordStats = [];
+      const grammarDays = new Set();
+      const wrongGrammar = [];
+      const wrongWords = [];
+      doneTasks.forEach((task) => {
+        if (task.mode === 'words') {
+          (task.wordStats || []).forEach((word) => {
+            if (!word || !word.w) return;
+            wordStats.push(word);
+            if (!word.ok) wrongWords.push(word);
+          });
+        }
+        if (task.mode === 'grammar') {
+          const day = Number(task.grammarDay) || 0;
+          if (day) grammarDays.add(day);
+          (task.review || []).forEach((item) => {
+            if (item && item.ok === false) wrongGrammar.push({ ...item, grammarDay: day });
+          });
+        }
+      });
+      const scores = doneTasks.filter(hasScore).map((task) => Number(task.score));
+      return {
+        student,
+        checkinDays,
+        doneTasks,
+        wordStats,
+        wrongWords,
+        grammarDays,
+        wrongGrammar,
+        avgScore: scores.length ? Math.round(mean(scores)) : null,
+        wordAccuracy: wordStats.length ? Math.round((wordStats.filter((word) => word.ok).length / wordStats.length) * 100) : null
+      };
+    });
+  }
+
+  const WEEKLY_FALLBACK_WORDS = [
+    { w: 'clue', zh: '线索' }, { w: 'evidence', zh: '证据' }, { w: 'discover', zh: '发现' },
+    { w: 'protect', zh: '保护' }, { w: 'confident', zh: '自信的' }, { w: 'carefully', zh: '小心地' },
+    { w: 'suddenly', zh: '突然' }, { w: 'solution', zh: '解决办法' }
+  ];
+
+  function weeklyWordList(rows) {
+    const counts = new Map();
+    rows.forEach((row) => row.wrongWords.forEach((word) => {
+      const key = String(word.w || '').toLowerCase();
+      if (!key) return;
+      const item = counts.get(key) || { w: word.w, zh: word.zh || '', count: 0 };
+      item.count += 1;
+      counts.set(key, item);
+    }));
+    const picked = Array.from(counts.values()).sort((a, b) => b.count - a.count).slice(0, 8);
+    if (picked.length >= 4) return picked;
+    rows.forEach((row) => row.doneTasks.forEach((task) => {
+      if (task.mode !== 'words') return;
+      (task.words || []).forEach((word) => {
+        if (picked.length >= 8 || picked.some((item) => item.w === word.w)) return;
+        picked.push({ w: word.w, zh: word.zh || '', count: 0 });
+      });
+    }));
+    if (picked.length >= 4) return picked.slice(0, 8);
+    return WEEKLY_FALLBACK_WORDS.slice();
+  }
+
+  function weeklyFocusLesson(rows) {
+    const byDay = new Map();
+    rows.forEach((row) => row.wrongGrammar.forEach((item) => {
+      const day = Number(item.grammarDay) || 1;
+      const entry = byDay.get(day) || { day, wrong: 0, total: 0 };
+      entry.wrong += 1;
+      byDay.set(day, entry);
+    }));
+    rows.forEach((row) => {
+      row.doneTasks.forEach((task) => {
+        if (task.mode !== 'grammar') return;
+        const day = Number(task.grammarDay) || 1;
+        const entry = byDay.get(day) || { day, wrong: 0, total: 0 };
+        entry.total += Number(task.total) || 0;
+        byDay.set(day, entry);
+      });
+    });
+    const ranked = Array.from(byDay.values()).sort((a, b) => b.wrong - a.wrong || (b.wrong / Math.max(1, b.total)) - (a.wrong / Math.max(1, a.total)));
+    const day = ranked.length ? ranked[0].day : 1;
+    return G ? G.lessonByDay(day) : null;
+  }
+
+  function weeklySkillLabel(rows) {
+    const counts = new Map();
+    rows.forEach((row) => row.wrongGrammar.forEach((item) => {
+      const key = item.type || 'grammar';
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }));
+    if (!counts.size) return '基础句型与词汇';
+    const top = Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0][0];
+    return S.blockLabel(top) || '基础句型';
+  }
+
+  function weeklyQuestionHtml(question, index) {
+    const options = (question.options || []).map((option) => (
+      `<span>${S.escapeHtml(option.letter)}. ${S.escapeHtml(option.text)}</span>`
+    )).join('');
+    return `<li><p>${S.escapeHtml(question.stem || '')}</p>` +
+      (options ? `<div class="weekly-options">${options}</div>` : '') +
+      `<small class="weekly-answer">答案：${S.escapeHtml(question.answer || '—')}${question.explanation ? ` · ${S.escapeHtml(question.explanation)}` : ''}</small></li>`;
+  }
+
+  function buildWeeklyAdvice(start, ids) {
+    const rows = weeklyRows(start, ids);
+    if (!rows.length) return null;
+    const activeRows = rows.filter((row) => row.checkinDays.size || row.doneTasks.length);
+    const doneTasks = rows.reduce((sum, row) => sum + row.doneTasks.length, 0);
+    const allWordStats = rows.reduce((list, row) => list.concat(row.wordStats), []);
+    const wordAccuracy = allWordStats.length
+      ? Math.round((allWordStats.filter((word) => word.ok).length / allWordStats.length) * 100)
+      : null;
+    const allScores = rows.reduce((list, row) => list.concat(row.doneTasks.filter(hasScore).map((task) => Number(task.score))), []);
+    const avgScore = allScores.length ? Math.round(mean(allScores)) : null;
+    const focusLesson = weeklyFocusLesson(rows);
+    const lessonDay = focusLesson ? focusLesson.day : 1;
+    const reviewLesson = G ? G.lessonByDay(G.reviewDayFor(lessonDay)) : null;
+    const words = weeklyWordList(rows);
+    const skill = weeklySkillLabel(rows);
+    const grammarWrong = rows.reduce((sum, row) => sum + row.wrongGrammar.length, 0);
+    const attendance = rows.length ? Math.round((activeRows.length / rows.length) * 100) : 0;
+    const adviceRows = rows.map((row) => {
+      const name = row.student.name;
+      if (!row.student.profile) return { name, text: '还没有导入本周汇报；先收一次汇报码，再判断本周重点。' };
+      if (!row.checkinDays.size && !row.doneTasks.length) return { name, text: '本周没有打卡记录。先私聊确认时间，下节课从最小任务（8 个词 + 1 道语法）重新起步。' };
+      const bits = [`打卡 ${row.checkinDays.size} 天`, `完成 ${row.doneTasks.length} 个任务`];
+      if (row.wordAccuracy != null) bits.push(`单词一次答对 ${row.wordAccuracy}%`);
+      if (row.grammarDays.size) bits.push(`语法 D${Array.from(row.grammarDays).sort((a, b) => a - b).join('、D')}`);
+      let next = '保持节奏，重点是把错题口头讲一遍。';
+      if (row.wordAccuracy != null && row.wordAccuracy < 70) next = '下节课先做 8 个错词的“中英互译”，再进句型。';
+      else if (row.wrongGrammar.length >= 2) next = '语法卡点较多，先回到规则，再做 3 道同类题。';
+      else if (row.avgScore != null && row.avgScore >= 88) next = '正确率稳定，可以加一句仿写或更长阅读。';
+      return { name, text: `${bits.join('，')}。${next}` };
+    });
+
+    const lesson = focusLesson || { day: 1, title: '句子骨架', sentence: 'Xiaochao arrived.', translation: '小潮到了。', rule: '先找主语和谓语，再看其他成分。', tip: '先圈谓语，再问谁做了这个动作。', questions: [], output: { prompt: '写一句今天发生的事。', sample: 'The bus stopped.' } };
+    const questions = (lesson.questions || []).slice(0, 3);
+    if (reviewLesson && reviewLesson.questions && reviewLesson.questions[0]) questions.push(reviewLesson.questions[0]);
+    const questionHtml = questions.length
+      ? `<ol class="weekly-questions">${questions.map(weeklyQuestionHtml).join('')}</ol>`
+      : '<p class="hint">这份课程还没有配练习题；先用下面的仿写任务。</p>';
+
+    const targetWordsHtml = words.map((word) => (
+      `<tr><td><b>${S.escapeHtml(word.w)}</b></td><td>${S.escapeHtml(word.zh || '—')}</td><td>${word.count ? `错 ${word.count} 次` : '本周词表'}</td></tr>`
+    )).join('');
+
+    const teacherRowsHtml = adviceRows.map((row) => (
+      `<tr><td><b>${S.escapeHtml(row.name)}</b></td><td>${S.escapeHtml(row.text)}</td></tr>`
+    )).join('');
+
+    const html = `<div class="weekly-sheet">` +
+      `<div class="weekly-head">` +
+        `<div><p class="weekly-kicker">WEEKLY COACH · ${S.escapeHtml(S.fmtDate(start))}–${S.escapeHtml(S.fmtDate(S.addDays(start, 6)))}</p>` +
+        `<h2>本周上课建议</h2><p>先看数据，再上一节能落地的小课。所有内容只保存在这台电脑。</p></div>` +
+        `<div class="weekly-kpis">` +
+          `<span><b>${activeRows.length}/${rows.length}</b>本周有学习</span>` +
+          `<span><b>${attendance}%</b>出勤率</span>` +
+          `<span><b>${doneTasks}</b>完成任务</span>` +
+          `<span><b>${avgScore == null ? '—' : avgScore + '%'}</b>平均分</span>` +
+        `</div>` +
+      `</div>` +
+      `<section class="weekly-block"><h3>一、本周学情速览</h3>` +
+        `<p>本周共 ${rows.length} 位学生，${activeRows.length} 位有打卡或完成任务；单词一次答对率 ${wordAccuracy == null ? '样本不足' : wordAccuracy + '%'}；语法错题 ${grammarWrong} 道。最需要补的是<strong>${S.escapeHtml(skill)}</strong>。</p>` +
+        `<table class="weekly-table"><thead><tr><th>学生</th><th>本周观察与下节动作</th></tr></thead><tbody>${teacherRowsHtml}</tbody></table>` +
+      `</section>` +
+      `<section class="weekly-block"><h3>二、90 分钟课堂流程</h3>` +
+        `<ol class="weekly-flow">` +
+          `<li><b>0–10 分钟｜词汇唤醒</b><span>用下面的 8 个词做“看中文说英文 → 看英文说中文 → 选 3 个造句”。先求张口，不罚错。</span></li>` +
+          `<li><b>10–30 分钟｜语法微课</b><span>只讲一个点：${S.escapeHtml(lesson.rule)} 板书今日句子，让学生先圈谓语，再标主语和修饰。</span></li>` +
+          `<li><b>30–55 分钟｜句型操练</b><span>做下面的 4 道小题。每题先让学生说“为什么”，再对答案；错题现场改一句。</span></li>` +
+          `<li><b>55–75 分钟｜读写输出</b><span>用今天的结构 + 至少 3 个目标词，写 5 句小短文。老师只抓 3 个问题：谓语、连接、词形。</span></li>` +
+          `<li><b>75–90 分钟｜复盘与作业</b><span>学生用一句话说出今天的规则；布置“错词 8 个 + 仿写 3 句”，下次课先复现。</span></li>` +
+        `</ol>` +
+      `</section>` +
+      `<section class="weekly-block"><h3>三、语法微课卡：D${lesson.day || 1} ${S.escapeHtml(lesson.title || '')}</h3>` +
+        `<div class="weekly-focus"><p class="weekly-sentence">${S.escapeHtml(lesson.sentence || '')}</p>` +
+        `<p>${S.escapeHtml(lesson.translation || '')}</p>` +
+        `<div class="weekly-rule"><b>今天只讲这一条</b><span>${S.escapeHtml(lesson.rule || '')}</span><small>${S.escapeHtml(lesson.tip || '')}</small></div></div>` +
+      `</section>` +
+      `<section class="weekly-block"><h3>四、词汇与当堂练习</h3>` +
+        `<table class="weekly-table weekly-words"><thead><tr><th>单词</th><th>中文</th><th>来源</th></tr></thead><tbody>${targetWordsHtml}</tbody></table>` +
+        `<h4>当堂 4 题</h4>${questionHtml}` +
+        `<div class="weekly-writing"><b>仿写任务</b><p>${S.escapeHtml((lesson.output && lesson.output.prompt) || '用今天的结构写一句。')}</p>` +
+        `<small>参考：${S.escapeHtml((lesson.output && lesson.output.sample) || '')}</small></div>` +
+      `</section>` +
+      `<section class="weekly-block"><h3>五、作业与下周观察</h3>` +
+        `<ul class="weekly-homework">` +
+          `<li>错词 8 个：每个写 1 句，不要只抄单词。</li>` +
+          `<li>语法仿写 3 句：必须出现今天的目标结构。</li>` +
+          `<li>下周先看：本周错词是否在口头复述中还会卡；语法错题能否自己讲出理由。</li>` +
+        `</ul>` +
+        `<p class="weekly-note">说明：这是按本机打卡和汇报生成的规则版建议，不是标准化测评。AI 只做语言润色，不替代老师判断。</p>` +
+      `</section>` +
+    `</div>`;
+
+    return {
+      start, end: S.addDays(start, 6), rows, activeRows, doneTasks, wordAccuracy, avgScore,
+      lesson, reviewLesson, words, skill, grammarWrong, attendance, adviceRows,
+      questionHtml, targetWordsHtml, html
+    };
+  }
+
+  function renderWeeklyAdvice(result) {
+    const box = $('#weekly-advice-output');
+    if (!box || !result) return;
+    box.innerHTML = result.html +
+      (weeklyAiText ? `<section class="weekly-block weekly-ai"><h3>AI 润色版（只作参考）</h3><div class="weekly-ai-text">${S.escapeHtml(weeklyAiText).replace(/\n/g, '<br>')}</div></section>` : '');
+  }
+
+  function generateWeeklyAdvice() {
+    const start = ($('#weekly-start') || {}).value || S.todayIso();
+    const ids = $$('#weekly-students input[type="checkbox"]:checked').map((input) => input.value);
+    if (!ids.length) { S.toast('至少选一位学生。', 'error'); return; }
+    weeklyAdvice = buildWeeklyAdvice(start, ids);
+    weeklyAiText = '';
+    if (!weeklyAdvice) { S.toast('没有可用的数据。', 'error'); return; }
+    renderWeeklyAdvice(weeklyAdvice);
+    const note = $('#weekly-ai-note');
+    if (note) note.textContent = '已生成本地建议，未调用 AI。';
+    S.toast('本周上课建议已生成。', 'ok', 4000);
+  }
+
+  function weeklyHandoutHtml(result) {
+    const lesson = result.lesson || {};
+    return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>本周英语讲义</title>` +
+      `<style>body{font-family:"Noto Sans SC","Microsoft YaHei",sans-serif;max-width:760px;margin:32px auto;padding:0 22px;color:#1d3438;line-height:1.75}h1{font-size:24px}h2{margin-top:26px;font-size:18px;border-bottom:1px solid #d8e4e2;padding-bottom:6px}table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border:1px solid #d8e4e2;padding:7px 9px;text-align:left;font-size:14px}th{background:#f1f8f6}li{margin:6px 0}small{color:#607b80}.options span{display:inline-block;margin-right:16px}.key{margin-top:24px;padding:10px 14px;background:#f7faf8;border-left:4px solid #3f8f74}@media print{body{margin:0;padding:0 8mm}.no-print{display:none}}</style></head><body>` +
+      `<h1>本周英语讲义</h1><p>本周重点：${S.escapeHtml(result.skill)} · 语法 D${lesson.day || 1} ${S.escapeHtml(lesson.title || '')}</p>` +
+      `<h2>一、本周词汇</h2><table><thead><tr><th>单词</th><th>中文</th></tr></thead><tbody>${result.words.map((word) => `<tr><td><b>${S.escapeHtml(word.w)}</b></td><td>${S.escapeHtml(word.zh || '')}</td></tr>`).join('')}</tbody></table>` +
+      `<h2>二、语法微课</h2><p><b>${S.escapeHtml(lesson.sentence || '')}</b><br>${S.escapeHtml(lesson.translation || '')}</p><p>${S.escapeHtml(lesson.rule || '')}</p><p><small>${S.escapeHtml(lesson.tip || '')}</small></p>` +
+      `<h2>三、当堂练习</h2>${result.questionHtml.replace(/<small class="weekly-answer">[\s\S]*?<\/small>/g, '')}` +
+      `<h2>四、写一句</h2><p>${S.escapeHtml((lesson.output && lesson.output.prompt) || '用今天的结构写一句。')}</p>` +
+      `<div class="key"><b>参考答案</b><br>${result.questionHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 1200)}</div>` +
+      `<p class="no-print"><small>打印提示：浏览器菜单 → 打印 → 选择“另存为 PDF”。</small></p></body></html>`;
+  }
+
+  function openWeeklyPrint(html, title) {
+    const win = window.open('', '_blank');
+    if (!win) {
+      S.downloadText(`${title}.html`, html);
+      S.toast('浏览器拦住了打印窗口，已下载 HTML，打开后按 Ctrl+P 即可。', 'ok', 6500);
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { try { win.print(); } catch (error) {} }, 450);
+  }
+
+  function weeklyPrint() {
+    if (!weeklyAdvice) { S.toast('先生成上课建议。', 'error'); return; }
+    openWeeklyPrint(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>本周上课建议</title>` +
+      `<style>body{font-family:"Noto Sans SC","Microsoft YaHei",sans-serif;max-width:900px;margin:24px auto;padding:0 24px;color:#1d3438;line-height:1.7;font-size:14px}h2{font-size:22px}h3{margin-top:24px;font-size:17px;border-bottom:1px solid #d8e4e2;padding-bottom:5px}h4{margin:16px 0 6px}.weekly-kicker{color:#607b80;font-size:12px;letter-spacing:.08em}.weekly-kpis{display:flex;gap:10px;flex-wrap:wrap}.weekly-kpis span{border:1px solid #d8e4e2;border-radius:8px;padding:7px 10px}.weekly-kpis b{display:block;font-size:18px}.weekly-table{width:100%;border-collapse:collapse;margin:8px 0}.weekly-table th,.weekly-table td{border:1px solid #d8e4e2;padding:7px 9px;text-align:left;vertical-align:top}.weekly-table th{background:#f1f8f6}.weekly-flow li{margin:9px 0}.weekly-flow span{display:block;color:#405b60}.weekly-focus{padding:12px 14px;background:#f7faf8;border-left:4px solid #3f8f74}.weekly-sentence{font-size:17px;font-weight:700}.weekly-rule{margin-top:8px}.weekly-rule b,.weekly-rule span,.weekly-rule small{display:block}.weekly-options span{display:inline-block;margin:2px 14px 2px 0}.weekly-answer{color:#607b80}.weekly-writing{margin-top:12px;padding:10px 12px;background:#fff8ea}.weekly-note{color:#607b80;font-size:12px}.weekly-ai{border:1px dashed #8b6bb0;padding:10px 12px}.weekly-ai-text{white-space:normal}@media print{body{margin:0;padding:0 8mm}}</style></head><body>${weeklyAdvice.html}${weeklyAiText ? `<section class="weekly-block weekly-ai"><h3>AI 润色版（只作参考）</h3><p>${S.escapeHtml(weeklyAiText).replace(/\n/g, '<br>')}</p></section>` : ''}</body></html>`, '本周上课建议');
+  }
+
+  function weeklyHandout() {
+    if (!weeklyAdvice) { S.toast('先生成上课建议。', 'error'); return; }
+    S.downloadText('本周英语讲义.html', weeklyHandoutHtml(weeklyAdvice));
+    S.toast('学生讲义已下载。打开后可打印或另存 PDF。', 'ok', 5000);
+  }
+
+  async function runWeeklyAi() {
+    if (!weeklyAdvice) { S.toast('先生成本地建议，再让 AI 润色。', 'error'); return; }
+    const cfg = aiConfig();
+    if (!cfg.key) { S.toast('还没有配置 API Key。到“设置 → AI 直连”粘贴保存。', 'error', 7000); return; }
+    const rows = weeklyAdvice.rows.map((row) => ({
+      activeDays: row.checkinDays.size,
+      doneTasks: row.doneTasks.length,
+      wordAccuracy: row.wordAccuracy,
+      avgScore: row.avgScore,
+      grammarDays: Array.from(row.grammarDays),
+      grammarWrong: row.wrongGrammar.length
+    }));
+    const payload = {
+      weekStart: weeklyAdvice.start,
+      studentCount: weeklyAdvice.rows.length,
+      activeCount: weeklyAdvice.activeRows.length,
+      wordAccuracy: weeklyAdvice.wordAccuracy,
+      avgScore: weeklyAdvice.avgScore,
+      skill: weeklyAdvice.skill,
+      lesson: { day: weeklyAdvice.lesson.day, title: weeklyAdvice.lesson.title, rule: weeklyAdvice.lesson.rule },
+      words: weeklyAdvice.words.map((word) => word.w),
+      studentPatterns: rows
+    };
+    const prompt = `你是一位严谨的中学英语教研员。下面是一个班级本周的匿名学习汇总。请给老师写一页 90 分钟复习课建议，要求：1）不要虚构学生姓名或成绩；2）用中文；3）分成“学情判断 / 90 分钟流程 / 3 个易错点 / 作业”四部分；4）最多 450 字；5）只基于数据，不贴标签。\n${JSON.stringify(payload)}`;
+    if (!window.confirm('这次只发送匿名汇总（不含姓名、学号），预计消耗 300–500 tokens。继续吗？')) return;
+    const button = $('#weekly-ai');
+    const note = $('#weekly-ai-note');
+    if (button) { button.disabled = true; button.textContent = 'AI 润色中…'; }
+    if (note) note.textContent = '正在请求 DeepSeek…';
+    try {
+      const result = await callDeepSeek([
+        { role: 'system', content: '你是英语教研员，回答克制、可执行，不虚构数据，不暴露隐私。' },
+        { role: 'user', content: prompt }
+      ], 520, '周备课建议');
+      weeklyAiText = result.text;
+      renderWeeklyAdvice(weeklyAdvice);
+      const inputTokens = Number(result.usage.prompt_tokens) || 0;
+      const outputTokens = Number(result.usage.completion_tokens) || 0;
+      const used = Number(result.usage.total_tokens) || (inputTokens + outputTokens);
+      if (note) note.textContent = `本次 ${used} tokens（输入 ${inputTokens} / 输出 ${outputTokens}）· 约 ${S.ai.costText(result.cost)}。只作参考，请老师核对。`;
+      S.toast(`AI 润色完成，本次 ${used} tokens。`, 'ok', 6000);
+    } catch (error) {
+      if (note) note.textContent = '';
+      S.toast(error.message || 'AI 调用失败。', 'error', 8500);
+    } finally {
+      if (button) { button.disabled = false; button.textContent = 'AI 润色这节课（消耗少量额度）'; }
+    }
   }
 
   /* ------------------------------- AI 辅助 ------------------------------- */
@@ -3243,11 +3911,27 @@
 
   function bindStudentCardOpen(container) {
     container.addEventListener('click', (event) => {
+      const remove = event.target.closest('[data-student-delete]');
+      if (remove) {
+        event.preventDefault();
+        event.stopPropagation();
+        deleteStudent(remove.dataset.studentDelete);
+        return;
+      }
+      const reset = event.target.closest('[data-student-reset]');
+      if (reset) {
+        event.preventDefault();
+        event.stopPropagation();
+        const student = getStudent(reset.dataset.studentReset);
+        if (student) openResetCode(student);
+        return;
+      }
       const card = event.target.closest('[data-student-id]');
       if (card) openDetail(card.dataset.studentId);
     });
     container.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
+      if (event.target.closest('[data-student-delete]')) return;
       const card = event.target.closest('[data-student-id]');
       if (!card) return;
       event.preventDefault();
@@ -3344,6 +4028,28 @@
     $('#student-search').addEventListener('input', renderStudentGrid);
     $('#student-save').addEventListener('click', saveStudent);
     $('#student-delete').addEventListener('click', deleteStudent);
+    const pinToggle = $('#student-pin-toggle');
+    if (pinToggle) {
+      pinToggle.addEventListener('click', () => {
+        const input = $('#student-pin-input');
+        if (!input) return;
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        pinToggle.textContent = show ? '隐藏' : '显示';
+        pinToggle.setAttribute('aria-label', show ? '隐藏学生密码' : '显示学生密码');
+      });
+    }
+    const resetCopy = $('#reset-code-copy');
+    if (resetCopy) {
+      resetCopy.addEventListener('click', async () => {
+        try {
+          await S.copyText($('#reset-code-output').value);
+          S.toast('重置码已复制，单独发给学生本人。', 'ok');
+        } catch (error) {
+          S.toast('复制失败，请手动全选复制。', 'error');
+        }
+      });
+    }
     $$('#student-account-type input').forEach((input) => {
       input.addEventListener('change', () => {
         const field = $('#student-trial-days-field');
@@ -3443,6 +4149,15 @@
         else if (button.dataset.grammarAction === 'delete') deleteGrammarPlan(card.dataset.grammarPlan);
       });
     }
+
+    const weeklyGenerate = $('#weekly-generate');
+    if (weeklyGenerate) weeklyGenerate.addEventListener('click', generateWeeklyAdvice);
+    const weeklyAi = $('#weekly-ai');
+    if (weeklyAi) weeklyAi.addEventListener('click', runWeeklyAi);
+    const weeklyPrintBtn = $('#weekly-print');
+    if (weeklyPrintBtn) weeklyPrintBtn.addEventListener('click', weeklyPrint);
+    const weeklyHandoutBtn = $('#weekly-handout');
+    if (weeklyHandoutBtn) weeklyHandoutBtn.addEventListener('click', weeklyHandout);
 
     const trialParse = $('#trial-parse-request');
     if (trialParse) trialParse.addEventListener('click', parseTrialRequest);
@@ -3553,6 +4268,22 @@
     $('#detail-assign').addEventListener('click', () => openAssign(detailStudentId));
     $('#detail-enroll').addEventListener('click', () => openEnroll(detailStudentId));
     $('#detail-edit').addEventListener('click', () => openStudentDialog(detailStudentId));
+    const detailReset = $('#detail-reset');
+    if (detailReset) detailReset.addEventListener('click', () => {
+      const student = getStudent(detailStudentId);
+      if (student) openResetCode(student);
+    });
+    const detailDelete = $('#detail-delete');
+    if (detailDelete) detailDelete.addEventListener('click', () => deleteStudent(detailStudentId));
+    const taskAnswerBox = $('#detail-task-table');
+    if (taskAnswerBox) {
+      taskAnswerBox.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-task-answer]');
+        if (!button) return;
+        event.preventDefault();
+        openTaskAnswer(button.dataset.taskAnswer);
+      });
+    }
     $('#detail-tabs').addEventListener('click', (event) => {
       const button = event.target.closest('button[data-detail-tab]');
       if (!button) return;

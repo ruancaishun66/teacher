@@ -436,6 +436,32 @@
   font-weight: 700;
 }
 
+.bullet-list {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 22px;
+  padding: 0;
+  list-style: none;
+}
+
+.bullet-list > li {
+  position: relative;
+  padding-left: 22px;
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.bullet-list > li::before {
+  content: "◆";
+  position: absolute;
+  left: 2px;
+  top: 1px;
+  color: var(--red);
+  font-size: 0.62rem;
+}
+
+.bullet-list b { color: var(--ink); font-weight: 700; }
+
 .steps code,
 .guide-table code,
 .callout code {

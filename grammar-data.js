@@ -1,5 +1,5 @@
 /* ==========================================================================
-   顺势 · 30 天语法小营
+   顺势 · 60 天语法小营
    以《语法透析手册》的“五大句型 + 八大成分 + 场景句”为骨架，
    参考《英语阅读参考手册》的“先判别、再理解”思路，重写原创例句。
    每天：一句场景句 + 一条规则 + 3 道练习 + 1 次输出 + 1 道隔日复习。
@@ -13,6 +13,9 @@
     { id: 'noun', name: '名词与修饰', range: [15, 21], color: '#3d8f9c', note: '把名词说清楚：冠词、复数、形容词、介词短语、定语从句。' },
     { id: 'clause', name: '从句与非谓语', range: [22, 30], color: '#8a74b8', note: '长句不可怕：先剥修饰，再找主干。' }
   ];
+
+  const ADVANCED = window.ShunshiGrammarAdvanced || { units: [], raw: [] };
+  UNITS.push(...(ADVANCED.units || []));
 
   const RAW = [
     {
@@ -587,6 +590,8 @@
     }
   ];
 
+  RAW.push(...(ADVANCED.raw || []));
+
   function letterAt(index) {
     return String.fromCharCode(65 + index);
   }
@@ -646,7 +651,9 @@
     if (value <= 7) return value - 1;
     if (value <= 14) return value - 3;
     if (value <= 21) return value - 7;
-    return value - 10;
+    if (value <= 30) return value - 10;
+    if (value <= 45) return value - 12;
+    return value - 14;
   }
 
   function roleClass(role) {

@@ -110,6 +110,7 @@
       <button type="button" data-tab="students">学生</button>
       <button type="button" data-tab="assignments">任务</button>
       <button type="button" data-tab="plan">周计划</button>
+      <button type="button" data-tab="weekly">周备课</button>
       <button type="button" data-tab="grammar">语法打卡</button>
       <button type="button" data-tab="words">单词打卡</button>
       <button type="button" data-tab="reports">汇报</button>
@@ -221,11 +222,51 @@
       </div>
     </section>
 
+
+    <!-- 周备课 -->
+    <section class="teacher-pane" data-pane="weekly">
+      <div class="roster-toolbar">
+        <div>
+          <h2 class="pane-title">本周上课建议 <small>WEEKLY COACH</small></h2>
+          <p class="pane-sub">先汇总这一周学生的打卡、单词和语法错题，再给出 90 分钟课的结构、例句和作业。规则版不调用 AI、不花钱；需要润色时再手动点 AI。</p>
+        </div>
+        <div class="toolbar-actions">
+          <button class="p-btn small ghost" type="button" id="weekly-print">打印 / 存 PDF</button>
+          <button class="p-btn small ghost" type="button" id="weekly-handout">下载学生讲义</button>
+        </div>
+      </div>
+      <div class="p-grid">
+        <section class="p-card p-col-4">
+          <div class="p-card-head"><h3 class="p-card-title">1. 选一周 <small>WEEK</small></h3></div>
+          <div class="field">
+            <label for="weekly-start">这周从哪天开始</label>
+            <input class="input" id="weekly-start" type="date">
+          </div>
+          <div class="field">
+            <label>看哪些学生</label>
+            <div class="check-list" id="weekly-students"></div>
+          </div>
+          <button class="p-btn block" type="button" id="weekly-generate">生成上课建议</button>
+          <p class="hint" style="text-align:left;">只读本机已有的汇报与打卡，不会上传。建议先导入学生本周汇报，结果会更准。</p>
+          <hr class="weekly-sep">
+          <h3 class="dialog-subtitle">可选：AI 精简</h3>
+          <p class="hint" style="text-align:left;">把汇总后的匿名数据交给 DeepSeek，生成更顺的课堂话术。约 300–500 tokens，点一次才调用一次。</p>
+          <button class="p-btn small ghost block" type="button" id="weekly-ai">AI 润色这节课（消耗少量额度）</button>
+          <p class="hint" id="weekly-ai-note"></p>
+        </section>
+        <section class="p-card p-col-8">
+          <div id="weekly-advice-output" class="weekly-output">
+            <div class="empty-state"><strong>还没有生成</strong>选好这一周，点“生成上课建议”。系统会把出勤、单词错词、语法卡点和课堂材料整理成一页。</div>
+          </div>
+        </section>
+      </div>
+    </section>
+
     <!-- 语法打卡 -->
     <section class="teacher-pane" data-pane="grammar">
       <div class="roster-toolbar">
         <div>
-          <h2 class="pane-title">30 天语法小营 <small>GRAMMAR CAMP</small></h2>
+          <h2 class="pane-title">60 天语法小营 <small>GRAMMAR CAMP</small></h2>
           <p class="pane-sub">一天 5 分钟：看一句故事里的句子，记一条规则，做 3 道小题，复习 1 道旧题，再写 1 句。老师一次发 7 天，学生每天自动解锁一天。</p>
         </div>
         <div class="toolbar-actions">
@@ -248,6 +289,10 @@
               <option value="8">固定从 D8 开始</option>
               <option value="15">固定从 D15 开始</option>
               <option value="22">固定从 D22 开始</option>
+              <option value="31">固定从 D31 开始（进阶）</option>
+              <option value="39">固定从 D39 开始（非谓语）</option>
+              <option value="47">固定从 D47 开始（特殊结构）</option>
+              <option value="54">固定从 D54 开始（长难句）</option>
             </select>
             <p class="hint">“自动接上”会看每位学生已经学过哪几天，接着往下发，不会重复。</p>
           </div>
@@ -259,7 +304,7 @@
         </section>
         <section class="p-card p-col-8">
           <div class="p-card-head">
-            <h3 class="p-card-title">30 天课程地图 <small>CURRICULUM</small></h3>
+            <h3 class="p-card-title">60 天课程地图 <small>CURRICULUM</small></h3>
             <span class="hint">点任意一天可预览</span>
           </div>
           <div class="grammar-map" id="grammar-map"></div>
@@ -521,7 +566,9 @@
       <div class="detail-actions">
         <button class="p-btn small" type="button" id="detail-assign">给 TA 布置任务</button>
         <button class="p-btn small ghost" type="button" id="detail-enroll">生成开通码</button>
-        <button class="p-btn small ghost" type="button" id="detail-edit">编辑</button>
+        <button class="p-btn small ghost" type="button" id="detail-edit">编辑 / 密码</button>
+        <button class="p-btn small ghost" type="button" id="detail-reset">重置学生密码</button>
+        <button class="p-btn small danger" type="button" id="detail-delete">删除学生</button>
       </div>
     </div>
 
@@ -619,8 +666,12 @@
           <input class="input" id="student-id-input" maxlength="24" placeholder="例如：S-1024" autocapitalize="characters">
         </div>
         <div class="field">
-          <label for="student-pin-input">初始密码</label>
-          <input class="input" id="student-pin-input" maxlength="12" placeholder="4–12 位字母或数字">
+          <label for="student-pin-input">学生密码</label>
+          <div class="input-with-toggle">
+            <input class="input" id="student-pin-input" type="password" maxlength="12" placeholder="4–12 位字母或数字">
+            <button class="input-eye" type="button" id="student-pin-toggle" aria-label="显示学生密码">显示</button>
+          </div>
+          <p class="hint field-hint" id="student-pin-hint">点“显示”可以核对；换密码后请生成重置码发给学生。</p>
         </div>
       </div>
       <div class="field">
@@ -680,6 +731,31 @@
     <div class="p-dialog-foot">
       <button class="p-btn ghost" type="button" id="enroll-download">下载为文件</button>
       <button class="p-btn" type="button" id="enroll-copy">复制开通码</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 学生密码重置码 -->
+<dialog class="p-dialog" id="reset-code-dialog">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>学生密码重置码</h2>
+        <p>把这段码单独发给学生。学生在登录页点“用老师的重置码找回”，粘贴后就会自动使用新密码，学习记录不会丢。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="enroll-summary" id="reset-code-summary"></div>
+      <div class="field">
+        <label for="reset-code-output">重置码</label>
+        <textarea class="textarea" id="reset-code-output" rows="8" readonly></textarea>
+      </div>
+      <p class="hint">重置码等于新密码的钥匙，只发给学生本人，不要发到班级群。</p>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" data-close>关闭</button>
+      <button class="p-btn" type="button" id="reset-code-copy">复制重置码</button>
     </div>
   </div>
 </dialog>
@@ -821,7 +897,15 @@
           <div class="check-list" id="word-students"></div>
         </div>
       </div>
-      <p class="hint">学生端会把每个词做成四选一闯关：先英译中，错词再中译英重练。进度条会实时增长，完成后回传汇报码。</p>
+      <label class="remember-line" style="margin-top:12px;">
+        <input type="checkbox" id="word-adaptive" checked>
+        <span>按每位学生的水平智能配词<small>水平低的先拿较短、较具体的词；每次汇报后自动升 / 降档，词量也随之变化。</small></span>
+      </label>
+      <label class="remember-line">
+        <input type="checkbox" id="word-with-grammar" checked>
+        <span>同时配本周 7 天语法课，合成一个码<small>单词任务 + 7 天语法只发一次；学生导入后每天自动解锁，不用反复复制。</small></span>
+      </label>
+      <p class="hint">学生端会把每个词做成四选一闯关：先英译中，错词再中译英重练。进度条会实时增长，完成后回传汇报码。一次发布够用一周。</p>
     </div>
     <div class="p-dialog-foot">
       <span class="hint" style="margin-right:auto;" id="word-foot-hint">至少 4 个词，才能生成选项。</span>
@@ -842,6 +926,23 @@
       <button class="p-close" type="button" data-close aria-label="关闭">×</button>
     </div>
     <div class="p-dialog-body" id="word-detail-body"></div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" data-close>关闭</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 学生作答详情 -->
+<dialog class="p-dialog" id="task-answer-dialog" style="width:min(860px,calc(100% - 20px));">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>学生作答详情</h2>
+        <p id="task-answer-sub">—</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body" id="task-answer-body"></div>
     <div class="p-dialog-foot">
       <button class="p-btn ghost" type="button" data-close>关闭</button>
     </div>
@@ -987,6 +1088,7 @@
   </div>
 </dialog>
 
+<script src="grammar-advanced.js"></script>
 <script src="grammar-data.js"></script>
 <script src="insights-core.js"></script>
 <script src="insights.js"></script>

@@ -1,5 +1,5 @@
 /* 顺势 · 离线缓存：联网时永远取最新，断网时用上次看过的版本。 */
-const CACHE = 'shunshi-pwa-v6';
+const CACHE = 'shunshi-pwa-v7';
 const CORE = [
   './',
   './index.html',
@@ -17,6 +17,7 @@ const CORE = [
   './insights-core.js',
   './guide.css',
   './grammar-data.js',
+  './grammar-advanced.js',
   './pwa.js',
   './guide/img/add-student.webp',
   './guide/img/ai-settings.webp',

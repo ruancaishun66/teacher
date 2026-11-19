@@ -9,6 +9,8 @@
   const $ = S.$;
   const $$ = S.$$;
   const STORAGE_KEY = 'shunshi.student.v1';
+  const REMEMBER_KEY = 'shunshi.student.remember.v1';
+  const PET_MOTION_KEY = 'shunshi.pet.motion.v1';
 
   let data = loadData();
   let sessionPin = '';
@@ -110,6 +112,29 @@
 
   /* ------------------------------- 登录 ------------------------------- */
 
+  function rememberedLogin() {
+    const saved = S.getJSON(REMEMBER_KEY, null);
+    if (!saved || !saved.id || !saved.pin) return null;
+    if (!profile() || String(saved.id) !== String(profile().id)) return null;
+    return saved;
+  }
+
+  function rememberLogin(pin) {
+    const box = $('#login-remember');
+    const wanted = box ? box.checked : true;
+    try {
+      if (wanted && profile() && pin) {
+        localStorage.setItem(REMEMBER_KEY, JSON.stringify({ id: profile().id, pin, savedAt: S.nowIso() }));
+      } else {
+        localStorage.removeItem(REMEMBER_KEY);
+      }
+    } catch (error) { /* 本机存储不可用时，只影响“记住密码”，不影响档案。 */ }
+  }
+
+  function clearRememberedLogin() {
+    try { localStorage.removeItem(REMEMBER_KEY); } catch (error) { /* ignore */ }
+  }
+
   function showAuth() {
     $('#auth-view').hidden = false;
     $('#app-view').hidden = true;
@@ -120,8 +145,16 @@
       $('#login-avatar').textContent = profile().avatar || '🦊';
       $('#login-name').textContent = profile().name || '学习者';
       $('#login-id').textContent = profile().id || '';
-      $('#login-pin').value = '';
-      setTimeout(() => $('#login-pin').focus(), 80);
+      const saved = rememberedLogin();
+      $('#login-pin').value = saved ? saved.pin : '';
+      const remember = $('#login-remember');
+      if (remember) remember.checked = Boolean(saved);
+      const button = $('#login-btn');
+      if (button) button.textContent = saved ? '进入学习终端（密码已记住）' : '进入学习终端';
+      setTimeout(() => {
+        if (saved) $('#login-btn').focus();
+        else $('#login-pin').focus();
+      }, 80);
     } else {
       $('#setup-card').hidden = false;
       $('#login-card').hidden = true;
@@ -204,6 +237,7 @@
     };
     sessionPin = pin;
     save();
+    rememberLogin(pin);
     S.toast('档案建好了，开始今天的第一次打卡吧。', 'ok');
     showApp();
   }
@@ -262,6 +296,7 @@
       return;
     }
     sessionPin = pin;
+    rememberLogin(pin);
     showApp();
     S.toast(`${profile().name}，欢迎回来。`, 'ok');
   }
@@ -272,7 +307,7 @@
     stopTimer();
     S.closeDialog($('#task-dialog'));
     showAuth();
-    S.toast('已退出，档案还留在这台设备上。');
+    S.toast(rememberedLogin() ? '已退出。密码已记住，下次点“进入”即可。' : '已退出，档案还留在这台设备上。');
   }
 
   /* ------------------------------- 学习伙伴：小潮獭 ------------------------------- */
@@ -700,10 +735,63 @@
     return evolved;
   }
 
+  function petMotionOn() {
+    try {
+      return localStorage.getItem(PET_MOTION_KEY) !== 'off';
+    } catch (error) {
+      return true;
+    }
+  }
+
+  function setPetMotion(on) {
+    try {
+      localStorage.setItem(PET_MOTION_KEY, on ? 'on' : 'off');
+    } catch (error) { /* ignore */ }
+    const scene = $('#pet-scene');
+    if (scene) scene.classList.toggle('is-motion', on);
+    const button = $('#pet-motion-btn');
+    if (button) {
+      button.textContent = on ? '动感：开' : '动感：关';
+      button.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    S.toast(on ? '精灵开始活动了，点它还会回应你。' : '已切到安静模式，动画暂停。', 'ok', 2600);
+  }
+
+  function petReact(event) {
+    const scene = $('#pet-scene');
+    if (!scene) return;
+    scene.classList.remove('is-happy');
+    void scene.offsetWidth;
+    scene.classList.add('is-happy');
+    setTimeout(() => scene.classList.remove('is-happy'), 900);
+    const phrases = ['我在听！', '今天也一起加油。', '再戳一下试试？', '小鱼干在哪里？', '这个线索有意思！'];
+    const mood = $('#pet-mood');
+    if (mood) mood.textContent = phrases[Math.floor(Math.random() * phrases.length)];
+    const rect = scene.getBoundingClientRect();
+    const x = event && Number.isFinite(event.clientX) ? event.clientX - rect.left : rect.width / 2;
+    const y = event && Number.isFinite(event.clientY) ? event.clientY - rect.top : rect.height / 2;
+    for (let index = 0; index < 3; index += 1) {
+      const heart = document.createElement('span');
+      heart.className = 'pet-heart';
+      heart.textContent = index === 1 ? '✦' : '♥';
+      heart.style.left = `${Math.max(12, Math.min(rect.width - 12, x + (index - 1) * 20))}px`;
+      heart.style.top = `${Math.max(20, y - 8)}px`;
+      heart.style.animationDelay = `${index * 0.08}s`;
+      scene.appendChild(heart);
+      setTimeout(() => heart.remove(), 1400);
+    }
+  }
+
   function renderPet() {
     const p = profile();
     const scene = $('#pet-scene');
     if (!p || !scene) return;
+    scene.classList.toggle('is-motion', petMotionOn());
+    const motionButton = $('#pet-motion-btn');
+    if (motionButton) {
+      motionButton.textContent = petMotionOn() ? '动感：开' : '动感：关';
+      motionButton.setAttribute('aria-pressed', petMotionOn() ? 'true' : 'false');
+    }
     const display = petDisplayInfo(p);
     const { pet, info } = display;
     scene.innerHTML = petSVG(info.stage, display.id, display.fused);
@@ -804,7 +892,7 @@
     S.toast('当前精灵吃得很开心，成长 +8。', 'ok');
   }
 
-  /* ------------------------------- 30 天语法小营 ------------------------------- */
+  /* ------------------------------- 60 天语法小营 ------------------------------- */
 
   function grammarTasks() {
     return (data.tasks || [])
@@ -838,12 +926,12 @@
       return;
     }
     camp.hidden = false;
-    const total = G ? G.total : 30;
+    const total = G ? G.total : 60;
     const done = grammarDoneSet();
     const next = nextGrammarTask();
     const lesson = (next && next.lesson) || null;
     const pct = Math.round((done.size / total) * 100);
-    const lessonTitle = lesson ? lesson.title : '30 天已经学完';
+    const lessonTitle = lesson ? lesson.title : '60 天已经学完';
     const lessonSub = lesson ? `第 ${lesson.day} 天 · ${lesson.unit}${lesson.subtitle ? ' · ' + lesson.subtitle : ''}` : '可以把喜欢的句子再读一遍，或等老师发新的练习。';
     const dots = [];
     for (let day = 1; day <= total; day += 1) {
@@ -859,13 +947,13 @@
     }
     const locked = next ? taskLocked(next) : false;
     const action = !next
-      ? `<span class="grammar-camp-done">🏅 30 天全部完成</span>`
+      ? `<span class="grammar-camp-done">🏅 60 天全部完成</span>`
       : locked
         ? `<button class="p-btn small" type="button" data-grammar-open="${S.escapeHtml(next.id)}" data-grammar-locked="1">提前解锁今天</button>`
         : `<button class="p-btn small" type="button" data-grammar-open="${S.escapeHtml(next.id)}">开始今天的语法课</button>`;
     camp.innerHTML = `<div class="grammar-camp-inner" style="--unit:${lesson ? lesson.unitColor : '#d96e51'}">` +
       `<div class="grammar-camp-copy">` +
-        `<p class="grammar-camp-kicker">30 天语法小营 · GRAMMAR CAMP</p>` +
+        `<p class="grammar-camp-kicker">60 天语法小营 · GRAMMAR CAMP</p>` +
         `<h2>${S.escapeHtml(lessonTitle)}</h2>` +
         `<p class="grammar-camp-sub">${S.escapeHtml(lessonSub)}</p>` +
         `<p class="grammar-camp-note">每天约 5 分钟：一句故事、一条规则、3 道小题、1 道复习、1 句仿写。</p>` +
@@ -876,7 +964,7 @@
         action +
         `<button class="p-btn small ghost" type="button" data-grammar-scroll="1">看全部任务</button>` +
       `</div>` +
-      `<div class="grammar-camp-map" aria-label="30 天进度">${dots.join('')}</div>` +
+      `<div class="grammar-camp-map" aria-label="60 天进度">${dots.join('')}</div>` +
     `</div>`;
   }
 
@@ -1043,6 +1131,8 @@
       return;
     }
     const tasks = data.tasks.slice().sort((a, b) => {
+      if (a.mode === 'words' && b.mode !== 'words') return -1;
+      if (b.mode === 'words' && a.mode !== 'words') return 1;
       if (a.planId && a.planId === b.planId) return Number(a.planDay) - Number(b.planDay);
       if (a.status === b.status) {
         return String(b.submittedAt || b.createdAt || '').localeCompare(String(a.submittedAt || a.createdAt || ''));
@@ -1346,7 +1436,7 @@
     return `<div class="grammar-hero" style="--unit:${lesson.unitColor || '#d96e51'}">` +
       `<div class="grammar-hero-top">` +
         `<span class="grammar-unit-pill">${S.escapeHtml(lesson.unit || '语法小营')}</span>` +
-        `<span>D${lesson.day || task.grammarDay} / ${G ? G.total : 30} · 约 5 分钟</span>` +
+        `<span>D${lesson.day || task.grammarDay} / ${G ? G.total : 60} · 约 5 分钟</span>` +
       `</div>` +
       `<p class="grammar-scene">${S.escapeHtml(lesson.scene || '')}</p>` +
       `<div class="g-sentence" data-grammar-tokens>${tokens}</div>` +
@@ -1361,9 +1451,175 @@
     `</div>`;
   }
 
+  function grammarSteps(task) {
+    const steps = [];
+    (task.blocks || []).forEach((block) => {
+      if (block.type === 'writing' || block.prompt) {
+        steps.push({ type: 'writing', block });
+      } else {
+        (block.questions || []).forEach((question) => {
+          steps.push({ type: 'question', block, question });
+        });
+      }
+    });
+    return steps;
+  }
+
+  function grammarStepQuestion(step) {
+    const question = step.question || {};
+    return {
+      qid: question.id || `${step.block.id}-q${question.n}`,
+      answer: question.answer || '',
+      question
+    };
+  }
+
+  function renderGrammarResult(task) {
+    let html = resultHero(task);
+    const review = Array.isArray(task.review) ? task.review : [];
+    if (review.length) {
+      html += `<div class="grammar-result-list">` + review.map((item) => (
+        `<div class="grammar-result-row ${item.ok ? 'ok' : 'no'}">` +
+          `<b>${item.ok ? '✓' : '✕'} ${S.escapeHtml(item.n || '')}</b>` +
+          `<span>${S.escapeHtml(item.stem || '')}</span>` +
+          `<small>你选 ${S.escapeHtml(item.userAnswer || '未作答')} · 正确 ${S.escapeHtml(item.correctAnswer || '—')}</small>` +
+        `</div>`
+      )).join('') + `</div>`;
+    }
+    if (String(task.writing || '').trim()) {
+      html += `<div class="grammar-result-writing"><b>你的仿写</b><p>${S.escapeHtml(task.writing)}</p></div>`;
+    }
+    html += `<div class="grammar-result-actions"><button class="p-btn small" type="button" data-grammar-open-report>生成汇报码交给老师</button></div>`;
+    return html;
+  }
+
+  function renderGrammarRunner(task) {
+    const done = task.status === 'done';
+    $('#runner-title').textContent = task.title || '语法小营';
+    const steps = grammarSteps(task);
+    if (done) {
+      $('#runner-sub').textContent = `${task.title || '语法小营'} · 已完成`;
+      $('#runner-count').textContent = '已完成';
+      $('#runner-fill').style.width = '100%';
+      $('#submit-task').hidden = true;
+      $('#runner-report').hidden = false;
+      $('#runner-body').innerHTML = renderGrammarResult(task);
+      const reportButton = $('[data-grammar-open-report]');
+      if (reportButton) reportButton.onclick = openReport;
+      return;
+    }
+    const index = Math.max(0, Math.min(steps.length - 1, Number(task.runnerStep) || 0));
+    task.runnerStep = index;
+    const step = steps[index];
+    if (!step) {
+      $('#runner-body').innerHTML = '<p class="empty-state">今天的语法关卡还没有准备好。</p>';
+      return;
+    }
+    const currentStep = index + 1;
+    $('#runner-sub').textContent = `${task.title || '语法小营'} · 第 ${currentStep} / ${steps.length} 关`;
+    $('#runner-count').textContent = `${currentStep} / ${steps.length}`;
+    $('#runner-fill').style.width = `${Math.round((index / steps.length) * 100)}%`;
+    $('#runner-report').hidden = true;
+    $('#submit-task').hidden = step.type !== 'writing';
+    $('#submit-task').textContent = '提交今日语法';
+
+    const lesson = task.lesson || {};
+    let html = `<div class="grammar-run">` +
+      `<details class="grammar-brief">` +
+        `<summary><span>今日句子 · ${S.escapeHtml(lesson.title || '语法小营')}</span><small>点开 / 收起</small></summary>` +
+        `<p class="grammar-brief-scene">${S.escapeHtml(lesson.scene || '')}</p>` +
+        `<p class="grammar-brief-sentence">${S.escapeHtml(lesson.sentence || '')}</p>` +
+        `<p class="grammar-brief-rule">${S.escapeHtml(lesson.rule || '')}</p>` +
+      `</details>`;
+
+    if (step.type === 'question') {
+      const { qid, question } = grammarStepQuestion(step);
+      const userAnswer = String((task.answers || {})[qid] || '');
+      const answered = Boolean(userAnswer);
+      const correct = answered ? S.isCorrectAnswer(question, userAnswer) : null;
+      const label = step.block.label || '语法关';
+      html += `<article class="grammar-step-card ${answered ? correct ? 'is-ok' : 'is-no' : ''}" data-g-qid="${S.escapeHtml(qid)}">` +
+        `<div class="grammar-step-kicker">${S.escapeHtml(label)}</div>` +
+        `<p class="grammar-step-stem">${S.escapeHtml(question.stem || '')}</p>` +
+        `<div class="grammar-step-options">` +
+          (question.options || []).map((option) => {
+            const letter = String(option.letter || '').toUpperCase();
+            const isPicked = userAnswer.toUpperCase() === letter;
+            const isRight = answered && String(question.answer || '').toUpperCase() === letter;
+            const cls = answered ? (isRight ? 'is-right' : isPicked ? 'is-picked-wrong' : 'is-dim') : '';
+            return `<button class="grammar-step-option ${cls}" type="button" data-g-option="${S.escapeHtml(letter)}" ${answered ? 'disabled' : ''}>` +
+              `<span>${S.escapeHtml(letter)}</span>${S.escapeHtml(option.text || '')}</button>`;
+          }).join('') +
+        `</div>`;
+      if (answered) {
+        html += `<div class="grammar-step-feedback ${correct ? 'ok' : 'no'}">` +
+          `<b>${correct ? '✓ 答对了' : '✕ 再看一眼'}</b>` +
+          `<span>正确答案：${S.escapeHtml(question.answer || '—')}${question.explanation ? ` · ${S.escapeHtml(question.explanation)}` : ''}</span>` +
+        `</div>` +
+        `<div class="grammar-step-actions"><button class="p-btn" type="button" data-g-next="${index + 1}">${index + 1 >= steps.length ? '完成' : '下一关'}</button></div>`;
+      } else {
+        html += `<p class="grammar-step-hint">选一个答案，马上就能看到原因。</p>`;
+      }
+      html += `</article>`;
+    } else {
+      const block = step.block;
+      const key = `writing:${block.id}`;
+      const value = String((task.answers || {})[key] || '');
+      html += `<article class="grammar-step-card writing">` +
+        `<div class="grammar-step-kicker">第五关 · 写一句</div>` +
+        `<p class="grammar-step-stem">${S.escapeHtml(block.prompt || '用今天学的结构写一句。')}</p>` +
+        `<textarea class="writing-input grammar-writing" data-g-writing="${S.escapeHtml(block.id)}" placeholder="写一句自己的话，自动保存在本机…">${S.escapeHtml(value)}</textarea>` +
+        (block.sample ? `<p class="grammar-step-hint">参考写法：${S.escapeHtml(block.sample)}</p>` : '') +
+        `<p class="grammar-step-hint">写完后点下面的“提交今日语法”。不要求一模一样，能用自己的话写对结构就好。</p>` +
+      `</article>`;
+    }
+    html += `</div>`;
+    const body = $('#runner-body');
+    body.innerHTML = html;
+    body.scrollTop = 0;
+    body.onclick = (event) => {
+      const option = event.target.closest('[data-g-option]');
+      if (option) {
+        const qid = option.closest('[data-g-qid]').dataset.gQid;
+        task.answers = task.answers || {};
+        task.answers[qid] = option.dataset.gOption;
+        noteBehaviorAnswer(task, qid, option.dataset.gOption);
+        save();
+        renderGrammarRunner(task);
+        return;
+      }
+      const next = event.target.closest('[data-g-next]');
+      if (next) {
+        const qid = next.closest('[data-g-qid]') ? next.closest('[data-g-qid]').dataset.gQid : '';
+        if (qid && !String((task.answers || {})[qid] || '').trim()) {
+          S.toast('先选一个答案，再进入下一关。', 'error');
+          return;
+        }
+        task.runnerStep = Math.min(steps.length - 1, Number(next.dataset.gNext) || 0);
+        save();
+        renderGrammarRunner(task);
+      }
+    };
+    body.onkeydown = null;
+    body.oninput = (event) => {
+      if (!event.target.matches('[data-g-writing]')) return;
+      task.answers = task.answers || {};
+      task.answers[`writing:${event.target.dataset.gWriting}`] = event.target.value;
+      noteBehaviorAnswer(task, `writing:${event.target.dataset.gWriting}`, event.target.value);
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(save, 300);
+      $('#runner-count').textContent = `${currentStep} / ${steps.length}`;
+    };
+    body.onchange = null;
+  }
+
   function renderRunner(task) {
     if (task.mode === 'words') {
       renderWordRunner(task);
+      return;
+    }
+    if (task.mode === 'grammar') {
+      renderGrammarRunner(task);
       return;
     }
     $('#submit-task').textContent = '提交任务';
@@ -1563,22 +1819,129 @@
     return seededShuffle([word.w].concat(distractors), hashString(`${word.w}|review-options`));
   }
 
+  let englishVoiceCache = null;
+  let speechAudio = null;
+  let speechTimer = 0;
+
+  function loadEnglishVoices() {
+    try {
+      if (!('speechSynthesis' in window) || !window.speechSynthesis || typeof window.speechSynthesis.getVoices !== 'function') return englishVoiceCache || [];
+      const all = window.speechSynthesis.getVoices() || [];
+      if (!all.length) return englishVoiceCache || [];
+    const english = all.filter((voice) => /^en([-_]|$)/i.test(voice.lang || ''));
+    const score = (voice) => {
+      let value = 0;
+      if (/en-US/i.test(voice.lang || '')) value += 4;
+      if (/en-GB/i.test(voice.lang || '')) value += 2;
+      if (voice.localService) value += 3;
+      if (/samantha|google us english|microsoft (aria|jenny|zira|david)|natural/i.test(voice.name || '')) value += 2;
+      return value;
+    };
+    english.sort((a, b) => score(b) - score(a));
+    englishVoiceCache = english;
+    return english;
+    } catch (error) {
+      return englishVoiceCache || [];
+    }
+  }
+
+  if ('speechSynthesis' in window) {
+    loadEnglishVoices();
+    window.speechSynthesis.addEventListener?.('voiceschanged', loadEnglishVoices);
+  }
+
+  function speechFallback(text, label, reason) {
+    const clean = String(text || '').trim();
+    if (!clean) return;
+    if (label) label.classList.remove('speaking');
+    try {
+      if (speechAudio) { speechAudio.pause(); speechAudio = null; }
+      speechAudio = new Audio(`https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(clean)}&type=2`);
+      speechAudio.preload = 'auto';
+      speechAudio.onplaying = () => {
+        if (label) label.classList.add('speaking');
+        S.toast(`正在播放 ${clean} 的读音。`, 'ok', 1800);
+      };
+      speechAudio.onended = () => { if (label) label.classList.remove('speaking'); };
+      speechAudio.onerror = () => {
+        if (label) label.classList.remove('speaking');
+        S.toast(reason || '这台设备没有英语朗读声音，可以先看音标，或换 Chrome / Edge 再试。', 'error', 6500);
+      };
+      const played = speechAudio.play();
+      if (played && played.catch) {
+        played.catch(() => {
+          if (label) label.classList.remove('speaking');
+          S.toast(reason || '浏览器拦住了发音，请再点一次“听读音”。', 'error', 6000);
+        });
+      }
+    } catch (error) {
+      if (label) label.classList.remove('speaking');
+      S.toast(reason || '这台设备暂时不能发音，可以先看音标。', 'error', 6000);
+    }
+  }
+
   function speakWord(text, label) {
+    const clean = String(text || '').trim();
+    if (!clean) return;
     if (!('speechSynthesis' in window)) {
-      S.toast('这台设备不支持朗读，可以看音标。', 'error');
+      speechFallback(clean, label, '这台设备不支持系统朗读，已尝试用在线发音。');
       return;
     }
+    loadEnglishVoices();
+    const synth = window.speechSynthesis;
+    if (!synth || typeof synth.speak !== 'function') {
+      speechFallback(clean, label, '这台设备没有可用的系统朗读，已尝试用在线发音。');
+      return;
+    }
+    if (label) label.classList.add('speaking');
+    clearTimeout(speechTimer);
+
+    const start = () => {
+      try {
+        const utterance = new SpeechSynthesisUtterance(clean);
+        const voices = englishVoiceCache || loadEnglishVoices();
+        if (voices.length) utterance.voice = voices[0];
+        utterance.lang = (voices[0] && voices[0].lang) || 'en-US';
+        utterance.rate = 0.86;
+        utterance.pitch = 1;
+        utterance.volume = 1;
+        let started = false;
+        utterance.onstart = () => {
+          started = true;
+          clearTimeout(speechTimer);
+          if (label) label.classList.add('speaking');
+        };
+        utterance.onend = () => {
+          clearTimeout(speechTimer);
+          if (label) label.classList.remove('speaking');
+        };
+        utterance.onerror = (event) => {
+          clearTimeout(speechTimer);
+          if (label) label.classList.remove('speaking');
+          if (event && /interrupted|canceled/i.test(event.error || '')) return;
+          speechFallback(clean, label, '系统朗读没有声音，已尝试在线发音。');
+        };
+        synth.resume();
+        synth.speak(utterance);
+        speechTimer = setTimeout(() => {
+          if (!started && !synth.speaking) {
+            speechFallback(clean, label, '系统朗读没有启动，已尝试在线发音。');
+          }
+        }, 1500);
+      } catch (error) {
+        speechFallback(clean, label, '系统朗读启动失败，已尝试在线发音。');
+      }
+    };
+
     try {
-      const utterance = new SpeechSynthesisUtterance(String(text || ''));
-      utterance.lang = 'en-US';
-      utterance.rate = 0.9;
-      utterance.pitch = 1;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
-      if (label) label.classList.add('speaking');
-      utterance.onend = () => { if (label) label.classList.remove('speaking'); };
+      if (synth.speaking || synth.pending) {
+        synth.cancel();
+        setTimeout(start, 90);
+      } else {
+        start();
+      }
     } catch (error) {
-      S.toast('朗读没有启动，可以看音标。', 'error');
+      speechFallback(clean, label, '系统朗读启动失败，已尝试在线发音。');
     }
   }
 
@@ -1705,7 +2068,7 @@
         `</div>`
       : `<div class="word-stage">` +
           `<div class="word-stage-label"><span>${task.title || '单词打卡'}</span><span class="word-phase">英 → 中</span></div>` +
-          `<div class="word-main"><p class="word-big">${S.escapeHtml(word.w)}</p>` +
+          `<div class="word-main"><p class="word-big" data-word-speak="${S.escapeHtml(word.w)}" role="button" tabindex="0" title="点单词听读音">${S.escapeHtml(word.w)}</p>` +
           `<p class="word-phon">${S.escapeHtml(word.kk || '')}${word.pos ? `<span class="word-pos">${S.escapeHtml(word.pos)}</span>` : ''}</p>` +
           `<button class="word-speak" type="button" data-word-speak="${S.escapeHtml(word.w)}">🔊 听读音</button></div>` +
         `</div>`;
@@ -1739,6 +2102,13 @@
     const body = $('#runner-body');
     body.onchange = null;
     body.oninput = null;
+    body.onkeydown = (event) => {
+      const word = event.target.closest('.word-big[data-word-speak]');
+      if (word && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault();
+        speakWord(word.dataset.wordSpeak, word);
+      }
+    };
     body.onclick = (event) => {
       const speakBtn = event.target.closest('[data-word-speak]');
       if (speakBtn) {
@@ -1975,11 +2345,17 @@
         blockTotal += 1;
         total += 1;
         if (ok) { correct += 1; blockCorrect += 1; }
+        const optionText = (letter) => {
+          const hit = (question.options || []).find((option) => String(option.letter) === String(letter));
+          return hit ? String(hit.text || '') : '';
+        };
         review.push({
           n: question.n,
           stem: String(question.stem || '').slice(0, 160),
           userAnswer: String(answer || ''),
+          userText: optionText(answer).slice(0, 120),
           correctAnswer: String(question.answer || ''),
+          correctText: optionText(question.answer).slice(0, 120),
           ok,
           type: block.type,
           explanation: String(question.explanation || '').slice(0, 300)
@@ -2231,13 +2607,55 @@
     };
     sessionPin = pin;
     save();
+    rememberLogin(pin);
     S.closeDialog($('#restore-dialog'));
     showApp();
     S.toast('档案已恢复。历史任务的题目原文不包含在档案码里，成绩和错题仍然保留。', 'ok', 6000);
   }
 
+  async function applyPasswordReset() {
+    if (!profile()) { S.toast('这台设备上还没有档案，请先用开通码建档。', 'error'); return; }
+    const code = $('#forgot-code').value.trim();
+    const status = $('#forgot-status');
+    if (!code) { S.toast('先粘贴老师发来的重置码。', 'error'); return; }
+    let payload;
+    try {
+      payload = await S.unpackCode(code);
+    } catch (error) {
+      S.toast(error.message || '重置码无法识别，请让老师重新生成。', 'error', 6000);
+      return;
+    }
+    if (!payload || payload.kind !== 'reset' || !payload.studentId || !payload.pin) {
+      S.toast('这不是学生密码重置码，别把任务码或汇报码贴进来。', 'error', 6000);
+      return;
+    }
+    if (String(payload.studentId) !== String(profile().id)) {
+      S.toast(`这段重置码是给 ${payload.studentId} 的，不是当前学号 ${profile().id}。`, 'error', 6500);
+      return;
+    }
+    if (!/^[A-Za-z0-9]{4,12}$/.test(String(payload.pin))) {
+      S.toast('重置码里的新密码格式不对，请让老师重新生成。', 'error');
+      return;
+    }
+    const auth = await S.sha256Hex(`reset|${payload.studentId}|${payload.pin}|${payload.createdAt || ''}`);
+    if (auth !== payload.auth) {
+      S.toast('重置码校验失败，可能被改动过，请让老师重新生成。', 'error', 6500);
+      return;
+    }
+    profile().pinHash = await S.sha256Hex(`${profile().id}|${payload.pin}`);
+    sessionPin = payload.pin;
+    save();
+    rememberLogin(payload.pin);
+    S.closeDialog($('#forgot-dialog'));
+    $('#forgot-code').value = '';
+    if (status) status.hidden = true;
+    showApp();
+    S.toast('密码已重设，并已记住。现在可以直接进入学习了。', 'ok', 6500);
+  }
+
   function confirmReset() {
     try { localStorage.removeItem(STORAGE_KEY); } catch (error) { /* ignore */ }
+    clearRememberedLogin();
     data = null;
     sessionPin = '';
     S.closeDialog($('#reset-dialog'));
@@ -2387,7 +2805,16 @@
         if (switchBtn) { switchPet(switchBtn.dataset.petSwitch); return; }
         const fuseBtn = event.target.closest('[data-fuse]');
         if (fuseBtn) { fusePets(); return; }
-        if (event.target.closest('#pet-wheel-btn')) openWheelDialog();
+        if (event.target.closest('#pet-wheel-btn')) { openWheelDialog(); return; }
+        if (event.target.closest('#pet-motion-btn')) { setPetMotion(!petMotionOn()); return; }
+        if (event.target.closest('#pet-scene')) petReact(event);
+      });
+      petCard.addEventListener('keydown', (event) => {
+        if (!event.target.closest('#pet-scene')) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          petReact(event);
+        }
       });
     }
     const wheelSpin = $('#wheel-spin-btn');
@@ -2458,6 +2885,13 @@
       S.openDialog($('#restore-dialog'));
     });
     $('#restore-btn').addEventListener('click', restoreProfile);
+    $('#forgot-link').addEventListener('click', () => {
+      $('#forgot-code').value = '';
+      S.openDialog($('#forgot-dialog'));
+      setTimeout(() => $('#forgot-code').focus(), 120);
+    });
+    const forgotConfirm = $('#forgot-confirm');
+    if (forgotConfirm) forgotConfirm.addEventListener('click', applyPasswordReset);
     $('#reset-link').addEventListener('click', () => S.openDialog($('#reset-dialog')));
     $('#reset-confirm').addEventListener('click', confirmReset);
     window.addEventListener('blur', () => {
