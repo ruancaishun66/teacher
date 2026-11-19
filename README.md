@@ -338,6 +338,9 @@ git status
 | `wechat-qr.png` | 微信二维码原图（已内嵌进主页） |
 | `homepage-qr.png` | 指向线上主页的二维码，1200×1200，适合分享 |
 | `homepage-qr.svg` | 同一二维码的矢量版，适合印刷放大 |
+| `student-qr-card.png` | 带“顺势·学生端”标题的二维码卡片，1200×1200，可直接发微信给学生；指向 `student.html` |
+| `student-qr.png` | 学生端纯二维码，1470×1470，适合放进海报或自己排版 |
+| `student-qr.svg` | 学生端二维码矢量版，印刷放大不糊 |
 
 ## 注意事项
 
