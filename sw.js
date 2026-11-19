@@ -1,5 +1,5 @@
 /* 顺势 · 离线缓存：联网时永远取最新，断网时用上次看过的版本。 */
-const CACHE = 'shunshi-pwa-v9';
+const CACHE = 'shunshi-pwa-v10';
 const CORE = [
   './',
   './index.html',
@@ -21,17 +21,22 @@ const CORE = [
   './grammar-advanced.js',
   './pwa.js',
   './guide/img/add-student.webp',
+  './guide/img/ai-ledger.png',
   './guide/img/ai-settings.webp',
+  './guide/img/book-scheduler.png',
+  './guide/img/daily-board.png',
   './guide/img/backup.webp',
   './guide/img/grammar-student.webp',
   './guide/img/grammar-teacher.webp',
   './guide/img/home.webp',
   './guide/img/library.webp',
+  './guide/img/pets-seven.png',
   './guide/img/report-import.webp',
   './guide/img/student-pet.webp',
   './guide/img/teacher-overview.webp',
   './guide/img/teacher-students.webp',
   './guide/img/word-codes.webp',
+  './guide/img/word-context.png',
   './guide/img/word-dialog.webp',
   './guide/img/word-runner.webp',
   './logo.svg',
