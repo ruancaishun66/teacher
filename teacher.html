@@ -24,6 +24,7 @@
       </span>
     </a>
     <div class="p-header-actions" id="teacher-user" hidden>
+      <a class="p-btn small ghost" href="guide.html" target="_blank" rel="noopener">使用指南 ↗</a>
       <button class="p-btn small ghost" type="button" id="nav-assign">布置任务</button>
       <button class="p-btn small ghost" type="button" id="nav-import">导入汇报</button>
       <div class="p-user">
@@ -87,6 +88,7 @@
           <button class="p-btn ghost" type="button" id="hero-assign">布置练习任务</button>
           <button class="p-btn ghost" type="button" id="hero-import">导入学生汇报</button>
           <button class="p-btn ghost" type="button" id="hero-add">添加学生</button>
+          <a class="p-btn ghost" href="guide.html" target="_blank" rel="noopener">使用指南 ↗</a>
           <a class="p-btn ghost" href="library.html" id="hero-library">组卷工作台 ↗</a>
         </div>
       </div>
@@ -277,6 +279,23 @@
           <button class="p-btn small danger" type="button" id="teacher-clear">清空教师端数据</button>
         </section>
         <section class="p-card p-col-12">
+          <div class="p-card-head">
+            <h2 class="p-card-title">AI 直连 <small>DEEPSEEK · 可选</small></h2>
+            <span class="confidence-chip" id="ai-key-state">未配置</span>
+          </div>
+          <p class="hint" style="text-align:left;margin-top:0;">用于“认知画像”里的一键分析。只有你点按钮时才会调用，按量计费；Key 只保存在这台电脑的浏览器里，不进入备份码，也不会写进网页源码。不配置也完全不影响其他功能，原来的“复制提示词”仍然免费可用。</p>
+          <div class="field">
+            <label for="ai-key-input">DeepSeek API Key</label>
+            <input class="input" id="ai-key-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-... 只存本机">
+          </div>
+          <div class="backup-actions">
+            <button class="p-btn small" type="button" id="ai-key-save">保存 Key</button>
+            <button class="p-btn small ghost" type="button" id="ai-key-test">测试连接（不消耗）</button>
+            <button class="p-btn small ghost" type="button" id="ai-key-clear">清除 Key</button>
+          </div>
+          <p class="hint" style="text-align:left;margin-bottom:0;" id="ai-usage">累计使用 0 tokens · 0 次</p>
+        </section>
+        <section class="p-card p-col-12">
           <div class="p-card-head"><h2 class="p-card-title">这个平台怎么运转 <small>HOW IT WORKS</small></h2></div>
           <div class="flow-grid">
             <div><b>01</b><strong>工作台组卷</strong><p>在教师工作台导入资料、生成练习卷，并点“保存到资料库”。</p></div>
@@ -329,13 +348,15 @@
           </div>
           <div class="profile-text" id="profile-text">还没有收到这个学生的汇报码。先导入汇报，画像才会开始生成。</div>
           <div class="ai-box">
-            <h4>免费智能体辅助分析</h4>
-            <p class="hint" style="margin:0 0 8px;text-align:left;">复制提示词，粘贴到豆包 / DeepSeek / 通义等免费智能体；把回复粘贴回来保存。提示词已隐去学生姓名，带上本机规则画像与答题证据，不含试卷原文；教师备注如含姓名，粘贴前请自行替换。</p>
+            <h4>AI 辅助分析（可选）</h4>
+            <p class="hint" style="margin:0 0 8px;text-align:left;">两种用法：① 点“一键分析”，用“设置 → AI 直连”里保存的 Key 直接生成，按量计费；② 点“复制分析提示词”，粘贴到豆包 / DeepSeek 免费网页版，再把回复粘回来。两种都只在你点按钮时发生，提示词已隐去学生姓名，不含试卷原文。</p>
             <div class="backup-actions">
+              <button class="p-btn small ghost" type="button" id="run-ai-prompt">一键分析（消耗少量额度）</button>
               <button class="p-btn small ghost" type="button" id="copy-ai-prompt">复制分析提示词</button>
               <button class="p-btn small ghost" type="button" id="save-ai-result">保存 AI 分析</button>
             </div>
-            <textarea class="textarea" id="ai-result" rows="7" placeholder="把智能体的分析粘贴到这里，再点“保存 AI 分析”。" style="margin-top:10px;"></textarea>
+            <p class="hint" id="ai-call-note" style="text-align:left;margin:8px 0 0;"></p>
+            <textarea class="textarea" id="ai-result" rows="7" placeholder="点“一键分析”自动填入，或把免费智能体的回复粘贴到这里，再点“保存 AI 分析”。" style="margin-top:10px;"></textarea>
           </div>
         </section>
       </div>

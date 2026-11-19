@@ -239,6 +239,168 @@
     S.toast('已退出，档案还留在这台设备上。');
   }
 
+  /* ------------------------------- 学习伙伴：小潮獭 ------------------------------- */
+
+  const PET_STAGES = [
+    { stage: 1, name: '幼獭', min: 0, next: 300, body: '#8fc4bb', ear: '#6fa79f', belly: '#f7ecd6', accent: '#e8b56b', desc: '刚学会在水面打滚的小家伙。' },
+    { stage: 2, name: '潮獭', min: 300, next: 900, body: '#7fbbb3', ear: '#5f9d95', belly: '#f9efd9', accent: '#e0946c', desc: '会跟着潮水一起呼吸，眼睛亮亮的。' },
+    { stage: 3, name: '灵獭', min: 900, next: 2000, body: '#74c3b4', ear: '#58a596', belly: '#fbf2de', accent: '#e8b56b', desc: '身上浮着一层薄薄的潮光，能听懂更多单词。' },
+    { stage: 4, name: '海灵獭', min: 2000, next: null, body: '#8ed9c9', ear: '#64b8a6', belly: '#fff7e5', accent: '#f0c987', desc: '把整片海的知识都收进贝壳里的伙伴。' }
+  ];
+
+  function petStageOf(xp) {
+    const value = Math.max(0, Number(xp) || 0);
+    let info = PET_STAGES[0];
+    PET_STAGES.forEach((item) => { if (value >= item.min) info = item; });
+    return info;
+  }
+
+  function ensurePet(profileObj) {
+    const p = profileObj;
+    if (!p.pet || typeof p.pet !== 'object') {
+      const doneWords = (data && Array.isArray(data.tasks) ? data.tasks : [])
+        .filter((task) => task.mode === 'words' && task.status === 'done');
+      const seed = Math.round(doneWords.reduce((sum, task) => sum + (Number(task.xpEarned) || 0), 0) * 0.6);
+      p.pet = { xp: seed, snacks: 0, fed: 0, lastFed: '', lastEvolvedStage: petStageOf(seed).stage };
+    }
+    const pet = p.pet;
+    pet.xp = Math.max(0, Math.round(Number(pet.xp) || 0));
+    pet.snacks = Math.max(0, Math.round(Number(pet.snacks) || 0));
+    pet.fed = Math.max(0, Math.round(Number(pet.fed) || 0));
+    pet.lastFed = String(pet.lastFed || '');
+    pet.lastEvolvedStage = Math.max(1, Math.round(Number(pet.lastEvolvedStage) || 1));
+    return pet;
+  }
+
+  function petSVG(stage) {
+    const s = Math.max(1, Math.min(PET_STAGES.length, Number(stage) || 1));
+    const p = PET_STAGES[s - 1];
+    const aura = s >= 4
+      ? `<g class="pet-aura"><circle cx="130" cy="118" r="96" fill="none" stroke="${p.accent}" stroke-opacity=".22" stroke-width="8"/><circle cx="130" cy="118" r="78" fill="none" stroke="${p.accent}" stroke-opacity=".14" stroke-width="2"/></g>`
+      : '';
+    const blush = s >= 2
+      ? `<ellipse cx="104" cy="102" rx="5" ry="2.6" fill="#e98f78" opacity=".38"/><ellipse cx="156" cy="102" rx="5" ry="2.6" fill="#e98f78" opacity=".38"/>`
+      : '';
+    const leaf = s === 2
+      ? `<g class="pet-leaf"><path d="M130 50c0-9 3-16 8-21" fill="none" stroke="#6fa77a" stroke-width="2.4" stroke-linecap="round"/><path d="M136 38c8-8 15-8 20-4-4 8-12 11-20 8Z" fill="#83b97f"/><path d="M133 44c-7-6-13-5-17-1 4 7 10 9 17 6Z" fill="#9ccb8f"/></g>`
+      : '';
+    const scarf = s >= 3
+      ? `<g class="pet-scarf"><path d="M96 108c10 7 21 10 34 10s24-3 34-10" fill="none" stroke="#dd7a5e" stroke-width="9" stroke-linecap="round"/><path d="M158 112c9 6 13 15 11 26-7-7-14-9-21-8Z" fill="#dd7a5e"/><path d="M164 120l4 6" stroke="#f3c39c" stroke-width="1.6" stroke-linecap="round"/></g>`
+      : '';
+    const crown = s >= 4
+      ? `<g class="pet-crown"><path d="M104 64c9-5 43-5 52 0" fill="none" stroke="#f0c987" stroke-width="3" stroke-linecap="round"/><path d="M130 54l4 7-4 7-4-7Z" fill="#f6d99a" stroke="#d5a75b" stroke-width="1"/><path d="M106 62l-2-6m50 6 2-6" stroke="#f0c987" stroke-width="2" stroke-linecap="round"/></g>`
+      : '';
+    return `<svg class="pet-svg pet-stage-${s}" viewBox="0 0 260 210" role="img" aria-label="小潮獭 · ${p.name}">` +
+      aura +
+      `<g class="pet-water"><ellipse cx="130" cy="184" rx="94" ry="12" fill="#7fd0c7" opacity=".16"/><path d="M36 184c15-6 30-6 45 0s30 6 45 0 30-6 45 0 30 6 45 0" fill="none" stroke="#4fa8b3" stroke-opacity=".3" stroke-width="1.8" stroke-linecap="round"/></g>` +
+      `<g class="pet-bubbles"><circle class="pet-bubble b1" cx="54" cy="100" r="3.4" fill="#8fd3cf" opacity=".55"/><circle class="pet-bubble b2" cx="194" cy="76" r="4.4" fill="#8fd3cf" opacity=".45"/><circle class="pet-bubble b3" cx="206" cy="124" r="2.6" fill="#8fd3cf" opacity=".5"/></g>` +
+      `<g class="pet-body-group">` +
+        `<path class="pet-tail" d="M78 150c-22 5-41-3-52-19 17 6 33 6 47 2Z" fill="${p.ear}"/>` +
+        `<ellipse cx="130" cy="140" rx="60" ry="38" fill="${p.body}"/>` +
+        `<ellipse cx="130" cy="146" rx="42" ry="27" fill="${p.belly}"/>` +
+        `<circle cx="100" cy="56" r="11" fill="${p.ear}"/><circle cx="160" cy="56" r="11" fill="${p.ear}"/>` +
+        `<circle cx="100" cy="56" r="5" fill="#e8b39a" opacity=".8"/><circle cx="160" cy="56" r="5" fill="#e8b39a" opacity=".8"/>` +
+        `<circle cx="130" cy="88" r="40" fill="${p.body}"/>` +
+        `<ellipse cx="130" cy="101" rx="23" ry="17" fill="${p.belly}"/>` +
+        blush +
+        `<ellipse class="pet-eye left" cx="116" cy="85" rx="4.4" ry="5.4" fill="#23484f"/>` +
+        `<ellipse class="pet-eye right" cx="144" cy="85" rx="4.4" ry="5.4" fill="#23484f"/>` +
+        `<circle cx="117.5" cy="83" r="1.5" fill="#fff" opacity=".9"/><circle cx="145.5" cy="83" r="1.5" fill="#fff" opacity=".9"/>` +
+        `<path d="M126 95h8l-4 4Z" fill="#3c5b5e"/>` +
+        `<path d="M130 99v3m0 0c-2.5 2.5-6 2.5-8 0m8 0c2.5 2.5 6 2.5 8 0" fill="none" stroke="#3c5b5e" stroke-width="1.4" stroke-linecap="round"/>` +
+        `<path d="M108 96 94 94m14 7-14 4m58-9 14-2m-14 7 14 4" stroke="#5b7d7c" stroke-width="1" stroke-linecap="round" opacity=".65"/>` +
+        `<ellipse cx="106" cy="140" rx="10" ry="7.4" fill="${p.ear}" transform="rotate(-14 106 140)"/>` +
+        `<ellipse cx="154" cy="140" rx="10" ry="7.4" fill="${p.ear}" transform="rotate(14 154 140)"/>` +
+        `<path d="M130 124c-11 0-19 7-19 14 0 6 9 10 19 10s19-4 19-10c0-7-8-14-19-14Z" fill="${p.accent}"/>` +
+        `<path d="M130 126v20m0-20-8 7m8-7 8 7m-8-7-4 9m4-9 4 9" fill="none" stroke="#b98345" stroke-width="1" opacity=".65"/>` +
+        leaf + scarf + crown +
+      `</g>` +
+    `</svg>`;
+  }
+
+  function addPetXp(amount) {
+    const pet = ensurePet(profile());
+    const before = petStageOf(pet.xp).stage;
+    pet.xp = Math.max(0, Math.round(pet.xp + Number(amount || 0)));
+    const info = petStageOf(pet.xp);
+    const evolved = info.stage > before;
+    if (evolved) {
+      pet.lastEvolvedStage = info.stage;
+      const scene = $('#pet-scene');
+      if (scene) {
+        scene.classList.add('is-evolve');
+        setTimeout(() => scene.classList.remove('is-evolve'), 1800);
+      }
+      S.toast(`小潮獭进化成「${info.name}」了！`, 'ok', 6000);
+    }
+    save();
+    return evolved;
+  }
+
+  function renderPet() {
+    const p = profile();
+    const scene = $('#pet-scene');
+    if (!p || !scene) return;
+    const pet = ensurePet(p);
+    const info = petStageOf(pet.xp);
+    scene.innerHTML = petSVG(info.stage);
+    $('#pet-name').textContent = '小潮獭';
+    $('#pet-stage-name').textContent = info.name;
+    $('#pet-desc').textContent = info.desc;
+    const span = info.next ? info.next - info.min : 0;
+    const ratio = info.next ? Math.min(1, Math.max(0, (pet.xp - info.min) / span)) : 1;
+    $('#pet-growth-fill').style.width = `${Math.round(ratio * 100)}%`;
+    $('#pet-growth').setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
+    $('#pet-growth-text').textContent = info.next
+      ? `成长值 ${pet.xp} / ${info.next}`
+      : `成长值 ${pet.xp} · 已到最高形态`;
+    $('#pet-snack-count').textContent = `×${pet.snacks}`;
+    $('#pet-feed-btn').disabled = pet.snacks <= 0;
+
+    const today = S.todayIso();
+    let mood = '去单词打卡里赚点小鱼干吧。';
+    if (pet.lastFed === today) mood = '今天吃得饱饱的，满足地打着滚。';
+    else if (pet.snacks > 0) mood = `有 ${pet.snacks} 条小鱼干，喂我一条吧。`;
+    else if (p.checkins.includes(today)) mood = '今天一起学习过，我很开心。';
+    $('#pet-mood').textContent = mood;
+
+    const wordTasks = data.tasks.filter((task) => task.mode === 'words' && task.status === 'done');
+    const words = wordTasks.reduce((sum, task) => sum + (task.wordStats || []).length, 0);
+    $('#pet-stats').innerHTML =
+      `<span><b>${pet.xp}</b>累计成长</span>` +
+      `<span><b>${words}</b>学过的词</span>` +
+      `<span><b>${p.checkins.length}</b>打卡天数</span>` +
+      `<span><b>${pet.fed}</b>喂食次数</span>`;
+
+    if (info.stage > (pet.lastEvolvedStage || 1)) {
+      pet.lastEvolvedStage = info.stage;
+      save();
+      scene.classList.add('is-evolve');
+      setTimeout(() => scene.classList.remove('is-evolve'), 1800);
+      S.toast(`小潮獭进化成「${info.name}」了！`, 'ok', 6000);
+    }
+  }
+
+  function feedPet() {
+    const pet = ensurePet(profile());
+    if (pet.snacks <= 0) {
+      S.toast('还没有小鱼干。完成一次单词打卡就能获得。', 'error');
+      return;
+    }
+    pet.snacks -= 1;
+    pet.fed += 1;
+    pet.lastFed = S.todayIso();
+    addPetXp(8);
+    save();
+    renderPet();
+    const scene = $('#pet-scene');
+    if (scene) {
+      scene.classList.add('is-happy');
+      setTimeout(() => scene.classList.remove('is-happy'), 900);
+    }
+    S.toast('小潮獭吃得很开心，成长 +8。', 'ok');
+  }
+
   /* ------------------------------- 首页渲染 ------------------------------- */
 
   function renderAll() {
@@ -246,6 +408,7 @@
     renderHeader();
     renderLevel();
     renderCheckin();
+    renderPet();
     renderAttrs();
     renderTasks();
     renderBadges();
@@ -728,6 +891,7 @@
     const words = task.words || [];
     const total = words.length;
     const done = task.status === 'done';
+    const petInfo = petStageOf(ensurePet(profile()).xp);
     $('#runner-title').textContent = task.title || '单词打卡';
     $('#runner-sub').textContent = done
       ? `${task.title || '单词打卡'} · 已完成`
@@ -738,7 +902,10 @@
       $('#submit-task').hidden = true;
       $('#runner-count').textContent = '已完成';
       $('#runner-fill').style.width = '100%';
-      $('#runner-body').innerHTML = resultHero(task) + `<div class="word-run">${wordResultTable(task, run)}</div>`;
+      const petDone = task.petGain
+        ? `<div class="word-summary-pet"><div class="word-summary-pet-art">${petSVG(petInfo.stage)}</div><div><b>这一轮小潮獭也吃饱了</b><span>成长 +${task.petGain} · 小鱼干 +${task.petSnacks || 0}</span></div></div>`
+        : '';
+      $('#runner-body').innerHTML = resultHero(task) + `<div class="word-run">${petDone}${wordResultTable(task, run)}</div>`;
       $('#runner-body').onclick = null;
       $('#runner-body').onchange = null;
       $('#runner-body').oninput = null;
@@ -765,6 +932,10 @@
             `<div><b>${firstCorrect} / ${total}</b><span>一次答对</span></div>` +
             `<div><b>x${run.maxCombo || 0}</b><span>最高连击</span></div>` +
             `<div><b>+${xp}</b><span>预计 EXP</span></div>` +
+          `</div>` +
+          `<div class="word-summary-pet">` +
+            `<div class="word-summary-pet-art">${petSVG(petInfo.stage)}</div>` +
+            `<div><b>小潮獭陪你完成了这一轮</b><span>成长 +${task.petGain || 0} · 小鱼干 +${task.petSnacks || 0}</span></div>` +
           `</div>` +
           (wrong.length
             ? `<p class="word-summary-wrong">错词 ${wrong.length} 个，重练答对 ${reviewRight} 个：${wrong.map((word) => `<span class="word-wrong-chip">${S.escapeHtml(word.w)}</span>`).join('')}</p>`
@@ -837,6 +1008,11 @@
       `<div class="word-options" id="word-options">` +
         options.map((option) => `<button class="word-option" type="button" data-word-option="${S.escapeHtml(option)}">${S.escapeHtml(option)}</button>`).join('') +
       `</div>` +
+      `<div class="word-pet-row" id="word-pet-row">` +
+        `<div class="word-pet" id="word-pet">${petSVG(petInfo.stage)}</div>` +
+        `<div class="word-pet-copy"><b>小潮獭 · ${petInfo.name}</b><span id="word-pet-say">答对一题，就喂我 2 点成长。</span></div>` +
+        `<span class="word-pet-gain" id="word-pet-gain" aria-live="polite"></span>` +
+      `</div>` +
       `<div class="word-feedback" id="word-feedback" hidden></div>` +
       `<p class="word-review-note">${isReview ? '这次答对会记为“已订正”，但得分仍按第一次作答计算。' : '选错会自动进入最后的错词回炉，不影响你继续闯关。'}</p>` +
     `</div>`;
@@ -877,6 +1053,18 @@
       else if (button !== option) button.classList.add('dim');
     });
     if (!ok) option.classList.add('wrong');
+
+    /* 每答对一个词，当场喂小潮獭 2 点成长 */
+    if (ok) addPetXp(2);
+    const petEl = $('#word-pet');
+    if (petEl) petEl.classList.add(ok ? 'is-happy' : 'is-sad');
+    const petSay = $('#word-pet-say');
+    if (petSay) petSay.textContent = ok ? '好吃！再答对一个。' : '没关系，我陪你再看一遍。';
+    const petGainEl = $('#word-pet-gain');
+    if (petGainEl) {
+      petGainEl.textContent = ok ? '+2 成长' : '';
+      petGainEl.classList.toggle('show', ok);
+    }
 
     if (context.isReview) {
       run.reviewResults[context.index] = { ok, answer: picked };
@@ -941,6 +1129,8 @@
     const accuracy = total ? firstCorrect / total : 0;
     const score = Math.round(accuracy * 100);
     const xpEarned = wordXp(task, run);
+    const petGain = Math.max(8, Math.round(xpEarned * 0.6));
+    const petSnacks = Math.max(1, Math.round(total / 5)) + (accuracy >= 0.9 ? 1 : 0);
     const wordStats = words.map((word, index) => ({
       w: word.w,
       zh: word.zh || '',
@@ -967,6 +1157,8 @@
     task.total = total;
     task.ungraded = 0;
     task.xpEarned = xpEarned;
+    task.petGain = petGain;
+    task.petSnacks = petSnacks;
     task.wordStats = wordStats;
     task.blockStats = [{ type: 'vocab', label: '单词打卡', total, correct: firstCorrect }];
     task.review = review;
@@ -975,6 +1167,9 @@
     profile().attrs = profile().attrs || S.emptyAttrs();
     S.applyAttrResult(profile().attrs, 'vocab', firstCorrect, total);
     addXp(xpEarned);
+    const pet = ensurePet(profile());
+    pet.snacks += petSnacks;
+    addPetXp(petGain);
     save();
     renderAll();
     renderRunner(task);
@@ -1293,6 +1488,7 @@
       if (window.confirm('退出后需要密码才能再进入，确定吗？')) logout();
     });
     $('#checkin-btn').addEventListener('click', doCheckin);
+    $('#pet-feed-btn').addEventListener('click', feedPet);
     $('#import-task-btn').addEventListener('click', () => {
       $('#import-code').value = '';
       S.openDialog($('#import-dialog'));

@@ -1,11 +1,12 @@
 /* 顺势 · 离线缓存：联网时永远取最新，断网时用上次看过的版本。 */
-const CACHE = 'shunshi-pwa-v3';
+const CACHE = 'shunshi-pwa-v4';
 const CORE = [
   './',
   './index.html',
   './student.html',
   './teacher.html',
   './library.html',
+  './guide.html',
   './portal.css',
   './portal.js',
   './student.js',
@@ -14,6 +15,18 @@ const CORE = [
   './library.js',
   './insights.js',
   './insights-core.js',
+  './guide.css',
+  './pwa.js',
+  './guide/img/add-student.webp',
+  './guide/img/ai-settings.webp',
+  './guide/img/backup.webp',
+  './guide/img/report-import.webp',
+  './guide/img/student-pet.webp',
+  './guide/img/teacher-overview.webp',
+  './guide/img/teacher-students.webp',
+  './guide/img/word-codes.webp',
+  './guide/img/word-dialog.webp',
+  './guide/img/word-runner.webp',
   './logo.svg',
   './manifest.webmanifest',
   './icon-192.png',
@@ -54,7 +67,7 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(request).then((hit) => {
+      .catch(() => caches.match(request, { ignoreSearch: true }).then((hit) => {
         if (hit) return hit;
         if (request.mode === 'navigate') return caches.match('./index.html');
         return Response.error();

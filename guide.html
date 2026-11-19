@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>顺势 · 教师使用指南</title>
+  <meta name="description" content="顺势教师端图文使用指南：建学生、发单词打卡、看宠物成长、导入汇报、AI 分析与 U 盘备份。">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="portal.css?v=20261119a">
+  <link rel="stylesheet" href="guide.css?v=20261119h">
+  <script src="pwa.js" defer></script>
+</head>
+<body class="guide-page">
+  <a class="guide-skip" href="#main">跳到正文</a>
+
+  <header class="guide-bar">
+    <div class="guide-bar-inner">
+      <a class="guide-brand" href="index.html">
+        <img src="logo.svg?v=20261118c" alt="">
+        <span>
+          <b>顺势 · 使用指南</b>
+          <span>TEACHER HANDBOOK</span>
+        </span>
+      </a>
+      <div class="guide-bar-actions">
+        <a class="p-btn small ghost" href="teacher.html">返回教师端</a>
+        <button class="p-btn small ghost" type="button" onclick="window.print()">打印 / 存为 PDF</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="guide-shell" id="main">
+    <section class="guide-hero">
+      <div>
+        <p class="guide-eyebrow">TEACHER HANDBOOK · 2026</p>
+        <h1>把一节课，<br><em>变成一条看得见的成长线。</em></h1>
+        <p class="guide-lead">这是一份给独立教师的使用说明。照着截图点一遍：建学生、发单词、看小潮獭慢慢长大、收回汇报，再把数据备份到“顺势ENGLISH”U 盘。</p>
+        <div class="guide-hero-actions">
+          <a class="p-btn" href="#start">从第一步开始</a>
+          <a class="p-btn ghost" href="#faq">遇到问题？</a>
+        </div>
+        <ul class="guide-facts">
+          <li><b>8</b>章图文</li>
+          <li><b>约 10</b>分钟看完</li>
+          <li><b>本机</b>保存数据</li>
+        </ul>
+      </div>
+
+      <aside class="route-card" aria-label="一条完整的教学闭环">
+        <div class="route-card-head">
+          <span>一条完整的闭环</span>
+          <small>ONE LOOP</small>
+        </div>
+        <ol class="route-list">
+          <li><span class="route-num">01</span><div><b>老师发布</b><small>单词书 / 练习卷 → 一人一码</small></div></li>
+          <li><span class="route-num">02</span><div><b>学生打卡</b><small>四选一闯关，错词自动回炉</small></div></li>
+          <li><span class="route-num">03</span><div><b>宠物成长</b><small>答对、完成、喂食，慢慢进化</small></div></li>
+          <li><span class="route-num">04</span><div><b>汇报回流</b><small>学生交码，老师看画像</small></div></li>
+        </ol>
+        <p class="route-note">不用注册服务器，不用买数据库。数据只在这台电脑的浏览器里。</p>
+      </aside>
+    </section>
+
+    <nav class="guide-toc" aria-label="指南目录">
+      <a href="#start"><b>01</b><span>四个入口</span><small>先认清地图</small></a>
+      <a href="#students"><b>02</b><span>建学生</span><small>学号 + 密码 + 开通码</small></a>
+      <a href="#words"><b>03</b><span>发单词</span><small>单词书 → 任务码</small></a>
+      <a href="#checkin"><b>04</b><span>打卡养宠物</span><small>学生的闯关界面</small></a>
+      <a href="#reports"><b>05</b><span>收汇报</span><small>把学习痕迹收回来</small></a>
+      <a href="#ai"><b>06</b><span>AI 分析</span><small>可选，按量计费</small></a>
+      <a href="#backup"><b>07</b><span>备份到 U 盘</span><small>换电脑也不怕</small></a>
+      <a href="#faq"><b>08</b><span>常见问题</span><small>先查这里</small></a>
+    </nav>
+
+    <!-- 01 -->
+    <section class="guide-chapter" id="start">
+      <header class="chapter-head">
+        <span class="chapter-num">01</span>
+        <div>
+          <p class="chapter-kicker">GET ORIENTED</p>
+          <h2>先认清四个入口</h2>
+          <p>顺势不是四个孤立的网页，而是一条闭环。你只需要记住：在哪里发，在哪里看，学生在哪里做。</p>
+        </div>
+      </header>
+      <div class="chapter-body">
+        <div class="entry-grid">
+          <a class="entry" href="index.html">
+            <span class="entry-ico" aria-hidden="true">🌊</span>
+            <div><b>主页</b><p>展示窗口。家长、访客看介绍和公开的学习心得。</p><code>index.html</code></div>
+          </a>
+          <a class="entry" href="teacher.html">
+            <span class="entry-ico" aria-hidden="true">🗂️</span>
+            <div><b>教师端</b><p>你的办公桌。学生、任务、单词打卡、汇报、画像都在这里。</p><code>teacher.html</code></div>
+          </a>
+          <a class="entry" href="student.html">
+            <span class="entry-ico" aria-hidden="true">🦦</span>
+            <div><b>学生端</b><p>学生输入密码后打卡、答题、养小潮獭、生成汇报码。</p><code>student.html</code></div>
+          </a>
+          <a class="entry" href="library.html">
+            <span class="entry-ico" aria-hidden="true">📚</span>
+            <div><b>组卷工作台</b><p>把阅读、完形、试卷整理成练习卷；也能从文章里提取生词。</p><code>library.html</code></div>
+          </a>
+        </div>
+
+        <figure class="shot">
+          <div class="shot-frame">
+            <div class="shot-bar"><i></i><i></i><i></i><span>teacher.html · 教师端总览</span></div>
+            <img src="guide/img/teacher-overview.webp" alt="教师端总览：顶部有使用指南、布置任务、导入汇报；中间是学生概览和最近汇报" loading="lazy">
+          </div>
+          <figcaption><b>图 01</b>教师端总览。顶部的“使用指南”随时能回到这份说明；“发布单词打卡”“导入汇报”是最常用的两个入口。</figcaption>
+        </figure>
+
+        <div class="flow" aria-label="教学闭环示意">
+          <div class="flow-step"><span>STEP 01</span><b>老师发布</b><small>产生任务码</small></div>
+          <span class="flow-arrow" aria-hidden="true">→</span>
+          <div class="flow-step"><span>STEP 02</span><b>学生完成</b><small>答题 + 打卡</small></div>
+          <span class="flow-arrow" aria-hidden="true">→</span>
+          <div class="flow-step"><span>STEP 03</span><b>生成汇报码</b><small>把学习痕迹带走</small></div>
+          <span class="flow-arrow" aria-hidden="true">→</span>
+          <div class="flow-step"><span>STEP 04</span><b>老师导入</b><small>画像自动更新</small></div>
+        </div>
+
+        <div class="callout warn">
+          <p><b>先记住这条底线：</b>四个页面共用同一个浏览器的本地存储。换浏览器、清理浏览器数据、换电脑，都会看不到旧数据。所以每周做一次备份，备份文件放到 U 盘（见第 07 节）。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 02 -->
+    <section class="guide-chapter" id="students">
+      <header class="chapter-head">
+        <span class="chapter-num">02</span>
+        <div>
+          <p class="chapter-kicker">FIRST SETUP</p>
+          <h2>建第一个学生</h2>
+          <p>老师先建档案，学生才能用“学号 + 密码”进入。第一次使用教师端，系统会让你先设一个教师密码。</p>
+        </div>
+      </header>
+      <div class="chapter-body">
+        <ol class="steps">
+          <li><b>打开教师端，设教师密码。</b>第一次进入时填称呼和密码；密码用 6–16 位字母或数字。这个密码只给老师，学生不需要知道。</li>
+          <li><b>点“学生”→“＋ 添加学生”。</b>填姓名、年级、学号、初始密码。学号建议用 <code>S-1001</code> 这种格式；初始密码用 4–12 位字母或数字，发给学生本人。</li>
+          <li><b>保存后，点学生卡片 →“生成开通码”。</b>把 <b>开通码 + 学号 + 初始密码</b> 三样一起单独发给学生。学生第一次打开学生端时，粘贴开通码就能自动带入姓名和密码。</li>
+        </ol>
+
+        <figure class="shot">
+          <div class="shot-frame">
+            <div class="shot-bar"><i></i><i></i><i></i><span>teacher.html · 学生页</span></div>
+            <img src="guide/img/teacher-students.webp" alt="教师端学生页：右上角添加学生按钮，下面是学生卡片和任务数" loading="lazy">
+          </div>
+          <figcaption><b>图 02</b>学生页。右上角是“＋ 添加学生”；点学生卡片可以生成开通码、看任务和汇报。</figcaption>
+        </figure>
+
+        <figure class="shot">
+          <div class="shot-frame">
+            <div class="shot-bar"><i></i><i></i><i></i><span>teacher.html · 添加学生</span></div>
+            <img src="guide/img/add-student.webp" alt="教师端添加学生对话框：姓名、年级、学号、初始密码和头像选择" loading="lazy">
+          </div>
+          <figcaption><b>图 03</b>学号和初始密码由老师指定。学生第一次建档后，以后每次登录只用密码。</figcaption>
+        </figure>
+
+        <div class="callout warn">
+          <p><b>开通码和密码不要发班级群。</b>一个学生一份，单独发给本人或家长。密码是学生档案的钥匙，公开后别人也能导入他的任务。</p>
+        </div>
+
+        <div class="callout save">
+          <p><b>小技巧：</b>学号里不要写真实姓名，用 <code>S-1001</code>、<code>S-1002</code> 就行。这样截图、备份码里都不会出现学生全名。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 -->
+    <section class="guide-chapter" id="words">
+      <header class="chapter-head">
+        <span class="chapter-num">03</span>
+        <div>
+          <p class="chapter-kicker">ASSIGN WORDS</p>
+          <h2>发一次单词打卡</h2>
+          <p>这是最常用的一条路：把单词书粘进来，核对释义，勾选学生，生成一人一码。</p>
+        </div>
+      </header>
+      <div class="chapter-body">
+        <ol class="steps">
+          <li><b>教师端点“发布单词打卡”。</b>在总览页的红色按钮、顶部“布置任务”，或“单词打卡”页右上角都能进入。</li>
+          <li><b>填任务名和截止日期。</b>任务名写清楚，例如“Unit 3 核心词 · 第一轮”；截止日期可以留空。</li>
+          <li><b>粘贴单词书。</b>每行一个单词；也可以写 <code>abandon 放弃</code> 这样带中文。想从文章里提取生词，就切到“从资料库提取”，选一篇保存过的阅读。</li>
+          <li><b>点“生成预览”，核对音标和中文。</b>本机释义库有 4 万多词条，会自动补全；不想要的词点右边的 × 删掉。</li>
+          <li><b>勾选学生，设置完成经验。</b>默认 80 经验；一次发给多个学生也可以，系统会为每个人生成不同的任务码。</li>
+          <li><b>点“生成任务码”。</b>复制或“下载全部任务码”，把每个学生对应的那一份单独发给他。任务码很长是正常的，它是压缩后的整包单词，不要手动改。</li>
+        </ol>
+
+        <div class="shot-pair">
+          <figure class="shot">
+            <div class="shot-frame">
+              <div class="shot-bar"><i></i><i></i><i></i><span>发布单词打卡</span></div>
+              <img src="guide/img/word-dialog.webp" alt="发布单词打卡对话框：任务名称、截止日期、单词表和释义预览" loading="lazy">
+            </div>
+            <figcaption><b>图 04</b>粘贴单词 → 生成预览。预览里能直接看到音标和中文。</figcaption>
+          </figure>
+          <figure class="shot">
+            <div class="shot-frame">
+              <div class="shot-bar"><i></i><i></i><i></i><span>任务码</span></div>
+              <img src="guide/img/word-codes.webp" alt="任务码对话框：每个学生一份独立的任务码和复制按钮" loading="lazy">
+            </div>
+            <figcaption><b>图 05</b>一人一码。复制后单独发给对应学生，不要混用。</figcaption>
+          </figure>
+        </div>
+
+        <div class="callout">
+          <p><b>至少 4 个词才能生成选项。</b>词太少，四选一凑不齐干扰项。一次 6–20 个词比较适合日常打卡；太多可以拆成两轮。</p>
+        </div>
+
+        <div class="callout save">
+          <p><b>想从阅读里考生词？</b>先到组卷工作台把文章“保存到资料库”，再回单词打卡选“从资料库提取”。系统会跳过常见虚词，最多取 40 个。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 04 -->
+    <section class="guide-chapter" id="checkin">
+      <header class="chapter-head">
+        <span class="chapter-num">04</span>
+        <div>
+          <p class="chapter-kicker">STUDENT SIDE</p>
+          <h2>学生怎么打卡，小潮獭怎么长大</h2>
+          <p>学生端把单词做成四选一闯关。答对就喂宠物，答错自动回炉。学习行为变成看得见的成长值，不靠抽卡，也不排名。</p>
+        </div>
+      </header>
+      <div class="chapter-body">
+        <ol class="steps">
+          <li><b>学生打开学生端，输入密码。</b>第一次用老师发的开通码建档；以后直接输密码进入。</li>
+          <li><b>首页先看到“小潮獭”宠物卡。</b>再往下是任务列表；点任务卡开始这一轮。</li>
+          <li><b>英译中四选一。</b>答对一题，小潮獭立刻 +2 成长；答错会显示正确意思，这个词会自动进入最后的“错词回炉”。</li>
+          <li><b>做完点“提交任务”。</b>系统结算经验、成长值和小鱼干；正确率越高，小鱼干越多。</li>
+          <li><b>回首页点“生成汇报码”。</b>复制发给老师。老师导入后，才能看到这次打卡的完成情况和错词。</li>
+        </ol>
+
+        <div class="phone-row">
+          <figure class="phone-shot">
+            <div class="phone"><img src="guide/img/student-pet.webp" alt="学生端首页的小潮獭宠物卡，显示成长值 310/900、喂食按钮和四项统计" loading="lazy"></div>
+            <figcaption><b>小潮獭的家</b>成长值、学过的词、打卡天数、喂食次数，一眼看到。</figcaption>
+          </figure>
+          <figure class="phone-shot">
+            <div class="phone"><img src="guide/img/word-runner.webp" alt="学生端单词闯关界面：英文单词 abandon、四个中文选项，以及下方的小潮獭陪伴条" loading="lazy"></div>
+            <figcaption><b>单词闯关</b>答对一题，小潮獭就在下面陪你 +2 成长。</figcaption>
+          </figure>
+        </div>
+
+        <h3>四个成长阶段 <small>EVOLUTION</small></h3>
+        <div class="evo-line" aria-label="小潮獭的四个成长阶段">
+          <div class="evo"><span class="evo-dot" aria-hidden="true">🦦</span><b>幼獭</b><small>0 成长 · 初生</small></div>
+          <div class="evo"><span class="evo-dot" aria-hidden="true">🦦</span><b>潮獭</b><small>300 成长 · 叶子</small></div>
+          <div class="evo"><span class="evo-dot" aria-hidden="true">🦦</span><b>灵獭</b><small>900 成长 · 围巾</small></div>
+          <div class="evo"><span class="evo-dot" aria-hidden="true">🦦</span><b>海灵獭</b><small>2000 成长 · 潮光</small></div>
+        </div>
+
+        <h3>成长值和小鱼干从哪来 <small>REWARDS</small></h3>
+        <table class="guide-table">
+          <thead><tr><th>动作</th><th>成长值</th><th>小鱼干</th></tr></thead>
+          <tbody>
+            <tr><td>答对一题</td><td>+2</td><td>—</td></tr>
+            <tr><td>完成一轮单词打卡</td><td>+8 起（按本轮经验 × 60% 结算，保底 8）</td><td>每 5 个词 1 条，保底 1 条</td></tr>
+            <tr><td>正确率达到 90%</td><td>—</td><td>额外 +1 条</td></tr>
+            <tr><td>喂一条小鱼干</td><td>+8</td><td>−1 条</td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout">
+          <p><b>为什么完成一轮后成长值才跳一大截？</b>答题时的 +2 是“即时反馈”；完成奖励在点“提交任务”时结算。这样学生不会为了刷成长值乱点选项。</p>
+        </div>
+
+        <div class="callout save">
+          <p><b>宠物不是抽卡游戏。</b>没有付费、没有随机、没有排行榜。它只奖励三件事：答对、坚持完成、把错词重新练会。老师端不需要管理宠物，也不用发宠物奖励。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 05 -->
+    <section class="guide-chapter" id="reports">
+      <header class="chapter-head">
+        <span class="chapter-num">05</span>
+        <div>
+          <p class="chapter-kicker">REPORT BACK</p>
+          <h2>把学习痕迹收回来</h2>
+          <p>学生做完任务，生成一段汇报码。老师导入后，统计、五维雷达、认知画像和任务历史会自动更新。</p>
+        </div>
+      </header>
+      <div class="chapter-body">
+        <ol class="steps">
+          <li><b>学生发来汇报码。</b>在任务完成页或首页点“生成汇报码”，复制整段。</li>
+          <li><b>教师端点顶部“导入汇报”。</b>也可以到“汇报”页点“＋ 导入汇报”。</li>
+          <li><b>整段粘贴，点“校验并导入”。</b>系统会用这个学生的密码校验；不是他的码，导不进来。</li>
+          <li><b>打开学生卡片看结果。</b>“学习画像”看统计和雷达，“任务历史”看每次答题，“汇报记录”看成长曲线。</li>
+        </ol>
+
+        <figure class="shot">
+          <div class="shot-frame">
+            <div class="shot-bar"><i></i><i></i><i></i><span>teacher.html · 导入学生汇报</span></div>
+            <img src="guide/img/report-import.webp" alt="教师端导入学生汇报对话框，粘贴汇报码后点校验并导入" loading="lazy">
+          </div>
+          <figcaption><b>图 06</b>汇报码整段粘贴，不要只复制一半；导入成功后会提示更新了哪些内容。</figcaption>
+        </figure>
+
+        <div class="callout">
+          <p><b>汇报码也是学生的备份。</b>学生换手机时，用“恢复档案”粘贴最近的汇报码 + 原密码，就能把等级、徽章、错题找回来。所以每次做完任务，都建议生成一份。</p>
+        </div>
+
+        <div class="callout warn">
+          <p><b>一个学生的码只能给一个学生用。</b>汇报码里带学号和密码校验；把 A 的码导给 B，会提示密码不对。这样才能保证画像不被混在一起。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 06 -->
+    <section class="guide-chapter" id="ai">
+      <header class="chapter-head">
+        <span class="chapter-num">06</span>
+        <div>
+          <p class="chapter-kicker">OPTIONAL AI</p>
+          <h2>AI 分析：两条路线，按需选</h2>
+          <p>AI 只是辅助，不是必需品。不配置也完全不影响发任务、打卡、看画像。想省额度，就用免费路线；想省时间，再直连 DeepSeek。</p>
+        </div>
+      </header>
+      <div class="chapter-body">
+        <div class="route-split">
+          <div class="route-option free">
+            <span class="tag">免费路线</span>
+            <b>复制提示词，粘到免费智能体</b>
+            <p>学生详情 →“复制分析提示词”→ 打开豆包 / DeepSeek 网页版 → 粘贴发送 → 把回复粘回“AI 分析”框 → 保存。不花 API 额度，适合偶尔分析。</p>
+          </div>
+          <div class="route-option direct">
+            <span class="tag">直连路线</span>
+            <b>配置一次 Key，点按钮就出结果</b>
+            <p>设置 →“AI 直连”→ 粘贴 DeepSeek Key → 保存 → 学生详情 →“一键分析”。每次点击前都会确认，按量计费。</p>
+          </div>
+        </div>
+
+        <h3>配置直连 <small>SETUP</small></h3>
+        <ol class="steps">
+          <li><b>到“设置 → AI 直连”。</b>把 DeepSeek 的 API Key 粘贴进输入框，点“保存 Key”。Key 只保存在这台电脑的浏览器里。</li>
+          <li><b>点“测试连接（不消耗）”。</b>它只查模型列表，不产生生成费用；成功后会显示可用模型。</li>
+          <li><b>打开一个学生 →“一键分析”。</b>确认后才会发送匿名学习数据；结果会填进文本框。</li>
+          <li><b>核对内容，点“保存 AI 分析”。</b>不点保存，结果不会写进学生档案。</li>
+        </ol>
+
+        <figure class="shot">
+          <div class="shot-frame">
+            <div class="shot-bar"><i></i><i></i><i></i><span>teacher.html · 设置 · AI 直连</span></div>
+            <img src="guide/img/ai-settings.webp" alt="教师端设置页的 AI 直连卡片：API Key 输入、保存、测试连接、清除 Key 和累计用量" loading="lazy">
+          </div>
+          <figcaption><b>图 07</b>Key 输入框只显示尾号；累计用量会显示调用了多少次、花了多少 tokens。</figcaption>
+        </figure>
+
+        <h3>额度是怎么省的 <small>COST</small></h3>
+        <table class="guide-table">
+          <thead><tr><th>项目</th><th>当前做法</th></tr></thead>
+          <tbody>
+            <tr><td>单次实测</td><td>约 960 tokens（输入 562 / 输出 398），按 DeepSeek 账单计费</td></tr>
+            <tr><td>思考模式</td><td>已关闭，额度留给正文，不花在推理过程上</td></tr>
+            <tr><td>输出上限</td><td>700 tokens，提示词要求 550 字以内、只写四部分</td></tr>
+            <tr><td>输入范围</td><td>只带最近 6 个任务、8 道错题；学生姓名和备注里的姓名会隐去</td></tr>
+            <tr><td>调用时机</td><td>只有你点“一键分析”并确认后才调用；不会后台自动跑</td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout warn">
+          <p><b>Key 只存本机。</b>它不会进入教师备份码，也不会写进网页源码。不要把 Key 截图发群；如果怀疑泄露，去 DeepSeek 后台删除旧 Key，重新建一个，再回来保存。</p>
+        </div>
+
+        <div class="callout save">
+          <p><b>最省钱的用法：</b>平时用免费路线；只有赶时间、或需要批量看几个学生时，再用直连。一个学生一学期分析 2–3 次就够了，不需要每次打卡都分析。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 07 -->
+    <section class="guide-chapter" id="backup">
+      <header class="chapter-head">
+        <span class="chapter-num">07</span>
+        <div>
+          <p class="chapter-kicker">BACKUP &amp; USB</p>
+          <h2>备份到“顺势ENGLISH”U 盘</h2>
+          <p>浏览器数据会因清理缓存、换电脑而消失。每周花两分钟，把教师备份码下载到 U 盘，就能把整间教室带走。</p>
+        </div>
+      </header>
+      <div class="chapter-body">
+        <ol class="steps">
+          <li><b>教师端 →“设置”→“备份与恢复”。</b>点“教师端备份”，系统会生成一段备份码。</li>
+          <li><b>点“下载为文件”。</b>文件名类似 <code>顺势教师端备份-2026-11-19.txt</code>。这段代码包含学生、任务、汇报和设置。</li>
+          <li><b>把文件复制到 U 盘。</b>打开“此电脑”→ 名为 <b>顺势ENGLISH</b> 的 U 盘 → <code>顺势工作台</code> → <code>资料备份</code>。不要只放在桌面，桌面默认在 C 盘。</li>
+          <li><b>换电脑时恢复。</b>在新电脑打开教师端登录页 →“从备份恢复”→ 粘贴备份码 + 备份时的教师密码。</li>
+        </ol>
+
+        <figure class="shot">
+          <div class="shot-frame">
+            <div class="shot-bar"><i></i><i></i><i></i><span>teacher.html · 教师端备份码</span></div>
+            <img src="guide/img/backup.webp" alt="教师端备份码对话框：备份码文本框、下载为文件和复制备份码按钮" loading="lazy">
+          </div>
+          <figcaption><b>图 08</b>优先用“下载为文件”，比复制到聊天框更安全，也不容易漏字符。</figcaption>
+        </figure>
+
+        <h3>每周备份清单 <small>WEEKLY</small></h3>
+        <ul class="checklist">
+          <li>周五下课后，导出一次教师端备份码，下载为文件。</li>
+          <li>文件复制到 U 盘 <code>顺势工作台 / 资料备份</code>，按日期命名。</li>
+          <li>抽查一个学生：打开备份文件，确认能看到学生名单和最近任务。</li>
+          <li>换电脑、换浏览器、清理缓存之前，再备份一次。</li>
+          <li>学生端的汇报码也建议留存，尤其是换手机之前。</li>
+        </ul>
+
+        <div class="callout warn">
+          <p><b>备份码包含学生密码，是私密文件。</b>不要发到公开群、朋友圈或网盘公开链接。U 盘丢了，相当于学生档案丢了；建议给 U 盘贴个标签，放在固定位置。</p>
+        </div>
+
+        <div class="callout save">
+          <p><b>为什么放 U 盘？</b>这台电脑的 C 盘空间有限，系统盘塞满会卡顿。U 盘有 200 多 G，专门放备份、源码副本和下载资料，C 盘只留正在运行的网页。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 08 -->
+    <section class="guide-chapter" id="faq">
+      <header class="chapter-head">
+        <span class="chapter-num">08</span>
+        <div>
+          <p class="chapter-kicker">TROUBLESHOOTING</p>
+          <h2>常见问题</h2>
+          <p>先在这里找；找不到再去教师端“设置”里看平台说明。下面的答案都按“数据只在本机”这个前提写。</p>
+        </div>
+      </header>
+      <div class="chapter-body">
+        <div class="faq">
+          <details>
+            <summary>忘记教师密码了怎么办？</summary>
+            <p>用教师端登录页的“从备份恢复”，粘贴备份码，再输入<b>备份时的教师密码</b>。如果连备份和密码都没有，本机数据无法解密，只能重建控制台。建议把教师密码和备份文件分开保管，但都要在自己的 U 盘里。</p>
+          </details>
+          <details>
+            <summary>学生忘记密码了怎么办？</summary>
+            <p>教师端 → 学生 → 点学生卡片 →“编辑”，重设初始密码并保存。改密码后，之前发出去的任务码会失效，重新生成一份即可。学生本机如果还留着旧档案，需要用旧汇报码 + 旧密码恢复，或重设档案。</p>
+          </details>
+          <details>
+            <summary>任务码提示无效 / 打不开？</summary>
+            <p>先确认三件事：① 复制的是完整一整段，没有漏字符；② 这是发给这个学生的码，不是别人的；③ 学生输入的学号和密码与教师端一致。任务码很长是正常的，不要手动编辑。</p>
+          </details>
+          <details>
+            <summary>换手机或换电脑，数据还在吗？</summary>
+            <p>不在原来的浏览器里。教师端用“教师备份码”恢复；学生端用最近的“汇报码”+ 原密码恢复。网页本身不存云端，所以“备份”就是唯一的搬家方式。</p>
+          </details>
+          <details>
+            <summary>数据会上传到服务器吗？</summary>
+            <p>不会。学生、成绩、任务、备注都只保存在这台电脑的浏览器里。只有你主动点“一键分析”时，匿名的学习数据才会发送给 DeepSeek；不点就不发送。公开的学习心得是你手动选择发布的，和私人档案分开。</p>
+          </details>
+          <details>
+            <summary>家长能看到教师端吗？</summary>
+            <p>看不到。教师端需要教师密码；家长和学生只看学生端。学生端只显示自己的任务、等级、宠物和汇报码，不显示其他学生。</p>
+          </details>
+          <details>
+            <summary>宠物数据会丢吗？</summary>
+            <p>宠物成长值跟学生档案一起存在本机。清理浏览器数据会丢；学生换手机时，用汇报码恢复档案，宠物也会一起回来。教师端不需要单独备份宠物。</p>
+          </details>
+          <details>
+            <summary>能装到手机桌面吗？</summary>
+            <p>可以。用手机浏览器打开学生端，点浏览器菜单里的“添加到主屏幕”，就会像一个 App 一样出现。它仍然是网页，数据存在这台手机的浏览器里，换手机要恢复档案。</p>
+          </details>
+          <details>
+            <summary>为什么不做微信小程序？</summary>
+            <p>个人主体的小程序不能用 <code>web-view</code> 打开外部网页，也不能绑定未备案的域名。要上小程序，需要企业/组织主体、已备案的 HTTPS 域名和服务器，成本和维护都更高。现在的网页版可以先“添加到主屏幕”，体验接近 App。</p>
+          </details>
+          <details>
+            <summary>API Key 安全吗？会不会进备份？</summary>
+            <p>Key 只存在这台电脑浏览器的 <code>localStorage</code> 里，不写进网页源码，也不进入教师备份码。换电脑后需要重新粘贴一次。怀疑泄露时，去 DeepSeek 后台删除旧 Key，重建一个。</p>
+          </details>
+          <details>
+            <summary>一次 AI 分析大概花多少？</summary>
+            <p>当前实测约 960 tokens（输入 562 / 输出 398）。具体金额按 DeepSeek 当时的计费标准算；因为关闭了思考模式、限制了输出长度，已经比默认调用省很多。每次点击前都会弹确认，不会偷偷扣额度。</p>
+          </details>
+          <details>
+            <summary>截图里的学生是真的吗？</summary>
+            <p>不是。指南里的姓名、学号、分数都是演示数据，用来展示界面。真实学生信息只在你的教师端和备份文件里。</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <footer class="guide-foot">
+      <p><b>顺势 · 独立教师工作台</b>　·　教师使用指南　·　更新于 2026-11-19</p>
+      <p>截图中的学生为演示数据。私人档案只保存在本机；备份请放“顺势ENGLISH”U 盘。</p>
+      <p><a href="teacher.html">返回教师端</a>　·　<a href="student.html">打开学生端</a>　·　<a href="library.html">组卷工作台</a>　·　<a href="index.html">主页</a></p>
+    </footer>
+  </main>
+  <script>
+    (function () {
+      var restore = [];
+      window.addEventListener('beforeprint', function () {
+        restore = [];
+        document.querySelectorAll('.faq details').forEach(function (item) {
+          if (!item.open) restore.push(item);
+          item.open = true;
+        });
+      });
+      window.addEventListener('afterprint', function () {
+        restore.forEach(function (item) { item.open = false; });
+        restore = [];
+      });
+    })();
+  </script>
+</body>
+</html>

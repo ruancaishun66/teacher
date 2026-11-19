@@ -753,6 +753,7 @@
   function renderSettings() {
     const nameInput = $('#setting-teacher-name');
     if (nameInput && document.activeElement !== nameInput) nameInput.value = data.teacherName || '阮老师';
+    updateAiSettingsUI();
   }
 
   /* ------------------------------- 学习心得 ------------------------------- */
@@ -1898,7 +1899,7 @@
   }
 
   function aiPromptFor(student, profile) {
-    const taskLines = (profile.tasks || []).slice(-10).map((task) => ({
+    const taskLines = (profile.tasks || []).slice(-6).map((task) => ({
       title: task.title || '',
       score: task.score,
       correct: task.correct,
@@ -1907,19 +1908,19 @@
       submittedAt: task.submittedAt,
       avgDifficulty: task.avgDifficulty || null,
       blockStats: (task.blockStats || []).map((block) => ({ type: block.type, label: block.label, total: block.total, correct: block.correct })),
-      wordStats: (task.wordStats || []).map((word) => ({ w: word.w, zh: word.zh, ok: word.ok }))
+      wordStats: (task.wordStats || []).slice(-20).map((word) => ({ w: word.w, zh: word.zh, ok: word.ok }))
     }));
-    const wrongSamples = (profile.wrongReviews || []).slice(-12).map((review) => ({
+    const wrongSamples = (profile.wrongReviews || []).slice(-8).map((review) => ({
       number: review.n,
       type: review.type,
       userAnswer: review.userAnswer,
       correctAnswer: review.correctAnswer,
-      explanation: String(review.explanation || '').slice(0, 160)
+      explanation: String(review.explanation || '').slice(0, 120)
     }));
     const safeName = String(student.name || '').trim();
-    const maskedPlain = safeName
-      ? profile.plain.split(safeName).join('学生（姓名已隐去）')
-      : profile.plain;
+    const safeNote = safeName
+      ? String(student.note || '').split(safeName).join('学生')
+      : String(student.note || '');
     const payload = {
       student: {
         name: '学生（姓名已隐去）',
@@ -1931,41 +1932,29 @@
         avgScore: profile.avgScore,
         submitRate: profile.submitRate,
         reportDays: profile.reportDays,
-        teacherNote: student.note || ''
+        teacherNote: safeNote
       },
       attributes: profile.assessed.map((item) => ({ name: item.attr.name, score: item.value, attempts: Math.round(item.stat.t) })),
       style: profile.styleTitle,
       bloom: { label: profile.bloomLabel, highOrderRatio: profile.bloomHighRatio },
       errorPatterns: profile.reviewRows,
       tasks: taskLines,
-      wrongSamples,
-      localProfile: maskedPlain
+      wrongSamples
     };
     return [
-      '你是一位英语学习认知诊断与学习画像分析专家，服务对象是初高中一对一英语老师。请基于下面的学习数据，做一份可执行、不过度贴标签的学生画像。',
+      '你是英语学习诊断助手，服务初高中一对一英语老师。基于数据做一份简短、可执行、不贴标签的画像；证据不足处要明说。',
       '',
-      '【分析框架】',
-      '1. 认知诊断：区分知识（词汇、语法）、技能（阅读、写作、听说）与答题策略；用证据说话。',
-      '2. 布鲁姆认知层次：识别学生当前任务主要集中在识记、理解、应用、分析、评价、创造中的哪几层。',
-      '3. 自我调节学习：观察打卡连续性、任务提交率、用时与错误修正，判断计划、监控与坚持程度。',
-      '4. 最近发展区：指出“跳一跳够得着”的下一目标，给出难度与题量建议。',
-      '5. 形成性评价：把画像当作下一步教学的假设，不当作固定标签。',
+      '【输出要求】中文，总字数控制在 550 字以内，只写四部分：',
+      '1. 画像摘要（2–3 句，先结论后证据）',
+      '2. 强项、短板与错误模式（按题型归纳，不逐题复述）',
+      '3. 未来两周教学处方（任务类型、难度、题量、频次，3–5 条）',
+      '4. 给家长的话（不超过 80 字，客观、不制造焦虑）',
+      '不要写开场白，不要重复学生数据，不要建议上传学生隐私的平台。',
       '',
-      '【输出要求】',
-      '请用中文输出，分六部分：',
-      '一、画像摘要（3–4 句，先结论后证据）',
-      '二、认知结构（强项、短板、可能的知识缺口）',
-      '三、错误模式（按题型归纳，不逐题复述）',
-      '四、学习行为与自我调节（打卡、提交、用时、趋势）',
-      '五、风险与误判提醒（哪些结论证据不足）',
-      '六、未来两周教学处方（任务类型、难度、题量、频次、批改重点）',
-      '最后附一段“给家长的话”，不超过 120 字，客观、不制造焦虑。',
+      '【学生数据】姓名已隐去，称呼用“孩子”。',
+      JSON.stringify(payload),
       '',
-      '【学生数据】',
-      '学生姓名已隐去；如需称呼，请用“孩子”。教师备注如含真实姓名，请在粘贴前自行替换。',
-      JSON.stringify(payload, null, 2),
-      '',
-      '注意：数据来自学生本机记录，可能不完整；请明确标注推断与证据的边界。不要建议任何需要上传学生隐私的平台。'
+      '数据来自学生本机记录，可能不完整；请标注推断边界。'
     ].join('\n');
   }
 
@@ -2120,6 +2109,160 @@
     student.note = $('#student-notes').value;
     save();
     S.toast('教师备注已保存。', 'ok');
+  }
+
+  /* --------------------------- AI 直连（可选，省额度） --------------------------- */
+
+  const AI_STORAGE_KEY = 'shunshi.ai.v1';
+  const AI_ENDPOINT = 'https://api.deepseek.com/chat/completions';
+
+  function aiConfig() {
+    const raw = S.getJSON(AI_STORAGE_KEY, null) || {};
+    return {
+      key: String(raw.key || '').trim(),
+      model: 'deepseek-flash',
+      totalTokens: Math.max(0, Number(raw.totalTokens) || 0),
+      calls: Math.max(0, Number(raw.calls) || 0)
+    };
+  }
+
+  function saveAiConfig(cfg) {
+    S.setJSON(AI_STORAGE_KEY, cfg);
+  }
+
+  function updateAiSettingsUI() {
+    const cfg = aiConfig();
+    const state = $('#ai-key-state');
+    if (state) state.textContent = cfg.key ? '已配置' : '未配置';
+    const input = $('#ai-key-input');
+    if (input) {
+      input.value = '';
+      input.placeholder = cfg.key ? `已保存（尾号 ${cfg.key.slice(-4)}）` : 'sk-... 只存本机';
+    }
+    const usage = $('#ai-usage');
+    if (usage) usage.textContent = `累计使用 ${cfg.totalTokens} tokens · ${cfg.calls} 次`;
+  }
+
+  function saveAiKey() {
+    const input = $('#ai-key-input');
+    const key = input ? input.value.trim() : '';
+    if (!key) { S.toast('先粘贴 API Key。', 'error'); return; }
+    if (!/^sk-[A-Za-z0-9_-]{20,}$/.test(key)) { S.toast('Key 格式看起来不对，通常以 sk- 开头。', 'error'); return; }
+    const cfg = aiConfig();
+    cfg.key = key;
+    saveAiConfig(cfg);
+    updateAiSettingsUI();
+    S.toast('Key 已保存在这台电脑的浏览器里，不进入备份码，也不会写进网页源码。', 'ok', 6500);
+  }
+
+  function clearAiKey() {
+    if (!window.confirm('清除这台电脑上保存的 API Key？')) return;
+    const cfg = aiConfig();
+    cfg.key = '';
+    saveAiConfig(cfg);
+    updateAiSettingsUI();
+    S.toast('已清除 Key。');
+  }
+
+  async function testAiKey() {
+    const cfg = aiConfig();
+    if (!cfg.key) { S.toast('先保存 Key，再测试。', 'error'); return; }
+    const usage = $('#ai-usage');
+    if (usage) usage.textContent = '正在连接…';
+    try {
+      const response = await fetch('https://api.deepseek.com/models', {
+        headers: { Authorization: `Bearer ${cfg.key}` }
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const json = await response.json();
+      const models = (json.data || []).map((item) => item.id).join('、') || 'deepseek-flash';
+      updateAiSettingsUI();
+      if (usage) usage.textContent = `连接成功 · 可用：${models} · 累计 ${cfg.totalTokens} tokens`;
+      S.toast('连接成功。测试只查模型列表，不消耗额度。', 'ok', 5500);
+    } catch (error) {
+      updateAiSettingsUI();
+      S.toast(`连接失败：${error.message}`, 'error', 7000);
+    }
+  }
+
+  async function callDeepSeek(messages, maxTokens) {
+    const cfg = aiConfig();
+    if (!cfg.key) throw new Error('还没有配置 API Key，请到“设置 → AI 直连”粘贴并保存。');
+    const response = await fetch(AI_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cfg.key}`
+      },
+      body: JSON.stringify({
+        model: cfg.model,
+        messages,
+        temperature: 0.4,
+        max_tokens: maxTokens,
+        stream: false,
+        thinking: { type: 'disabled' }
+      })
+    });
+    if (!response.ok) {
+      let detail = '';
+      try {
+        const error = await response.json();
+        detail = (error.error && error.error.message) || '';
+      } catch (error) { /* ignore */ }
+      const hints = {
+        401: 'Key 无效或已失效',
+        402: '账户余额不足',
+        429: '调用太频繁，等一会儿再试',
+        500: 'DeepSeek 服务暂时不可用'
+      };
+      throw new Error(`${hints[response.status] || '调用失败'}（HTTP ${response.status}）${detail ? `：${detail}` : ''}`);
+    }
+    const json = await response.json();
+    const choice = (json.choices || [])[0] || {};
+    const text = String((choice.message && choice.message.content) || '').trim();
+    if (!text) throw new Error('这次没有返回内容，请再试一次。');
+    const usage = json.usage || {};
+    cfg.totalTokens += Number(usage.total_tokens) || 0;
+    cfg.calls += 1;
+    saveAiConfig(cfg);
+    updateAiSettingsUI();
+    return { text, usage, finishReason: choice.finish_reason || '' };
+  }
+
+  async function runAiAnalysis() {
+    const student = getStudent(detailStudentId);
+    if (!student) return;
+    const cfg = aiConfig();
+    if (!cfg.key) {
+      S.toast('还没有配置 API Key。到“设置 → AI 直连”粘贴保存即可。', 'error', 7000);
+      return;
+    }
+    if (student.aiAnalysis && !window.confirm('这个学生已有一份 AI 分析。重新生成会覆盖它，并消耗额度。继续吗？')) return;
+    const profile = buildProfile(student);
+    const prompt = aiPromptFor(student, profile);
+    if (!window.confirm(`这次会发送约 ${prompt.length} 字的匿名学习数据，预计消耗几百 tokens。只在你点确认后才会调用。继续吗？`)) return;
+    const button = $('#run-ai-prompt');
+    const note = $('#ai-call-note');
+    if (button) { button.disabled = true; button.textContent = '分析中…'; }
+    if (note) note.textContent = '正在请求 DeepSeek，通常几秒到十几秒。';
+    try {
+      const result = await callDeepSeek([
+        { role: 'system', content: '你是严谨的英语学习诊断助手。只基于提供的数据说话，保护学生隐私，不给学生贴固定标签。用中文分点回答。' },
+        { role: 'user', content: prompt }
+      ], 700);
+      $('#ai-result').value = result.text;
+      const inputTokens = Number(result.usage.prompt_tokens) || 0;
+      const outputTokens = Number(result.usage.completion_tokens) || 0;
+      const used = Number(result.usage.total_tokens) || (inputTokens + outputTokens);
+      const truncated = result.finishReason === 'length' ? ' · 内容达到上限，可再点一次生成更短版本' : '';
+      if (note) note.textContent = `本次 ${used} tokens（输入 ${inputTokens} / 输出 ${outputTokens}）${truncated}。确认内容无误后，点“保存 AI 分析”。`;
+      S.toast(`分析完成，本次 ${used} tokens。`, 'ok', 6000);
+    } catch (error) {
+      if (note) note.textContent = '';
+      S.toast(error.message || 'AI 调用失败。', 'error', 8500);
+    } finally {
+      if (button) { button.disabled = false; button.textContent = '一键分析（消耗少量额度）'; }
+    }
   }
 
   /* ------------------------------- 备份与恢复 ------------------------------- */
@@ -2414,6 +2557,14 @@
     $('#copy-ai-prompt').addEventListener('click', copyAiPrompt);
     $('#save-ai-result').addEventListener('click', saveAiResult);
     $('#save-notes').addEventListener('click', saveNotes);
+    const runAiBtn = $('#run-ai-prompt');
+    if (runAiBtn) runAiBtn.addEventListener('click', runAiAnalysis);
+    const saveKeyBtn = $('#ai-key-save');
+    if (saveKeyBtn) saveKeyBtn.addEventListener('click', saveAiKey);
+    const testKeyBtn = $('#ai-key-test');
+    if (testKeyBtn) testKeyBtn.addEventListener('click', testAiKey);
+    const clearKeyBtn = $('#ai-key-clear');
+    if (clearKeyBtn) clearKeyBtn.addEventListener('click', clearAiKey);
 
     $('#teacher-backup').addEventListener('click', openBackup);
     $('#backup-copy').addEventListener('click', async () => {

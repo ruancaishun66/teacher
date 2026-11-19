@@ -149,6 +149,24 @@
     </div>
 
     <div class="p-grid" style="margin-top:18px;">
+      <section class="p-card p-col-12 pet-card" id="pet-card">
+        <div class="pet-home">
+          <div class="pet-scene" id="pet-scene" aria-hidden="true"></div>
+          <div class="pet-home-copy">
+            <p class="pet-kicker">学习伙伴 · STUDY COMPANION</p>
+            <h2 class="pet-title"><span id="pet-name">小潮獭</span> <small id="pet-stage-name">幼獭</small></h2>
+            <p class="pet-desc" id="pet-desc">刚学会在水面打滚的小家伙。</p>
+            <div class="pet-growth" role="progressbar" aria-label="宠物成长值" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="pet-growth"><i id="pet-growth-fill"></i></div>
+            <p class="pet-growth-text" id="pet-growth-text">成长值 0 / 220</p>
+            <div class="pet-actions">
+              <button class="p-btn small" type="button" id="pet-feed-btn">喂一条小鱼干 <span id="pet-snack-count">×0</span></button>
+              <span class="pet-mood" id="pet-mood">去单词打卡里赚点小鱼干吧。</span>
+            </div>
+            <div class="pet-mini-stats" id="pet-stats"></div>
+          </div>
+        </div>
+      </section>
+
       <section class="p-card p-col-5">
         <div class="p-card-head">
           <h2 class="p-card-title">属性面板 <small>ATTRIBUTES</small></h2>
@@ -329,7 +347,7 @@
     <div class="p-dialog-head">
       <div>
         <h2>学生端怎么用</h2>
-        <p>照着下面 6 步做就行，不用背操作。</p>
+        <p>照着下面 7 步做就行，不用背操作。</p>
       </div>
       <button class="p-close" type="button" data-close aria-label="关闭">×</button>
     </div>
@@ -350,6 +368,10 @@
         <li>
           <b>做完题：提交并生成汇报码</b>
           <span>在任务里作答，点“提交任务”。再点“生成汇报码”，复制后发给阮老师，老师才能看到你的完成情况。</span>
+        </li>
+        <li>
+          <b>单词打卡：顺便养小潮獭</b>
+          <span>单词任务答对一题，小潮獭 +2 成长；完成一轮会掉小鱼干。回首页点“喂一条小鱼干”，它会慢慢进化：幼獭 → 潮獭 → 灵獭 → 海灵獭。不排名、不抽卡，只陪你积累。</span>
         </li>
         <li>
           <b>换手机或换浏览器：恢复档案</b>
