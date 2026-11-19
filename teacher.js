@@ -7,6 +7,7 @@
 
   const S = window.Shunshi;
   const IC = window.ShunshiInsightCore;
+  const G = window.ShunshiGrammar;
   const $ = S.$;
   const $$ = S.$$;
   const STORAGE_KEY = 'shunshi.teacher.v1';
@@ -64,6 +65,7 @@
   let planStudentIds = null;
   let planRequestStudentId = null;
   let trialRequestPayload = null;
+  let grammarStudentIds = null;
 
   /* ------------------------------- 存储 ------------------------------- */
 
@@ -585,6 +587,7 @@
     renderStudentGrid();
     renderAssignments();
     renderPlanList();
+    renderGrammarList();
     renderWords();
     if ($('#trial-students')) renderTrialTab();
     renderReportList();
@@ -984,6 +987,11 @@
     if (name === 'plan') {
       renderPlanTab();
       if (!planPapers.length) loadPlanPapers().then(() => renderPlanTab());
+    }
+    if (name === 'grammar') renderGrammarTab();
+    if (name === 'guide') {
+      const frame = $('#guide-frame');
+      if (frame && !frame.getAttribute('src')) frame.setAttribute('src', frame.dataset.src || 'guide.html?embed=1');
     }
     if (name === 'trial') renderTrialTab();
   }
@@ -1447,11 +1455,13 @@
       paperTitle: day.paperTitle || plan.title,
       planId: plan.id,
       planDay: day.day,
-      planTotal: 7,
+      planTotal: (plan.days || []).length || 7,
       planStart: plan.weekStart,
       planTitle: plan.title,
       planLevel: plan.level,
-      mode: day.kind === 'words' ? 'words' : '',
+      mode: day.kind === 'grammar' ? 'grammar' : day.kind === 'words' ? 'words' : '',
+      grammarDay: day.grammarDay || 0,
+      lesson: day.lesson || null,
       wordTotal: day.wordTotal || 0,
       words: day.words || [],
       pool: day.pool || [],
@@ -1478,7 +1488,7 @@
       teacherName,
       title: plan.title,
       planStart: plan.weekStart,
-      planTotal: 7,
+      planTotal: (plan.days || []).length || 7,
       level: plan.level,
       createdAt: plan.createdAt,
       auth,
@@ -1554,7 +1564,7 @@
   function renderPlanList() {
     const box = $('#plan-list');
     if (!box) return;
-    const list = (data.plans || []).slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    const list = (data.plans || []).filter((plan) => plan.kind !== 'grammar').slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     if (!list.length) {
       box.innerHTML = emptyState('还没有周计划', '选好材料和学生后，点“生成本周任务码”。');
       return;
@@ -1639,17 +1649,21 @@
     lastCodes = items;
     const title = $('#codes-title');
     const sub = $('#codes-sub');
-    if (title) title.textContent = '周计划码';
-    if (sub) sub.textContent = '一位学生一码，一份码里含 7 天任务。学生导入后每天自动解锁一天，也可以点“多学一天”提前学下一天。';
+    const isGrammar = plans.some((plan) => plan.kind === 'grammar');
+    if (title) title.textContent = isGrammar ? '语法打卡码' : '周计划码';
+    if (sub) sub.textContent = isGrammar
+      ? '一位学生一码，一份码里含 7 天语法课。学生导入后每天完成当天，第二天自动解锁；也可以点“多学一天”。'
+      : '一位学生一码，一份码里含 7 天任务。学生导入后每天自动解锁一天，也可以点“多学一天”提前学下一天。';
     $('#codes-list').innerHTML = items.map((item, index) => {
       if (!item.code) {
         return `<div class="code-card"><div class="code-card-head"><strong>${S.escapeHtml(item.student.name)} · ${S.escapeHtml(item.student.id)}</strong></div>` +
           `<p class="hint warn">${S.escapeHtml(item.error)}</p></div>`;
       }
       const dayCount = (item.plan.days || []).length;
+      const kindLabel = item.plan.kind === 'grammar' ? '语法' : 'Lv.' + item.plan.level;
       return `<div class="code-card">` +
         `<div class="code-card-head">` +
-          `<div><strong>${S.escapeHtml(item.student.name)}</strong> <span>${S.escapeHtml(item.student.id)} · ${dayCount} 天 · Lv.${item.plan.level}</span></div>` +
+          `<div><strong>${S.escapeHtml(item.student.name)}</strong> <span>${S.escapeHtml(item.student.id)} · ${dayCount} 天 · ${S.escapeHtml(kindLabel)}</span></div>` +
           `<button class="p-btn small ghost" type="button" data-copy-index="${index}">复制</button>` +
         `</div>` +
         `<textarea class="code-text" readonly>${S.escapeHtml(item.code)}</textarea>` +
@@ -1707,6 +1721,236 @@
     });
     student.levelHistory = student.levelHistory.slice(0, 30);
     return { before, after, avg: Math.round(avg), reason };
+  }
+
+  /* ------------------------------- 30 天语法小营 ------------------------------- */
+
+  function grammarPlans() {
+    return (data.plans || []).filter((plan) => plan.kind === 'grammar');
+  }
+
+  function grammarDoneDays(student) {
+    const set = new Set();
+    ((student && student.tasks) || []).forEach((task) => {
+      if (task && task.mode === 'grammar' && task.status === 'done') {
+        const day = Number(task.grammarDay);
+        if (day >= 1 && day <= G.total) set.add(day);
+      }
+    });
+    return set;
+  }
+
+  function nextGrammarDay(student) {
+    const done = grammarDoneDays(student);
+    let day = 1;
+    while (day <= G.total && done.has(day)) day += 1;
+    return Math.min(day, G.total);
+  }
+
+  function grammarPlanDone(plan, student) {
+    if (!student) return 0;
+    const done = grammarDoneDays(student);
+    return (plan.days || []).filter((day) => done.has(Number(day.grammarDay))).length;
+  }
+
+  function renderGrammarMap() {
+    const box = $('#grammar-map');
+    if (!box) return;
+    box.innerHTML = G.units.map((unit) => {
+      const lessons = G.lessons.filter((lesson) => lesson.day >= unit.range[0] && lesson.day <= unit.range[1]);
+      return `<div class="grammar-unit" style="--unit:${unit.color}">` +
+        `<div class="grammar-unit-head">` +
+          `<span>${S.escapeHtml(unit.name)}</span>` +
+          `<small>D${unit.range[0]}–D${unit.range[1]} · ${S.escapeHtml(unit.note)}</small>` +
+        `</div>` +
+        `<div class="grammar-day-grid">` +
+          lessons.map((lesson) => (
+            `<button class="grammar-day-card" type="button" data-grammar-preview="${lesson.day}" style="--unit:${unit.color}">` +
+              `<b>D${lesson.day}</b>` +
+              `<strong>${S.escapeHtml(lesson.title)}</strong>` +
+              `<small>${S.escapeHtml(lesson.subtitle)}</small>` +
+            `</button>`
+          )).join('') +
+        `</div>` +
+      `</div>`;
+    }).join('');
+  }
+
+  function openGrammarPreview(day) {
+    const lesson = G.lessonByDay(day);
+    if (!lesson) return;
+    const title = $('#grammar-preview-title');
+    const body = $('#grammar-preview-body');
+    if (title) title.textContent = `D${lesson.day} · ${lesson.title}`;
+    if (!body) return;
+    const tokens = (lesson.tokens || []).map(([text, role]) => (
+      `<span class="g-token role-${G.roleClass(role)}"><b>${S.escapeHtml(text)}</b><small>${S.escapeHtml(role)}</small></span>`
+    )).join('');
+    body.innerHTML = `<div class="grammar-preview">` +
+      `<div class="grammar-preview-meta"><span class="grammar-unit-pill" style="--unit:${lesson.unitColor}">${S.escapeHtml(lesson.unit)}</span><span>第 ${lesson.day} / ${G.total} 天</span></div>` +
+      `<p class="grammar-preview-scene">${S.escapeHtml(lesson.scene)}</p>` +
+      `<div class="g-sentence static">${tokens}</div>` +
+      `<p class="grammar-preview-translation">${S.escapeHtml(lesson.translation)}</p>` +
+      `<div class="g-rule"><b>今日规则</b><p>${S.escapeHtml(lesson.rule)}</p><small>${S.escapeHtml(lesson.tip)}</small></div>` +
+      `<h4>学生会做的 5 关</h4>` +
+      `<ol class="grammar-preview-steps">` +
+        `<li>找骨架：${S.escapeHtml(lesson.questions[0].stem)}</li>` +
+        `<li>懂意思：${S.escapeHtml(lesson.questions[1].stem)}</li>` +
+        `<li>用规则：${S.escapeHtml(lesson.questions[2].stem)}</li>` +
+        `<li>隔日复习：自动抽前面学过的一天</li>` +
+        `<li>写一句：${S.escapeHtml(lesson.output.prompt)}</li>` +
+      `</ol>` +
+      `<p class="hint">参考写法：${S.escapeHtml(lesson.output.sample)}</p>` +
+    `</div>`;
+    S.openDialog($('#grammar-preview-dialog'));
+  }
+
+  function renderGrammarStudents() {
+    const box = $('#grammar-students');
+    if (!box) return;
+    const list = sortedStudents();
+    if (!list.length) {
+      box.innerHTML = '<p class="hint">还没有学生。先到“学生”页添加。</p>';
+      return;
+    }
+    if (!grammarStudentIds) grammarStudentIds = new Set(list.map((student) => student.id));
+    box.innerHTML = list.map((student) => {
+      const done = grammarDoneDays(student).size;
+      const next = nextGrammarDay(student);
+      const finished = done >= G.total;
+      const status = finished ? '30 天已完成' : `已学 ${done} 天 · 下一课 D${next}`;
+      return `<label class="grammar-student${finished ? ' is-finished' : ''}">` +
+        `<input type="checkbox" value="${S.escapeHtml(student.id)}" ${grammarStudentIds.has(student.id) && !finished ? 'checked' : ''} ${finished ? 'disabled' : ''}>` +
+        `<span class="student-avatar">${S.escapeHtml(student.avatar || '🦊')}</span>` +
+        `<span class="grammar-student-copy"><strong>${S.escapeHtml(student.name)}</strong>` +
+          `<small>${S.escapeHtml(student.id)} · ${S.escapeHtml(student.grade || '未标注')} · ${status}</small>` +
+          `<span class="grammar-mini-track"><i style="width:${Math.round((done / G.total) * 100)}%"></i></span>` +
+        `</span>` +
+      `</label>`;
+    }).join('');
+    updateGrammarSelectedCount();
+  }
+
+  function updateGrammarSelectedCount() {
+    const count = $$('#grammar-students input[type="checkbox"]:checked').length;
+    const el = $('#grammar-selected-count');
+    if (el) el.textContent = `已选 ${count} 人`;
+    const button = $('#grammar-generate');
+    if (button) button.disabled = !count;
+  }
+
+  function buildGrammarPlan(student, startDay, weekStart) {
+    const planId = S.uid('GP');
+    const days = [];
+    for (let index = 0; index < 7; index += 1) {
+      const dayNumber = Number(startDay) + index;
+      if (dayNumber > G.total) break;
+      const lesson = G.lessonByDay(dayNumber);
+      if (!lesson) break;
+      const reviewLesson = G.lessonByDay(G.reviewDayFor(dayNumber));
+      days.push({
+        day: index + 1,
+        date: S.addDays(weekStart, index),
+        kind: 'grammar',
+        taskId: `${planId}-D${index + 1}`,
+        title: `第 ${lesson.day} 天 · ${lesson.title}`,
+        grammarDay: lesson.day,
+        lesson: G.summary(lesson),
+        blocks: G.buildBlocks(lesson, reviewLesson),
+        questionTotal: 5,
+        xp: clamp(55 + lesson.day * 2, 60, 150)
+      });
+    }
+    return {
+      id: planId,
+      kind: 'grammar',
+      studentId: student.id,
+      studentName: student.name,
+      weekStart,
+      title: `30 天语法小营 · ${student.name}`,
+      level: 0,
+      createdAt: S.nowIso(),
+      days
+    };
+  }
+
+  async function generateGrammarPacks() {
+    if (!G) { S.toast('语法课程没有加载成功，请刷新页面。', 'error'); return; }
+    const studentIds = $$('#grammar-students input[type="checkbox"]:checked').map((input) => input.value);
+    if (!studentIds.length) { S.toast('至少勾选一位学生。', 'error'); return; }
+    const students = studentIds.map(getStudent).filter(Boolean);
+    const missingPin = students.find((student) => !student.pin);
+    if (missingPin) { S.toast(`${missingPin.name} 还没有密码，无法生成打卡码。`, 'error'); return; }
+    const mode = ($('#grammar-start-mode') || {}).value || 'auto';
+    const fixedStart = Number(mode);
+    const weekStart = ($('#grammar-week-start') || {}).value || S.todayIso();
+    const plans = [];
+    students.forEach((student) => {
+      const start = mode === 'auto' ? nextGrammarDay(student) : clamp(fixedStart, 1, G.total);
+      if (start > G.total) { S.toast(`${student.name} 已经学完 30 天，已跳过。`, 'ok'); return; }
+      const plan = buildGrammarPlan(student, start, weekStart);
+      if (!plan.days.length) { S.toast(`${student.name} 没有可发的语法课，已跳过。`, 'error'); return; }
+      data.plans.unshift(plan);
+      plans.push(plan);
+    });
+    if (!plans.length) return;
+    save();
+    renderGrammarList();
+    renderGrammarStudents();
+    S.toast(`已生成 ${plans.length} 份语法小营，正在生成打卡码…`, 'ok');
+    await showPlanCodes(plans);
+  }
+
+  function renderGrammarList() {
+    const box = $('#grammar-list');
+    if (!box || !G) return;
+    const list = grammarPlans().slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    if (!list.length) {
+      box.innerHTML = emptyState('还没有语法小营', '在右边勾选学生，点“生成 7 天打卡码”。一份码含 7 天，学生每天自动解锁一天。');
+      return;
+    }
+    box.innerHTML = list.slice(0, 24).map((plan) => {
+      const student = getStudent(plan.studentId);
+      const done = grammarPlanDone(plan, student);
+      const total = (plan.days || []).length;
+      const firstDay = plan.days && plan.days.length ? plan.days[0].grammarDay : 1;
+      const lastDay = plan.days && plan.days.length ? plan.days[plan.days.length - 1].grammarDay : 1;
+      const state = done >= total ? '已完成' : `已完成 ${done}/${total} 天`;
+      return `<article class="grammar-pack" data-grammar-plan="${S.escapeHtml(plan.id)}">` +
+        `<div class="grammar-pack-main">` +
+          `<h4>${S.escapeHtml(student ? student.name : plan.studentName)} · D${firstDay}–D${lastDay}</h4>` +
+          `<p>${S.escapeHtml(student ? student.id : plan.studentId)} · ${S.escapeHtml(S.fmtDate(plan.weekStart))} 起 · ${state}</p>` +
+          `<div class="grammar-pack-track"><i style="width:${total ? Math.round((done / total) * 100) : 0}%"></i></div>` +
+        `</div>` +
+        `<div class="grammar-pack-actions">` +
+          `<button class="p-btn small" type="button" data-grammar-action="codes">打卡码</button>` +
+          `<button class="p-btn small ghost" type="button" data-grammar-action="delete">删除</button>` +
+        `</div>` +
+      `</article>`;
+    }).join('');
+  }
+
+  function renderGrammarTab() {
+    renderGrammarMap();
+    renderGrammarStudents();
+    renderGrammarList();
+    const start = $('#grammar-week-start');
+    if (start && !start.value) start.value = S.todayIso();
+  }
+
+  async function openGrammarPlanCodes(planId) {
+    const plan = (data.plans || []).find((item) => item.id === planId && item.kind === 'grammar');
+    if (!plan) return;
+    await showPlanCodes([plan]);
+  }
+
+  function deleteGrammarPlan(planId) {
+    const plan = (data.plans || []).find((item) => item.id === planId && item.kind === 'grammar');
+    if (!plan) return;
+    if (!window.confirm(`删除 ${plan.title}？已经发出去的任务码仍然可用。`)) return;
+    data.plans = data.plans.filter((item) => item.id !== planId);
+    save();
+    renderGrammarList();
   }
 
   /* ------------------------------- 体验卡 ------------------------------- */
@@ -3162,6 +3406,37 @@
           renderPlanList();
           S.toast('周计划记录已删除。');
         }
+      });
+    }
+
+    const grammarGenerate = $('#grammar-generate');
+    if (grammarGenerate) grammarGenerate.addEventListener('click', generateGrammarPacks);
+    const grammarStudentsBox = $('#grammar-students');
+    if (grammarStudentsBox) {
+      grammarStudentsBox.addEventListener('change', (event) => {
+        const input = event.target.closest('input[type="checkbox"]');
+        if (!input) return;
+        if (!grammarStudentIds) grammarStudentIds = new Set();
+        if (input.checked) grammarStudentIds.add(input.value);
+        else grammarStudentIds.delete(input.value);
+        updateGrammarSelectedCount();
+      });
+    }
+    const grammarMap = $('#grammar-map');
+    if (grammarMap) {
+      grammarMap.addEventListener('click', (event) => {
+        const card = event.target.closest('[data-grammar-preview]');
+        if (card) openGrammarPreview(Number(card.dataset.grammarPreview));
+      });
+    }
+    const grammarListBox = $('#grammar-list');
+    if (grammarListBox) {
+      grammarListBox.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-grammar-action]');
+        const card = event.target.closest('[data-grammar-plan]');
+        if (!button || !card) return;
+        if (button.dataset.grammarAction === 'codes') openGrammarPlanCodes(card.dataset.grammarPlan);
+        else if (button.dataset.grammarAction === 'delete') deleteGrammarPlan(card.dataset.grammarPlan);
       });
     }
 

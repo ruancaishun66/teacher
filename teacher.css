@@ -1212,3 +1212,122 @@
   .trial-student { grid-template-columns: 1fr; }
   .trial-state { justify-self: flex-start; }
 }
+
+/* ==========================================================================
+   30 天语法小营（教师端）
+   ========================================================================== */
+
+.grammar-student-list {
+  display: grid;
+  gap: 6px;
+  max-height: 300px;
+  padding: 2px;
+  overflow: auto;
+}
+
+.grammar-student {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: 0.18s var(--ease);
+}
+
+.grammar-student:hover { border-color: rgba(76, 154, 166, 0.42); background: rgba(76, 154, 166, 0.06); }
+.grammar-student:has(input:checked) { border-color: rgba(76, 154, 166, 0.6); background: rgba(76, 154, 166, 0.09); }
+.grammar-student.is-finished { opacity: 0.72; cursor: default; background: rgba(63, 143, 116, 0.06); border-color: rgba(63, 143, 116, 0.24); }
+.grammar-student input { flex: none; accent-color: var(--red); }
+.grammar-student .student-avatar { width: 32px; height: 32px; font-size: 0.95rem; flex: none; }
+.grammar-student-copy { min-width: 0; flex: 1; display: block; }
+.grammar-student-copy strong { display: block; font-size: 0.76rem; color: var(--ink); line-height: 1.35; }
+.grammar-student-copy small { display: block; font-size: 0.62rem; color: var(--dim); line-height: 1.4; }
+
+.grammar-mini-track {
+  display: block;
+  height: 4px;
+  margin-top: 4px;
+  border-radius: 99px;
+  background: rgba(31, 107, 119, 0.1);
+  overflow: hidden;
+}
+
+.grammar-mini-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--blue), var(--green));
+}
+
+.grammar-map { display: grid; gap: 12px; }
+.grammar-unit { padding: 12px 13px; border: 1px solid var(--line-soft); border-left: 4px solid var(--unit); border-radius: 13px; background: rgba(255, 255, 255, 0.42); }
+
+.grammar-unit-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.grammar-unit-head span { font-family: var(--display); font-size: 0.92rem; color: var(--unit); letter-spacing: 0.04em; }
+.grammar-unit-head small { font-size: 0.63rem; color: var(--dim); }
+
+.grammar-day-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 7px; }
+
+.grammar-day-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 9px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: rgba(255, 253, 247, 0.9);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: 0.18s var(--ease);
+}
+
+.grammar-day-card:hover { border-color: var(--unit); transform: translateY(-1px); box-shadow: 0 8px 18px -14px rgba(23, 75, 86, 0.5); }
+.grammar-day-card b { font-size: 0.58rem; letter-spacing: 0.08em; color: var(--unit); }
+.grammar-day-card strong { font-size: 0.72rem; color: var(--ink); line-height: 1.35; }
+.grammar-day-card small { font-size: 0.6rem; color: var(--dim); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.grammar-pack-list { display: grid; gap: 8px; }
+.grammar-pack { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 11px 13px; border: 1px solid var(--line-soft); border-radius: 12px; background: rgba(255, 255, 255, 0.45); }
+.grammar-pack-main { min-width: 0; flex: 1; }
+.grammar-pack-main h4 { margin: 0; font-size: 0.78rem; color: var(--ink); line-height: 1.4; }
+.grammar-pack-main p { margin: 2px 0 0; font-size: 0.63rem; color: var(--dim); }
+.grammar-pack-actions { display: flex; gap: 6px; flex: none; }
+
+.grammar-pack-track { height: 5px; margin-top: 6px; border-radius: 99px; background: rgba(31, 107, 119, 0.09); overflow: hidden; }
+.grammar-pack-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--blue), var(--green)); }
+
+.grammar-preview-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 0.64rem; color: var(--dim); }
+.grammar-preview-scene { margin: 12px 0 0; font-style: italic; color: var(--muted); font-size: 0.8rem; }
+.grammar-preview-translation { margin: 2px 0 14px; font-size: 0.76rem; color: var(--muted); }
+.grammar-preview h4 { margin: 16px 0 6px; font-size: 0.78rem; color: var(--ink); }
+.grammar-preview-steps { margin: 0; padding-left: 20px; }
+.grammar-preview-steps li { margin: 4px 0; font-size: 0.72rem; color: var(--muted); line-height: 1.55; }
+
+.guide-frame-wrap {
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  background: var(--panel-solid);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.guide-frame {
+  display: block;
+  width: 100%;
+  height: calc(100vh - 260px);
+  min-height: 540px;
+  border: 0;
+  background: var(--bg);
+}
+
+@media (max-width: 720px) {
+  .grammar-day-grid { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+  .grammar-pack { flex-direction: column; align-items: flex-start; }
+  .grammar-pack-actions { width: 100%; }
+  .grammar-pack-actions .p-btn { flex: 1; }
+  .guide-frame { height: calc(100vh - 220px); }
+}

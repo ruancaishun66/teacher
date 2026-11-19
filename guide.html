@@ -3,11 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>顺势 · 教师使用指南</title>
-  <meta name="description" content="顺势教师端图文使用指南：建学生、发单词打卡、看宠物成长、导入汇报、AI 分析与 U 盘备份。">
+  <title>顺势 · 全端使用指南</title>
+  <meta name="description" content="顺势全端图文使用指南：主页、学生端、组卷工作台、教师端、语法小营、单词打卡、汇报导入与 U 盘备份，全部汇总在教师端。">
   <link rel="icon" href="logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="portal.css?v=20261119a">
-  <link rel="stylesheet" href="guide.css?v=20261119h">
+  <link rel="stylesheet" href="portal.css?v=20261119b">
+  <link rel="stylesheet" href="guide.css?v=20261119i">
+  <script>
+    if (new URLSearchParams(location.search).get('embed') === '1') {
+      document.documentElement.classList.add('guide-embed');
+    }
+  </script>
   <script src="pwa.js" defer></script>
 </head>
 <body class="guide-page">
@@ -19,7 +24,7 @@
         <img src="logo.svg?v=20261118c" alt="">
         <span>
           <b>顺势 · 使用指南</b>
-          <span>TEACHER HANDBOOK</span>
+          <span>ALL-IN-ONE HANDBOOK</span>
         </span>
       </a>
       <div class="guide-bar-actions">
@@ -32,16 +37,17 @@
   <main class="guide-shell" id="main">
     <section class="guide-hero">
       <div>
-        <p class="guide-eyebrow">TEACHER HANDBOOK · 2026</p>
-        <h1>把一节课，<br><em>变成一条看得见的成长线。</em></h1>
-        <p class="guide-lead">这是一份给独立教师的使用说明。照着截图点一遍：建学生、发单词、看小潮獭慢慢长大、收回汇报，再把数据备份到“顺势ENGLISH”U 盘。</p>
+        <p class="guide-eyebrow">ALL-IN-ONE HANDBOOK · 2026</p>
+        <h1>四个端，<br><em>一份说明看完。</em></h1>
+        <p class="guide-lead">主页、学生端、组卷工作台、教师端的说明，都汇总在这里了，不用再东一个西一个。照着截图一步一步点：建学生、组卷、发单词和语法、看精灵长大、收回汇报，再把数据备份到“顺势ENGLISH”U 盘。</p>
         <div class="guide-hero-actions">
           <a class="p-btn" href="#start">从第一步开始</a>
+          <a class="p-btn ghost" href="#grammar">直达语法小营</a>
           <a class="p-btn ghost" href="#faq">遇到问题？</a>
         </div>
         <ul class="guide-facts">
-          <li><b>8</b>章图文</li>
-          <li><b>约 10</b>分钟看完</li>
+          <li><b>12</b>章图文</li>
+          <li><b>约 25</b>分钟看完</li>
           <li><b>本机</b>保存数据</li>
         </ul>
       </div>
@@ -52,9 +58,9 @@
           <small>ONE LOOP</small>
         </div>
         <ol class="route-list">
-          <li><span class="route-num">01</span><div><b>老师发布</b><small>单词书 / 练习卷 → 一人一码</small></div></li>
-          <li><span class="route-num">02</span><div><b>学生打卡</b><small>四选一闯关，错词自动回炉</small></div></li>
-          <li><span class="route-num">03</span><div><b>宠物成长</b><small>答对、完成、喂食，慢慢进化</small></div></li>
+          <li><span class="route-num">01</span><div><b>老师组卷发布</b><small>资料 / 单词 / 语法 → 一人一码</small></div></li>
+          <li><span class="route-num">02</span><div><b>学生每天打卡</b><small>一天一关，自动解锁</small></div></li>
+          <li><span class="route-num">03</span><div><b>精灵慢慢长大</b><small>答对、完成、坚持，都有反馈</small></div></li>
           <li><span class="route-num">04</span><div><b>汇报回流</b><small>学生交码，老师看画像</small></div></li>
         </ol>
         <p class="route-note">不用注册服务器，不用买数据库。数据只在这台电脑的浏览器里。</p>
@@ -63,14 +69,17 @@
 
     <nav class="guide-toc" aria-label="指南目录">
       <a href="#start"><b>01</b><span>四个入口</span><small>先认清地图</small></a>
-      <a href="#students"><b>02</b><span>建学生</span><small>学号 + 密码 + 开通码</small></a>
-      <a href="#words"><b>03</b><span>发单词</span><small>单词书 → 任务码</small></a>
-      <a href="#checkin"><b>04</b><span>打卡养宠物</span><small>学生的闯关界面</small></a>
-      <a href="#reports"><b>05</b><span>收汇报</span><small>把学习痕迹收回来</small></a>
-      <a href="#ai"><b>06</b><span>AI 分析</span><small>可选，按量计费</small></a>
-      <a href="#weekly"><b>07</b><span>周计划 / 体验卡</span><small>一周一发，自动拆</small></a>
-      <a href="#backup"><b>08</b><span>备份到 U 盘</span><small>换电脑也不怕</small></a>
-      <a href="#faq"><b>09</b><span>常见问题</span><small>先查这里</small></a>
+      <a href="#home"><b>02</b><span>主页与心得</span><small>访客看到什么</small></a>
+      <a href="#students"><b>03</b><span>建学生</span><small>学号 + 密码 + 开通码</small></a>
+      <a href="#library"><b>04</b><span>组卷工作台</span><small>资料 → 练习卷</small></a>
+      <a href="#words"><b>05</b><span>发单词</span><small>单词书 → 任务码</small></a>
+      <a href="#grammar"><b>06</b><span>语法小营</span><small>30 天，每天 5 分钟</small></a>
+      <a href="#checkin"><b>07</b><span>学生端</span><small>打卡、答题、养精灵</small></a>
+      <a href="#reports"><b>08</b><span>收汇报</span><small>把学习痕迹收回来</small></a>
+      <a href="#ai"><b>09</b><span>AI 分析</span><small>可选，按量计费</small></a>
+      <a href="#weekly"><b>10</b><span>周计划 / 体验卡</span><small>一周一发，自动拆</small></a>
+      <a href="#backup"><b>11</b><span>备份到 U 盘</span><small>换电脑也不怕</small></a>
+      <a href="#faq"><b>12</b><span>常见问题</span><small>先查这里</small></a>
     </nav>
 
     <!-- 01 -->
@@ -85,19 +94,19 @@
       </header>
       <div class="chapter-body">
         <div class="entry-grid">
-          <a class="entry" href="index.html">
+          <a class="entry" href="index.html" target="_top">
             <span class="entry-ico" aria-hidden="true">🌊</span>
             <div><b>主页</b><p>展示窗口。家长、访客看介绍和公开的学习心得。</p><code>index.html</code></div>
           </a>
-          <a class="entry" href="teacher.html">
+          <a class="entry" href="teacher.html" target="_top">
             <span class="entry-ico" aria-hidden="true">🗂️</span>
-            <div><b>教师端</b><p>你的办公桌。学生、任务、单词打卡、汇报、画像都在这里。</p><code>teacher.html</code></div>
+            <div><b>教师端</b><p>你的办公桌。学生、任务、语法、单词、汇报、画像都在这里，指南也汇总在这里。</p><code>teacher.html</code></div>
           </a>
-          <a class="entry" href="student.html">
+          <a class="entry" href="student.html" target="_top">
             <span class="entry-ico" aria-hidden="true">🦦</span>
             <div><b>学生端</b><p>学生输入密码后打卡、答题、养小潮獭、生成汇报码。</p><code>student.html</code></div>
           </a>
-          <a class="entry" href="library.html">
+          <a class="entry" href="library.html" target="_top">
             <span class="entry-ico" aria-hidden="true">📚</span>
             <div><b>组卷工作台</b><p>把阅读、完形、试卷整理成练习卷；也能从文章里提取生词。</p><code>library.html</code></div>
           </a>
@@ -108,7 +117,7 @@
             <div class="shot-bar"><i></i><i></i><i></i><span>teacher.html · 教师端总览</span></div>
             <img src="guide/img/teacher-overview.webp" alt="教师端总览：顶部有使用指南、布置任务、导入汇报；中间是学生概览和最近汇报" loading="eager">
           </div>
-          <figcaption><b>图 01</b>教师端总览。顶部的“使用指南”随时能回到这份说明；“发布单词打卡”“导入汇报”是最常用的两个入口。</figcaption>
+          <figcaption><b>图 01</b>教师端总览。顶部的“使用指南”会打开教师端里的汇总指南；这里还有“布置任务”“导入汇报”等常用入口。</figcaption>
         </figure>
 
         <div class="flow" aria-label="教学闭环示意">
@@ -121,16 +130,56 @@
           <div class="flow-step"><span>STEP 04</span><b>老师导入</b><small>画像自动更新</small></div>
         </div>
 
+        <div class="callout">
+          <p><b>指南已经汇总。</b>以后不用记四个地方的说明：打开教师端，点顶部“使用指南”，或者点导航里的“使用指南”，就是这一整份。也可以在新窗口单独打开、打印成 PDF。</p>
+        </div>
+
         <div class="callout warn">
-          <p><b>先记住这条底线：</b>四个页面共用同一个浏览器的本地存储。换浏览器、清理浏览器数据、换电脑，都会看不到旧数据。所以每周做一次备份，备份文件放到 U 盘（见第 08 节）。</p>
+          <p><b>先记住这条底线：</b>四个页面共用同一个浏览器的本地存储。换浏览器、清理浏览器数据、换电脑，都会看不到旧数据。所以每周做一次备份，备份文件放到 U 盘（见第 11 节）。</p>
         </div>
       </div>
     </section>
 
     <!-- 02 -->
-    <section class="guide-chapter" id="students">
+    <section class="guide-chapter" id="home">
       <header class="chapter-head">
         <span class="chapter-num">02</span>
+        <div>
+          <p class="chapter-kicker">PUBLIC HOME</p>
+          <h2>主页：访客能看到什么</h2>
+          <p>主页是顺势的“窗户”。它只展示公开介绍和老师主动发布的学习心得，不展示学生姓名、成绩和班级。</p>
+        </div>
+      </header>
+      <div class="chapter-body">
+        <figure class="shot">
+          <div class="shot-frame">
+            <div class="shot-bar"><i></i><i></i><i></i><span>index.html · 个人主页</span></div>
+            <img src="guide/img/home.webp" alt="顺势个人主页：品牌标题、介绍、公开学习心得和四个端的入口" loading="eager">
+          </div>
+          <figcaption><b>图 02</b>主页。家长和访客只看这一页；从这里可以进入教师端、学生端和组卷工作台。</figcaption>
+        </figure>
+
+        <ol class="steps">
+          <li><b>主页看三块：</b>品牌介绍、公开的学习心得、各端入口。它不需要登录，也不会自动读取教师端数据。</li>
+          <li><b>心得由老师发布。</b>在教师端“心得”里写草稿 → 导出 insights.js → 交给 Claude 发布。只有老师能写，学生端和主页都没有编辑入口。</li>
+          <li><b>公开内容要脱敏。</b>心得里不要写学生姓名、分数、学校、班级和家庭情况。写方法、写观察、写思考，不写隐私。</li>
+          <li><b>私人数据不上主页。</b>学生档案、成绩、任务记录、教师备注都只在本机浏览器里，主页不读取，也不会自动上传。</li>
+        </ol>
+
+        <div class="callout save">
+          <p><b>主页适合放什么？</b>一段教学理念、三篇真实的学习手记、四个入口的说明。让家长一眼知道“这里在做什么”，而不是把学生的成绩单摆出来。</p>
+        </div>
+
+        <div class="callout warn">
+          <p><b>公开与私密要分开。</b>主页的心得是公开内容；学生档案是私密内容。发布心得前，先读一遍，确认没有出现任何学生个人信息。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 -->
+    <section class="guide-chapter" id="students">
+      <header class="chapter-head">
+        <span class="chapter-num">03</span>
         <div>
           <p class="chapter-kicker">FIRST SETUP</p>
           <h2>建第一个学生</h2>
@@ -149,7 +198,7 @@
             <div class="shot-bar"><i></i><i></i><i></i><span>teacher.html · 学生页</span></div>
             <img src="guide/img/teacher-students.webp" alt="教师端学生页：右上角添加学生按钮，下面是学生卡片和任务数" loading="eager">
           </div>
-          <figcaption><b>图 02</b>学生页。右上角是“＋ 添加学生”；点学生卡片可以生成开通码、看任务和汇报。</figcaption>
+          <figcaption><b>图 03</b>学生页。右上角是“＋ 添加学生”；点学生卡片可以生成开通码、看任务和汇报。</figcaption>
         </figure>
 
         <figure class="shot">
@@ -157,7 +206,7 @@
             <div class="shot-bar"><i></i><i></i><i></i><span>teacher.html · 添加学生</span></div>
             <img src="guide/img/add-student.webp" alt="教师端添加学生对话框：姓名、年级、学号、初始密码和头像选择" loading="eager">
           </div>
-          <figcaption><b>图 03</b>学号和初始密码由老师指定。学生第一次建档后，以后每次登录只用密码。</figcaption>
+          <figcaption><b>图 04</b>学号和初始密码由老师指定。学生第一次建档后，以后每次登录只用密码。</figcaption>
         </figure>
 
         <div class="callout warn">
@@ -170,10 +219,51 @@
       </div>
     </section>
 
-    <!-- 03 -->
+    <!-- 04 -->
+    <section class="guide-chapter" id="library">
+      <header class="chapter-head">
+        <span class="chapter-num">04</span>
+        <div>
+          <p class="chapter-kicker">BUILD PAPERS</p>
+          <h2>组卷工作台：把资料变成练习卷</h2>
+          <p>资料库是“仓库”，组卷工作台是“加工台”。上传的资料先存进本机资料库，再按题型拆成可以发给学生的练习卷。</p>
+        </div>
+      </header>
+      <div class="chapter-body">
+        <figure class="shot">
+          <div class="shot-frame">
+            <div class="shot-bar"><i></i><i></i><i></i><span>library.html · 资料库</span></div>
+            <img src="guide/img/library.webp" alt="组卷工作台的资料库页面：左侧导航、资料统计、搜索筛选和资料列表" loading="eager">
+          </div>
+          <figcaption><b>图 05</b>组卷工作台。资料按题型和年级归档；左侧的“上传资料”“每日练习”是两条主路径。</figcaption>
+        </figure>
+
+        <ol class="steps">
+          <li><b>上传资料。</b>支持 Word、PDF、TXT 和图片。系统会读取文字、自动识别题型、提取题目，并按年级和难度打标签。</li>
+          <li><b>逐题检查。</b>点开一份资料，可以按“每题一屏”核对题干、选项、答案和解析；发现识别错位，直接改。</li>
+          <li><b>需要时再用 AI 整理。</b>“AI 整理”可以清理杂讯、补分类、去重和排版美化；它按量计费，只有你点按钮才调用。不点也完全可以手动整理。</li>
+          <li><b>保存到资料库。</b>生成的练习卷会回到资料库，之后在教师端“任务”或“周计划”里就能选到。</li>
+          <li><b>提取生词。</b>在单词打卡里选“从资料库提取”，可以从保存过的阅读、完形或试卷里取生词，最多 40 个。</li>
+        </ol>
+
+        <div class="callout">
+          <p><b>资料只在本机。</b>上传的文件和生成的练习卷存在这台电脑的浏览器数据库里，不会上传到 GitHub 或服务器。换电脑或清理浏览器数据前，先在组卷工作台里导出备份。</p>
+        </div>
+
+        <div class="callout warn">
+          <p><b>只用原创或已授权的材料。</b>可以整理自己编写的讲义、学校允许使用的材料，或明确授权的公开资源；不要把学校试卷、出版社教材原样拿来售卖或公开传播。</p>
+        </div>
+
+        <div class="callout save">
+          <p><b>第一次用，先点“载入示例资料”。</b>示例会走一遍“上传 → 识别 → 组卷 → 保存”的完整流程，熟悉后再上传自己的资料。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 05 -->
     <section class="guide-chapter" id="words">
       <header class="chapter-head">
-        <span class="chapter-num">03</span>
+        <span class="chapter-num">05</span>
         <div>
           <p class="chapter-kicker">ASSIGN WORDS</p>
           <h2>发一次单词打卡</h2>
@@ -190,20 +280,20 @@
           <li><b>点“生成任务码”。</b>复制或“下载全部任务码”，把每个学生对应的那一份单独发给他。任务码很长是正常的，它是压缩后的整包单词，不要手动改。</li>
         </ol>
 
-        <div class="shot-pair">
+        <div class="shot-pair two">
           <figure class="shot">
             <div class="shot-frame">
               <div class="shot-bar"><i></i><i></i><i></i><span>发布单词打卡</span></div>
               <img src="guide/img/word-dialog.webp" alt="发布单词打卡对话框：任务名称、截止日期、单词表和释义预览" loading="eager">
             </div>
-            <figcaption><b>图 04</b>粘贴单词 → 生成预览。预览里能直接看到音标和中文。</figcaption>
+            <figcaption><b>图 06</b>粘贴单词 → 生成预览。预览里能直接看到音标和中文。</figcaption>
           </figure>
           <figure class="shot">
             <div class="shot-frame">
               <div class="shot-bar"><i></i><i></i><i></i><span>任务码</span></div>
               <img src="guide/img/word-codes.webp" alt="任务码对话框：每个学生一份独立的任务码和复制按钮" loading="eager">
             </div>
-            <figcaption><b>图 05</b>一人一码。复制后单独发给对应学生，不要混用。</figcaption>
+            <figcaption><b>图 07</b>一人一码。复制后单独发给对应学生，不要混用。</figcaption>
           </figure>
         </div>
 
@@ -217,14 +307,91 @@
       </div>
     </section>
 
-    <!-- 04 -->
+    <!-- 06 -->
+    <section class="guide-chapter" id="grammar">
+      <header class="chapter-head">
+        <span class="chapter-num">06</span>
+        <div>
+          <p class="chapter-kicker">30-DAY GRAMMAR CAMP</p>
+          <h2>语法小营：30 天，每天 5 分钟</h2>
+          <p>把语法拆成一条连续的故事线。每天只学一个点：看一句“浅海侦探社”的故事句，记一条规则，做 3 道小题，复习 1 道旧题，再仿写 1 句。</p>
+        </div>
+      </header>
+      <div class="chapter-body">
+        <h3>课程怎么排 <small>CURRICULUM</small></h3>
+        <p>30 天分四个单元，从句子骨架开始，再学谓语动词、名词与修饰，最后进入从句和非谓语。一天一页，不贪多；每一页都围绕“先找主干，再看修饰”。</p>
+        <div class="unit-strip" aria-label="语法小营四个单元">
+          <div class="unit-block" style="--unit:#d96e51"><b>D1–D7</b><strong>句子骨架</strong><small>五种基本句型：谁 + 做什么，再加宾语、补语、表语。</small></div>
+          <div class="unit-block" style="--unit:#b07f39"><b>D8–D14</b><strong>谓语动词</strong><small>一个简单句一个谓语；时态、语态、主谓一致都围着它转。</small></div>
+          <div class="unit-block" style="--unit:#3d8f9c"><b>D15–D21</b><strong>名词与修饰</strong><small>冠词、复数、形容词、介词短语、定语从句，把名词说清楚。</small></div>
+          <div class="unit-block" style="--unit:#8a74b8"><b>D22–D30</b><strong>从句与非谓语</strong><small>长句不可怕：先剥修饰，再找主干。</small></div>
+        </div>
+
+        <h3>老师怎么发 <small>ASSIGN</small></h3>
+        <ol class="steps">
+          <li><b>教师端 →“语法打卡”。</b>左边是“怎么发”，右边是 30 天课程地图；点任意一天可以先看这一天的故事句、规则和 5 个关卡。</li>
+          <li><b>选这周从哪天开始。</b>一般选“自动接上”：系统会看每位学生已经学过哪几天，接着往下发，不会重复。</li>
+          <li><b>勾选学生，点“生成 7 天打卡码”。</b>一位学生一份码，一份码里含 7 天语法课。微信单独发给学生。</li>
+          <li><b>学生导入一次，每天自动解锁一天。</b>学完这 7 天，再回来生成下一周；没学完也可以接着发，系统会从缺的那天继续。</li>
+        </ol>
+
+        <figure class="shot">
+          <div class="shot-frame">
+            <div class="shot-bar"><i></i><i></i><i></i><span>teacher.html · 语法打卡</span></div>
+            <img src="guide/img/grammar-teacher.webp" alt="教师端语法打卡页：左侧选择开始日期和学生，右侧是 30 天课程地图，按四个单元分组" loading="eager">
+          </div>
+          <figcaption><b>图 08</b>教师端语法打卡。右边四色分组就是四个单元；点任意一天可预览学生当天会看到的页面。</figcaption>
+        </figure>
+
+        <h3>学生怎么做 <small>STUDENT FLOW</small></h3>
+        <ol class="steps">
+          <li><b>首页多一张“30 天语法小营”卡片。</b>卡片会显示已学几天、下一课是哪天；点“开始今天的语法课”进入。</li>
+          <li><b>第一关 · 找骨架：</b>先看故事句，点“遮住标签，自己先猜”遮住成分标签，试着找出谁 + 做什么，再点开对照。</li>
+          <li><b>第二关 · 懂意思：</b>确认这句话到底在说什么，避免“语法对、意思错”。</li>
+          <li><b>第三关 · 用规则：</b>用今天学的规则做一道新题。</li>
+          <li><b>第四关 · 隔日复习：</b>系统自动抽前面学过的一天，隔几天再回忆一次。</li>
+          <li><b>第五关 · 写一句：</b>用今天的结构写一句自己的话；提交后能看到参考写法。</li>
+        </ol>
+
+        <figure class="shot">
+          <div class="shot-frame">
+            <div class="shot-bar"><i></i><i></i><i></i><span>student.html · 语法小营</span></div>
+            <img src="guide/img/grammar-student.webp" alt="学生端语法小营答题页：故事句、彩色成分标签、今日规则和第一关题目" loading="eager">
+          </div>
+          <figcaption><b>图 09</b>学生端的语法课。故事句按成分上色；点“遮住标签”可以先自己判断，再对照答案。</figcaption>
+        </figure>
+
+        <h3>为什么这样设计 <small>EVIDENCE</small></h3>
+        <p>课程骨架参考了两本语法书：叶永昌《英语阅读参考手册》以关联词和常用词为引子，讲清功能词的判别与搭配；《语法透析手册》用“五大句型 + 八大成分 + 场景句”先搭骨架、再添修饰。每日形式则参考了成熟做法与研究结论：</p>
+        <div class="evidence-grid">
+          <div><b>四股绳理论</b><span>Nation, 2007</span><p>语言学习建议约四分之一时间做“聚焦语言形式”的练习。每天 5 分钟语法，正好补上这一股。</p></div>
+          <div><b>间隔与提取练习</b><span>Cepeda et al., 2006；Roediger &amp; Karpicke, 2006</span><p>隔几天再回忆一次，比一次学很久更牢。对应：第四关自动抽前面学过的一天。</p></div>
+          <div><b>纠正性反馈</b><span>Li, 2010；Russell &amp; Spada, 2006</span><p>答完立刻告诉学生“为什么错”，效果明显好于只报分数。对应：每题即时解析。</p></div>
+          <div><b>输出与注意</b><span>Swain, 1995；Schmidt, 1990</span><p>自己写一句，才会注意到缺什么。对应：第五关“写一句”，配参考写法。</p></div>
+          <div><b>Daily Grammar Practice</b><span>DGP 日常语法练习</span><p>一周围绕同一句，每天换一个任务。对应：一句故事句，拆成找骨架、懂意思、用规则。</p></div>
+          <div><b>BBC 6 Minute Grammar</b><span>BBC Learning English</span><p>每期只讲一个点，讲完立刻小测。对应：一天只学一条规则，3 道题当场用。</p></div>
+          <div><b>Grammar in Use</b><span>Raymond Murphy</span><p>左页讲规则、右页做练习，一页一个单元。对应：学生端“规则卡 + 5 关”的单页结构。</p></div>
+          <div><b>NoRedInk / Duolingo</b><span>自适应练习与连击</span><p>即时反馈、难度自适应、连续记录能帮助坚持；但连击也可能变成压力。对应：不排名、可补学、奖励只记本机。</p></div>
+        </div>
+
+        <div class="callout save">
+          <p><b>句子和题目都是原创。</b>两本书是方法来源，课程里的故事、例句和练习为原创，不复制书中的例句和题目，避免版权问题。</p>
+        </div>
+
+        <div class="callout">
+          <p><b>和单词打卡有什么不同？</b>单词打卡练“词义提取”，语法小营练“句子结构”。两者可以同时发：周计划里可以安排单词日，语法小营单独发一份 7 天码，互不影响。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 07 -->
     <section class="guide-chapter" id="checkin">
       <header class="chapter-head">
-        <span class="chapter-num">04</span>
+        <span class="chapter-num">07</span>
         <div>
           <p class="chapter-kicker">STUDENT SIDE</p>
-          <h2>学生怎么打卡，精灵怎么长大</h2>
-          <p>学生端把单词做成四选一闯关。答对就喂精灵，答错自动回炉。学习行为变成看得见的成长值，不靠付费抽卡，也不排名。</p>
+          <h2>学生端：打卡、答题、养精灵</h2>
+          <p>学生端把学习做成一条看得见的成长线。答对就喂精灵，答错自动回炉。不靠付费抽卡，也不排名。</p>
         </div>
       </header>
       <div class="chapter-body">
@@ -284,10 +451,10 @@
       </div>
     </section>
 
-    <!-- 05 -->
+    <!-- 08 -->
     <section class="guide-chapter" id="reports">
       <header class="chapter-head">
-        <span class="chapter-num">05</span>
+        <span class="chapter-num">08</span>
         <div>
           <p class="chapter-kicker">REPORT BACK</p>
           <h2>把学习痕迹收回来</h2>
@@ -307,7 +474,7 @@
             <div class="shot-bar"><i></i><i></i><i></i><span>teacher.html · 导入学生汇报</span></div>
             <img src="guide/img/report-import.webp" alt="教师端导入学生汇报对话框，粘贴汇报码后点校验并导入" loading="eager">
           </div>
-          <figcaption><b>图 06</b>汇报码整段粘贴，不要只复制一半；导入成功后会提示更新了哪些内容。</figcaption>
+          <figcaption><b>图 10</b>汇报码整段粘贴，不要只复制一半；导入成功后会提示更新了哪些内容。</figcaption>
         </figure>
 
         <div class="callout">
@@ -324,10 +491,10 @@
       </div>
     </section>
 
-    <!-- 06 -->
+    <!-- 09 -->
     <section class="guide-chapter" id="ai">
       <header class="chapter-head">
-        <span class="chapter-num">06</span>
+        <span class="chapter-num">09</span>
         <div>
           <p class="chapter-kicker">OPTIONAL AI</p>
           <h2>AI 分析：两条路线，按需选</h2>
@@ -361,7 +528,7 @@
             <div class="shot-bar"><i></i><i></i><i></i><span>teacher.html · 设置 · AI 直连</span></div>
             <img src="guide/img/ai-settings.webp" alt="教师端设置页的 AI 直连卡片：API Key 输入、保存、测试连接、清除 Key 和累计用量" loading="eager">
           </div>
-          <figcaption><b>图 07</b>Key 输入框只显示尾号；累计用量会显示调用了多少次、花了多少 tokens。</figcaption>
+          <figcaption><b>图 11</b>Key 输入框只显示尾号；累计用量会显示调用了多少次、花了多少 tokens。</figcaption>
         </figure>
 
         <h3>额度是怎么省的 <small>COST</small></h3>
@@ -386,10 +553,10 @@
       </div>
     </section>
 
-    <!-- 07 -->
+    <!-- 10 -->
     <section class="guide-chapter" id="weekly">
       <header class="chapter-head">
-        <span class="chapter-num">07</span>
+        <span class="chapter-num">10</span>
         <div>
           <p class="chapter-kicker">WEEKLY RHYTHM</p>
           <h2>一周只发一次：周计划与体验卡</h2>
@@ -427,10 +594,10 @@
       </div>
     </section>
 
-    <!-- 08 -->
+    <!-- 11 -->
     <section class="guide-chapter" id="backup">
       <header class="chapter-head">
-        <span class="chapter-num">08</span>
+        <span class="chapter-num">11</span>
         <div>
           <p class="chapter-kicker">BACKUP &amp; USB</p>
           <h2>备份到“顺势ENGLISH”U 盘</h2>
@@ -450,7 +617,7 @@
             <div class="shot-bar"><i></i><i></i><i></i><span>teacher.html · 教师端备份码</span></div>
             <img src="guide/img/backup.webp" alt="教师端备份码对话框：备份码文本框、下载为文件和复制备份码按钮" loading="eager">
           </div>
-          <figcaption><b>图 08</b>优先用“下载为文件”，比复制到聊天框更安全，也不容易漏字符。</figcaption>
+          <figcaption><b>图 12</b>优先用“下载为文件”，比复制到聊天框更安全，也不容易漏字符。</figcaption>
         </figure>
 
         <h3>每周备份清单 <small>WEEKLY</small></h3>
@@ -472,10 +639,10 @@
       </div>
     </section>
 
-    <!-- 09 -->
+    <!-- 12 -->
     <section class="guide-chapter" id="faq">
       <header class="chapter-head">
-        <span class="chapter-num">09</span>
+        <span class="chapter-num">12</span>
         <div>
           <p class="chapter-kicker">TROUBLESHOOTING</p>
           <h2>常见问题</h2>
@@ -495,6 +662,14 @@
           <details>
             <summary>任务码提示无效 / 打不开？</summary>
             <p>先确认三件事：① 复制的是完整一整段，没有漏字符；② 这是发给这个学生的码，不是别人的；③ 学生输入的学号和密码与教师端一致。任务码很长是正常的，不要手动编辑。</p>
+          </details>
+          <details>
+            <summary>语法打卡码和普通任务码有什么不一样？</summary>
+            <p>语法打卡码是一份“7 天小计划”，导入后任务列表里会多出 7 天语法课，每天自动解锁一天；普通任务码通常是一份练习卷。两者都按学号和密码校验，不能混发。学完 7 天，再回教师端生成下一周即可。</p>
+          </details>
+          <details>
+            <summary>学生漏了几天语法课，要重新发吗？</summary>
+            <p>不用。教师端“语法打卡”里选“自动接上”，系统会看这位学生已经完成哪几天，从缺的那天继续生成。已经学过的日子不会重复；想复习，可以点开旧任务重看规则和参考写法。</p>
           </details>
           <details>
             <summary>换手机或换电脑，数据还在吗？</summary>
@@ -537,9 +712,9 @@
     </section>
 
     <footer class="guide-foot">
-      <p><b>顺势 · 独立教师工作台</b>　·　教师使用指南　·　更新于 2026-11-19</p>
+      <p><b>顺势 · 独立教师工作台</b>　·　全端使用指南　·　更新于 2026-11-19</p>
       <p>截图中的学生为演示数据。私人档案只保存在本机；备份请放“顺势ENGLISH”U 盘。</p>
-      <p><a href="teacher.html">返回教师端</a>　·　<a href="student.html">打开学生端</a>　·　<a href="library.html">组卷工作台</a>　·　<a href="index.html">主页</a></p>
+      <p><a href="teacher.html" target="_top">返回教师端</a>　·　<a href="student.html" target="_top">打开学生端</a>　·　<a href="library.html" target="_top">组卷工作台</a>　·　<a href="index.html" target="_top">主页</a></p>
     </footer>
   </main>
   <script>

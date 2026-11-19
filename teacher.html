@@ -24,7 +24,7 @@
       </span>
     </a>
     <div class="p-header-actions" id="teacher-user" hidden>
-      <a class="p-btn small ghost" href="guide.html" target="_blank" rel="noopener">使用指南 ↗</a>
+      <button class="p-btn small ghost" type="button" data-goto="guide">使用指南</button>
       <button class="p-btn small ghost" type="button" id="nav-assign">布置任务</button>
       <button class="p-btn small ghost" type="button" id="nav-import">导入汇报</button>
       <div class="p-user">
@@ -88,7 +88,7 @@
           <button class="p-btn ghost" type="button" id="hero-assign">布置练习任务</button>
           <button class="p-btn ghost" type="button" id="hero-import">导入学生汇报</button>
           <button class="p-btn ghost" type="button" id="hero-add">添加学生</button>
-          <a class="p-btn ghost" href="guide.html" target="_blank" rel="noopener">使用指南 ↗</a>
+          <button class="p-btn ghost" type="button" data-goto="guide">使用指南</button>
           <a class="p-btn ghost" href="library.html" id="hero-library">组卷工作台 ↗</a>
         </div>
       </div>
@@ -110,10 +110,12 @@
       <button type="button" data-tab="students">学生</button>
       <button type="button" data-tab="assignments">任务</button>
       <button type="button" data-tab="plan">周计划</button>
+      <button type="button" data-tab="grammar">语法打卡</button>
       <button type="button" data-tab="words">单词打卡</button>
       <button type="button" data-tab="reports">汇报</button>
       <button type="button" data-tab="trial">体验卡</button>
       <button type="button" data-tab="insights">心得</button>
+      <button type="button" data-tab="guide">使用指南</button>
       <button type="button" data-tab="settings">设置</button>
     </nav>
 
@@ -215,6 +217,73 @@
             <h3 class="p-card-title">已生成的周计划 <small>HISTORY</small></h3>
           </div>
           <div id="plan-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- 语法打卡 -->
+    <section class="teacher-pane" data-pane="grammar">
+      <div class="roster-toolbar">
+        <div>
+          <h2 class="pane-title">30 天语法小营 <small>GRAMMAR CAMP</small></h2>
+          <p class="pane-sub">一天 5 分钟：看一句故事里的句子，记一条规则，做 3 道小题，复习 1 道旧题，再写 1 句。老师一次发 7 天，学生每天自动解锁一天。</p>
+        </div>
+        <div class="toolbar-actions">
+          <span class="hint" id="grammar-selected-count">已选 0 人</span>
+          <button class="p-btn small" type="button" id="grammar-generate">生成 7 天打卡码</button>
+        </div>
+      </div>
+      <div class="p-grid">
+        <section class="p-card p-col-4">
+          <div class="p-card-head"><h3 class="p-card-title">1. 怎么发 <small>STEP 1</small></h3></div>
+          <div class="field">
+            <label for="grammar-week-start">这周从哪天开始</label>
+            <input class="input" id="grammar-week-start" type="date">
+          </div>
+          <div class="field">
+            <label for="grammar-start-mode">从第几天开始</label>
+            <select class="select" id="grammar-start-mode">
+              <option value="auto" selected>自动接上（推荐）</option>
+              <option value="1">固定从 D1 开始</option>
+              <option value="8">固定从 D8 开始</option>
+              <option value="15">固定从 D15 开始</option>
+              <option value="22">固定从 D22 开始</option>
+            </select>
+            <p class="hint">“自动接上”会看每位学生已经学过哪几天，接着往下发，不会重复。</p>
+          </div>
+          <div class="field">
+            <label>2. 发给谁</label>
+            <div class="grammar-student-list" id="grammar-students"></div>
+          </div>
+          <p class="hint" style="text-align:left;">生成后得到一人一份“语法打卡码”，微信单独发给学生。学生导入一次，7 天按天解锁；没学完也可以接着发下一周。</p>
+        </section>
+        <section class="p-card p-col-8">
+          <div class="p-card-head">
+            <h3 class="p-card-title">30 天课程地图 <small>CURRICULUM</small></h3>
+            <span class="hint">点任意一天可预览</span>
+          </div>
+          <div class="grammar-map" id="grammar-map"></div>
+        </section>
+        <section class="p-card p-col-12">
+          <div class="p-card-head">
+            <h3 class="p-card-title">已生成的语法小营 <small>PACKS</small></h3>
+          </div>
+          <div class="grammar-pack-list" id="grammar-list"></div>
+        </section>
+        <section class="p-card p-col-12">
+          <div class="p-card-head"><h3 class="p-card-title">为什么这样设计 <small>EVIDENCE</small></h3></div>
+          <p class="hint" style="text-align:left;margin-top:0;">课程骨架参考了你给的两本语法书：叶永昌《英语阅读参考手册》用关联词和常用词讲清功能词的判别与搭配；《语法透析手册》用“五大句型 + 八大成分 + 场景句”先搭骨架、再添修饰。每日形式则参考了下面这些成熟做法与研究结论。</p>
+          <div class="research-grid">
+            <div><b>四股绳理论</b><span>Nation, 2007</span><p>语言学习建议约四分之一时间做“聚焦语言形式”的练习。每天 5 分钟语法，正好补上这一股。</p></div>
+            <div><b>间隔与提取练习</b><span>Cepeda et al., 2006；Roediger &amp; Karpicke, 2006</span><p>隔几天再回忆一次，比一次学很久更牢。对应：第 4 关自动抽前面学过的一天。</p></div>
+            <div><b>纠正性反馈</b><span>Li, 2010；Russell &amp; Spada, 2006</span><p>答完立刻告诉学生“为什么错”，效果明显好于只报分数。对应：每题即时解析。</p></div>
+            <div><b>输出假说与注意假说</b><span>Swain, 1995；Schmidt, 1990</span><p>自己写一句，才会注意到缺什么。对应：第五关“写一句”，配参考写法。</p></div>
+            <div><b>Daily Grammar Practice</b><span>DGP 日常语法练习</span><p>一周围绕同一句，每天换一个任务（标词性、找成分、加标点）。对应：一句故事句，拆成找骨架、懂意思、用规则。</p></div>
+            <div><b>BBC 6 Minute Grammar</b><span>BBC Learning English</span><p>每期只讲一个点，讲完立刻小测。对应：一天只学一条规则，3 道题当场用。</p></div>
+            <div><b>Grammar in Use</b><span>Raymond Murphy</span><p>左页讲规则、右页做练习，一页一个单元。对应：学生端“规则卡 + 5 关”的单页结构。</p></div>
+            <div><b>NoRedInk / Duolingo</b><span>自适应练习与连击</span><p>即时反馈、难度自适应、连续记录能帮助坚持；但连击也可能变成压力。对应：不排名、可补学、奖励只记本机。</p></div>
+          </div>
+          <p class="hint" style="text-align:left;margin-bottom:0;">两本书是方法来源，课程句子与题目均为原创，不复制书中的例句和练习，避免版权问题。</p>
         </section>
       </div>
     </section>
@@ -345,6 +414,22 @@
             <div><b>强调与引用</b><p>用 <code>**重点**</code> 加粗；用 <code>&gt; 一句话</code> 做引用。</p></div>
           </div>
         </section>
+      </div>
+    </section>
+
+    <!-- 使用指南 -->
+    <section class="teacher-pane" data-pane="guide">
+      <div class="roster-toolbar">
+        <div>
+          <h2 class="pane-title">使用指南 <small>ALL-IN-ONE GUIDE</small></h2>
+          <p class="pane-sub">主页、学生端、组卷工作台、教师端的说明都汇总在这里。图示 + 文字，按顺序看即可。也可以点右上角“新窗口打开”单独放大。</p>
+        </div>
+        <div class="toolbar-actions">
+          <a class="p-btn small ghost" href="guide.html" target="_blank" rel="noopener">新窗口打开 ↗</a>
+        </div>
+      </div>
+      <div class="guide-frame-wrap">
+        <iframe class="guide-frame" id="guide-frame" data-src="guide.html?embed=1" title="顺势使用指南" loading="lazy"></iframe>
       </div>
     </section>
 
@@ -885,6 +970,24 @@
   </div>
 </dialog>
 
+<!-- 语法课预览 -->
+<dialog class="p-dialog" id="grammar-preview-dialog" style="width:min(760px,calc(100% - 20px));">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2 id="grammar-preview-title">语法课预览</h2>
+        <p>学生当天会看到这一页：故事句、规则卡、5 个小关卡。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body" id="grammar-preview-body"></div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" data-close>关闭</button>
+    </div>
+  </div>
+</dialog>
+
+<script src="grammar-data.js"></script>
 <script src="insights-core.js"></script>
 <script src="insights.js"></script>
 <script src="portal.js"></script>

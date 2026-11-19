@@ -804,6 +804,82 @@
     S.toast('当前精灵吃得很开心，成长 +8。', 'ok');
   }
 
+  /* ------------------------------- 30 天语法小营 ------------------------------- */
+
+  function grammarTasks() {
+    return (data.tasks || [])
+      .filter((task) => task.mode === 'grammar' && Number(task.grammarDay) > 0)
+      .slice()
+      .sort((a, b) => Number(a.grammarDay) - Number(b.grammarDay));
+  }
+
+  function grammarDoneSet() {
+    const set = new Set();
+    grammarTasks().forEach((task) => {
+      if (task.status === 'done') set.add(Number(task.grammarDay));
+    });
+    return set;
+  }
+
+  function nextGrammarTask() {
+    const list = grammarTasks();
+    if (!list.length) return null;
+    return list.find((task) => task.status !== 'done') || null;
+  }
+
+  function renderGrammarCamp() {
+    const camp = $('#grammar-camp');
+    if (!camp) return;
+    const G = window.ShunshiGrammar;
+    const tasks = grammarTasks();
+    if (!tasks.length) {
+      camp.hidden = true;
+      camp.innerHTML = '';
+      return;
+    }
+    camp.hidden = false;
+    const total = G ? G.total : 30;
+    const done = grammarDoneSet();
+    const next = nextGrammarTask();
+    const lesson = (next && next.lesson) || null;
+    const pct = Math.round((done.size / total) * 100);
+    const lessonTitle = lesson ? lesson.title : '30 天已经学完';
+    const lessonSub = lesson ? `第 ${lesson.day} 天 · ${lesson.unit}${lesson.subtitle ? ' · ' + lesson.subtitle : ''}` : '可以把喜欢的句子再读一遍，或等老师发新的练习。';
+    const dots = [];
+    for (let day = 1; day <= total; day += 1) {
+      const info = G ? G.lessonByDay(day) : null;
+      const state = done.has(day)
+        ? 'done'
+        : next && Number(next.grammarDay) === day
+          ? 'next'
+          : tasks.some((task) => Number(task.grammarDay) === day)
+            ? 'assigned'
+            : 'future';
+      dots.push(`<span class="grammar-dot ${state}" title="D${day}${info ? ' · ' + S.escapeHtml(info.title) : ''}"></span>`);
+    }
+    const locked = next ? taskLocked(next) : false;
+    const action = !next
+      ? `<span class="grammar-camp-done">🏅 30 天全部完成</span>`
+      : locked
+        ? `<button class="p-btn small" type="button" data-grammar-open="${S.escapeHtml(next.id)}" data-grammar-locked="1">提前解锁今天</button>`
+        : `<button class="p-btn small" type="button" data-grammar-open="${S.escapeHtml(next.id)}">开始今天的语法课</button>`;
+    camp.innerHTML = `<div class="grammar-camp-inner" style="--unit:${lesson ? lesson.unitColor : '#d96e51'}">` +
+      `<div class="grammar-camp-copy">` +
+        `<p class="grammar-camp-kicker">30 天语法小营 · GRAMMAR CAMP</p>` +
+        `<h2>${S.escapeHtml(lessonTitle)}</h2>` +
+        `<p class="grammar-camp-sub">${S.escapeHtml(lessonSub)}</p>` +
+        `<p class="grammar-camp-note">每天约 5 分钟：一句故事、一条规则、3 道小题、1 道复习、1 句仿写。</p>` +
+        `<div class="grammar-camp-bar"><i style="width:${pct}%"></i></div>` +
+        `<p class="grammar-camp-count">已学 <b>${done.size}</b> / ${total} 天 · 连起来就是一套句子骨架</p>` +
+      `</div>` +
+      `<div class="grammar-camp-side">` +
+        action +
+        `<button class="p-btn small ghost" type="button" data-grammar-scroll="1">看全部任务</button>` +
+      `</div>` +
+      `<div class="grammar-camp-map" aria-label="30 天进度">${dots.join('')}</div>` +
+    `</div>`;
+  }
+
   /* ------------------------------- 首页渲染 ------------------------------- */
 
   function renderAll() {
@@ -813,6 +889,7 @@
     renderLevel();
     renderCheckin();
     renderPet();
+    renderGrammarCamp();
     renderAttrs();
     renderTasks();
     renderBadges();
@@ -987,7 +1064,7 @@
           `<div class="task-meta">` +
             (task.planId ? `<span class="plan-tag">周计划 · D${task.planDay}/${task.planTotal || 7}</span>` : '') +
             `<span>${S.escapeHtml(task.grade || '未标注')}</span>` +
-            `<span>${task.mode === 'words' ? `单词闯关 · ${taskQuestionCount(task)} 词` : `${taskQuestionCount(task)} 题`}</span>` +
+            `<span>${task.mode === 'words' ? `单词闯关 · ${taskQuestionCount(task)} 词` : task.mode === 'grammar' ? `语法小营 · D${task.grammarDay || '?'} · 5 关` : `${taskQuestionCount(task)} 题`}</span>` +
             `<span>${scoreText}</span>` +
             (task.due ? `<span>截止 ${S.escapeHtml(S.fmtDate(task.due))}</span>` : '') +
           `</div>` +
@@ -1029,6 +1106,9 @@
     { id: 'reader', icon: '📖', name: '阅读行者', earned: (p, tasks) => countDoneBlocks(tasks, ['reading', 'cloze', 'five']) >= 5 },
     { id: 'writer', icon: '✍️', name: '落笔生花', earned: (p, tasks) => countDoneBlocks(tasks, ['writing', 'picture']) >= 3 },
     { id: 'wordsmith', icon: '📚', name: '词海行者', earned: (p, tasks) => tasks.filter((t) => t.status === 'done' && t.mode === 'words').length >= 3 },
+    { id: 'grammar1', icon: '🕵️', name: '语法小侦探', earned: (p, tasks) => countGrammarDays(tasks) >= 1 },
+    { id: 'grammar7', icon: '🧩', name: '七日成句', earned: (p, tasks) => countGrammarDays(tasks) >= 7 },
+    { id: 'grammar30', icon: '🏛️', name: '骨架大师', earned: (p, tasks) => countGrammarDays(tasks) >= 30 },
     { id: 'level5', icon: '👑', name: '五星学者', earned: (p) => S.levelInfo(p.xp).level >= 5 }
   ];
 
@@ -1036,6 +1116,14 @@
     return tasks.filter((task) => task.status === 'done').reduce((sum, task) => (
       sum + (task.blockStats || []).filter((block) => types.includes(block.type)).length
     ), 0);
+  }
+
+  function countGrammarDays(tasks) {
+    const days = new Set();
+    (tasks || []).forEach((task) => {
+      if (task.status === 'done' && task.mode === 'grammar') days.add(Number(task.grammarDay));
+    });
+    return days.size;
   }
 
   function renderBadges() {
@@ -1245,6 +1333,34 @@
     return `<div class="passage">${blocks.map((block) => `<p>${S.escapeHtml(block).replace(/\n/g, '<br>')}</p>`).join('')}</div>`;
   }
 
+  function renderGrammarHero(task) {
+    const lesson = task.lesson;
+    if (!lesson) return '';
+    const G = window.ShunshiGrammar;
+    const tokens = (lesson.tokens || []).map((pair) => {
+      const text = pair[0];
+      const role = pair[1];
+      const cls = G ? G.roleClass(role) : 'other';
+      return `<span class="g-token role-${cls}"><b>${S.escapeHtml(text)}</b><small>${S.escapeHtml(role)}</small></span>`;
+    }).join('');
+    return `<div class="grammar-hero" style="--unit:${lesson.unitColor || '#d96e51'}">` +
+      `<div class="grammar-hero-top">` +
+        `<span class="grammar-unit-pill">${S.escapeHtml(lesson.unit || '语法小营')}</span>` +
+        `<span>D${lesson.day || task.grammarDay} / ${G ? G.total : 30} · 约 5 分钟</span>` +
+      `</div>` +
+      `<p class="grammar-scene">${S.escapeHtml(lesson.scene || '')}</p>` +
+      `<div class="g-sentence" data-grammar-tokens>${tokens}</div>` +
+      `<div class="grammar-hero-tools">` +
+        `<button class="p-btn small ghost" type="button" data-grammar-reveal>遮住标签，自己先猜</button>` +
+        `<span>先看句子，再对照每块的成分。</span>` +
+      `</div>` +
+      `<p class="grammar-translation">${S.escapeHtml(lesson.translation || '')}</p>` +
+      `<div class="g-rule"><b>今日规则</b><p>${S.escapeHtml(lesson.rule || '')}</p>` +
+        (lesson.tip ? `<small>${S.escapeHtml(lesson.tip)}</small>` : '') +
+      `</div>` +
+    `</div>`;
+  }
+
   function renderRunner(task) {
     if (task.mode === 'words') {
       renderWordRunner(task);
@@ -1263,6 +1379,7 @@
 
     let html = '';
     if (done) html += resultHero(task);
+    if (task.mode === 'grammar') html += renderGrammarHero(task);
     (task.blocks || []).forEach((block, index) => {
       const label = block.label || `${cnNumber(index)}、${S.blockLabel(block.type)}`;
       html += `<h3 class="block-heading">${S.escapeHtml(label)}</h3>`;
@@ -1276,6 +1393,9 @@
           html += value
             ? `<div class="review-note" style="margin-top:12px;white-space:pre-wrap;">${S.escapeHtml(value)}</div>`
             : `<p class="hint" style="margin-top:10px;">这道书面表达没有留下文字稿。</p>`;
+          if (block.sample) {
+            html += `<div class="g-sample"><b>参考写法</b><p>${S.escapeHtml(block.sample)}</p><small>不要求一模一样，能用自己的话写对结构就好。</small></div>`;
+          }
         } else {
           html += `<textarea class="writing-input" data-writing-block="${S.escapeHtml(block.id)}" placeholder="在这里写作文，自动保存在本机…">${S.escapeHtml(value)}</textarea>`;
         }
@@ -1786,10 +1906,17 @@
     const correct = result.correct || 0;
     const accuracy = task.accuracy == null ? '—' : `${Math.round(task.accuracy * 100)}%`;
     const minutes = Math.max(1, Math.round((task.timeSpent || 0) / 60));
-    return `<div class="result-hero">` +
+    const grammar = task.mode === 'grammar';
+    const title = grammar ? '今日语法完成' : task.score == null ? '已提交，等待批改' : '任务完成';
+    const sub = grammar
+      ? `选择题答对 ${correct} / ${total} 道${task.writing ? '，仿写已完成' : '，仿写这次空着'}，获得 ${task.xpEarned || 0} EXP。`
+      : task.score == null
+        ? '这份任务没有可自动判分的答案，老师会在汇报里看到你的作答。'
+        : `答对 ${correct} / ${total} ${task.mode === 'words' ? '词' : '题'}，获得 ${task.xpEarned || 0} EXP。`;
+    return `<div class="result-hero${grammar ? ' grammar-result' : ''}">` +
       `<div class="result-ring" style="--score:${scoreValue}%"><span>${score}</span><small>SCORE</small></div>` +
-      `<h2 class="result-title">${task.score == null ? '已提交，等待批改' : '任务完成'}</h2>` +
-      `<p class="result-sub">${task.score == null ? '这份任务没有可自动判分的答案，老师会在汇报里看到你的作答。' : `答对 ${correct} / ${total} ${task.mode === 'words' ? '词' : '题'}，获得 ${task.xpEarned || 0} EXP。`}</p>` +
+      `<h2 class="result-title">${title}</h2>` +
+      `<p class="result-sub">${sub}</p>` +
       `<div class="result-stats">` +
         `<div class="result-stat"><b>${accuracy}</b><span>正确率</span></div>` +
         `<div class="result-stat"><b>${minutes}′</b><span>用时</span></div>` +
@@ -1901,6 +2028,10 @@
       if (taskAuth !== task.auth) { S.toast('周计划校验失败，可能不是发给你的。', 'error', 7000); return; }
       if (task.mode === 'words') {
         if (!Array.isArray(task.words) || task.words.length < 4) { S.toast('周计划里的单词任务不完整。', 'error'); return; }
+      } else if (task.mode === 'grammar') {
+        if (!task.lesson || !Array.isArray(task.blocks) || task.blocks.length < 4) {
+          S.toast('周计划里的语法课不完整，请让老师重新生成。', 'error'); return;
+        }
       } else if (!Array.isArray(task.blocks) || !task.blocks.length) {
         S.toast('周计划里的练习任务没有题目。', 'error'); return;
       }
@@ -2275,6 +2406,33 @@
       S.closeDialog($('#task-dialog'));
     });
     $('#submit-task').addEventListener('click', submitTask);
+    const grammarCamp = $('#grammar-camp');
+    if (grammarCamp) {
+      grammarCamp.addEventListener('click', (event) => {
+        if (event.target.closest('[data-grammar-scroll]')) {
+          const tasksCard = $('#tasks');
+          if (tasksCard) tasksCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+        const button = event.target.closest('[data-grammar-open]');
+        if (!button) return;
+        const task = findTask(button.dataset.grammarOpen);
+        if (!task) return;
+        if (button.dataset.grammarLocked === '1' || taskLocked(task)) unlockPlanDay(task);
+        openTask(task.id);
+      });
+    }
+    const runnerBody = $('#runner-body');
+    if (runnerBody) {
+      runnerBody.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-grammar-reveal]');
+        if (!button) return;
+        const sentence = runnerBody.querySelector('[data-grammar-tokens]');
+        if (!sentence) return;
+        const hidden = sentence.classList.toggle('hide-roles');
+        button.textContent = hidden ? '显示成分标签' : '遮住标签，自己先猜';
+      });
+    }
     $('#runner-report').addEventListener('click', openReport);
     $('#report-btn').addEventListener('click', openReport);
     $('#copy-report').addEventListener('click', async () => {

@@ -3719,3 +3719,271 @@ body.trial-expired .trial-banner {
   .wheel-legend { grid-template-columns: 1fr; }
   .task-card-side { align-items: flex-start; }
 }
+
+/* ==========================================================================
+   30 天语法小营（学生端 + 教师端共用视觉）
+   ========================================================================== */
+
+.grammar-camp {
+  padding: 0;
+  overflow: hidden;
+  border-top: 2px solid var(--red);
+  background: var(--panel);
+}
+
+.grammar-camp-inner {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px 22px;
+  padding: 20px 22px;
+  background:
+    radial-gradient(ellipse 60% 90% at 100% 0%, rgba(76, 154, 166, 0.1), transparent 60%),
+    linear-gradient(135deg, rgba(217, 110, 81, 0.07), rgba(255, 253, 247, 0.4));
+}
+
+.grammar-camp-kicker {
+  margin: 0;
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  color: var(--red-deep);
+  text-transform: uppercase;
+}
+
+.grammar-camp h2 {
+  margin: 5px 0 2px;
+  font-size: 1.22rem;
+  line-height: 1.3;
+  color: var(--ink);
+}
+
+.grammar-camp-sub { margin: 0; font-size: 0.76rem; color: var(--muted); }
+.grammar-camp-note { margin: 6px 0 0; font-size: 0.68rem; color: var(--dim); }
+
+.grammar-camp-bar {
+  height: 7px;
+  margin-top: 12px;
+  border-radius: 99px;
+  background: rgba(31, 107, 119, 0.1);
+  overflow: hidden;
+}
+
+.grammar-camp-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--red), #e8b56b);
+  transition: width 0.5s var(--ease);
+}
+
+.grammar-camp-count { margin: 5px 0 0; font-size: 0.66rem; color: var(--dim); }
+.grammar-camp-count b { color: var(--red-deep); }
+
+.grammar-camp-side {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 8px;
+  min-width: 168px;
+}
+
+.grammar-camp-done {
+  display: block;
+  padding: 9px 12px;
+  border: 1px solid rgba(232, 181, 107, 0.5);
+  border-radius: 11px;
+  background: rgba(255, 248, 232, 0.82);
+  font-size: 0.76rem;
+  color: var(--gold);
+  text-align: center;
+}
+
+.grammar-camp-map {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-top: 4px;
+}
+
+.grammar-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: rgba(31, 107, 119, 0.08);
+  border: 1px solid rgba(31, 107, 119, 0.1);
+}
+
+.grammar-dot.done { background: var(--green); border-color: transparent; }
+.grammar-dot.assigned { background: rgba(76, 154, 166, 0.28); border-color: rgba(76, 154, 166, 0.35); }
+.grammar-dot.next {
+  background: var(--red);
+  border-color: transparent;
+  box-shadow: 0 0 0 3px rgba(217, 110, 81, 0.2);
+  animation: grammar-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes grammar-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(217, 110, 81, 0.18); }
+  50% { box-shadow: 0 0 0 6px rgba(217, 110, 81, 0.06); }
+}
+
+/* 学生端语法课 */
+.grammar-hero {
+  margin: 0 0 20px;
+  padding: 18px 20px 16px;
+  border: 1px solid var(--line-soft);
+  border-left: 5px solid var(--unit, var(--red));
+  border-radius: 16px;
+  background:
+    radial-gradient(ellipse 70% 90% at 0% 0%, rgba(255, 253, 247, 0.9), transparent 60%),
+    linear-gradient(135deg, rgba(217, 110, 81, 0.06), rgba(76, 154, 166, 0.05));
+}
+
+.grammar-hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.64rem;
+  color: var(--dim);
+  letter-spacing: 0.03em;
+}
+
+.grammar-unit-pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border: 1px solid currentColor;
+  border-radius: 99px;
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  color: var(--unit, var(--red-deep));
+  background: rgba(255, 253, 247, 0.7);
+}
+
+.grammar-scene {
+  margin: 10px 0 0;
+  font-family: var(--display);
+  font-size: 0.86rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.g-sentence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: flex-end;
+  margin: 12px 0 8px;
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 13px;
+  background: rgba(255, 253, 247, 0.86);
+}
+
+.g-sentence.static { margin: 12px 0; }
+
+.g-token {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 6px 10px 4px;
+  border-radius: 9px;
+  border-bottom: 3px solid currentColor;
+  background: rgba(31, 107, 119, 0.06);
+  transition: 0.18s var(--ease);
+}
+
+.g-token b {
+  font-size: 0.92rem;
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.g-token small {
+  font-size: 0.53rem;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  color: currentColor;
+  transition: opacity 0.18s var(--ease);
+}
+
+.g-sentence.hide-roles .g-token small { opacity: 0; }
+
+.g-token.role-subject { color: #3d8f9c; background: rgba(76, 154, 166, 0.12); }
+.g-token.role-predicate { color: #d96e51; background: rgba(217, 110, 81, 0.11); }
+.g-token.role-object { color: #b07f39; background: rgba(230, 184, 110, 0.2); }
+.g-token.role-predicative { color: #3f8f74; background: rgba(63, 143, 116, 0.12); }
+.g-token.role-complement { color: #8a74b8; background: rgba(138, 116, 184, 0.12); }
+.g-token.role-attributive { color: #6f8b3a; background: rgba(111, 139, 58, 0.12); }
+.g-token.role-adverbial { color: #b86286; background: rgba(184, 98, 134, 0.1); }
+.g-token.role-nonfinite { color: #4f7fb8; background: rgba(79, 127, 184, 0.11); }
+.g-token.role-clause { color: #8c6d4f; background: rgba(140, 109, 79, 0.11); }
+.g-token.role-link { color: #7d9499; background: rgba(125, 148, 153, 0.12); }
+.g-token.role-other { color: #5f7e85; background: rgba(95, 126, 133, 0.1); }
+
+.grammar-hero-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 4px 0 8px;
+}
+
+.grammar-hero-tools .p-btn { flex: none; }
+.grammar-hero-tools span { font-size: 0.62rem; color: var(--dim); }
+
+.grammar-translation {
+  margin: 6px 0 12px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.g-rule {
+  padding: 12px 14px;
+  border: 1px solid var(--line-soft);
+  border-left: 4px solid var(--unit, var(--red));
+  border-radius: 11px;
+  background: rgba(255, 253, 247, 0.9);
+}
+
+.g-rule b {
+  display: block;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  color: var(--unit, var(--red-deep));
+  text-transform: uppercase;
+}
+
+.g-rule p { margin: 5px 0 0; font-size: 0.8rem; color: var(--ink); line-height: 1.65; }
+.g-rule small { display: block; margin-top: 6px; font-size: 0.66rem; color: var(--dim); line-height: 1.55; }
+
+.g-sample {
+  margin-top: 12px;
+  padding: 11px 13px;
+  border: 1px solid rgba(63, 143, 116, 0.28);
+  border-radius: 11px;
+  background: rgba(63, 143, 116, 0.07);
+}
+
+.g-sample b { display: block; font-size: 0.62rem; letter-spacing: 0.1em; color: var(--green); }
+.g-sample p { margin: 4px 0 0; font-size: 0.8rem; color: var(--ink); }
+.g-sample small { display: block; margin-top: 4px; font-size: 0.63rem; color: var(--dim); }
+
+.grammar-result .result-ring { background: conic-gradient(var(--red) var(--score), rgba(31, 107, 119, 0.1) 0); }
+
+@media (max-width: 720px) {
+  .grammar-camp-inner { grid-template-columns: 1fr; padding: 16px; }
+  .grammar-camp-side { flex-direction: row; flex-wrap: wrap; }
+  .grammar-camp-side .p-btn { flex: 1 1 auto; }
+  .grammar-camp-map { gap: 4px; }
+  .grammar-dot { width: 13px; height: 13px; border-radius: 4px; }
+  .grammar-hero { padding: 14px; }
+  .g-token { padding: 5px 8px 3px; }
+  .g-token b { font-size: 0.82rem; }
+}

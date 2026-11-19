@@ -1,5 +1,5 @@
 /* ==========================================================================
-   顺势 · 教师使用指南
+   顺势 · 全端使用指南
    和教师端同一套浅海初阳色，但更像一本可以打印的小册子。
    ========================================================================== */
 
@@ -917,6 +917,104 @@
   line-height: 1.75;
 }
 
+/* ------------------------------- 语法小营 ------------------------------- */
+
+.unit-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0 24px;
+}
+
+.unit-block {
+  padding: 15px 14px 14px;
+  border: 1px solid var(--line-soft);
+  border-top: 3px solid var(--unit, var(--red));
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fffdf8, #fbf6ea);
+}
+
+.unit-block b {
+  display: block;
+  color: var(--unit, var(--red-deep));
+  font: 700 0.66rem/1 var(--mono);
+  letter-spacing: 0.12em;
+}
+
+.unit-block strong {
+  display: block;
+  margin: 8px 0 5px;
+  font-size: 0.93rem;
+}
+
+.unit-block small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.65;
+}
+
+.evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+  margin: 18px 0 22px;
+}
+
+.evidence-grid > div {
+  padding: 14px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(255, 253, 247, 0.9);
+}
+
+.evidence-grid b {
+  display: block;
+  font-size: 0.87rem;
+}
+
+.evidence-grid span {
+  display: block;
+  margin: 3px 0 7px;
+  color: var(--red-deep);
+  font: 600 0.6rem/1.45 var(--mono);
+  letter-spacing: 0.03em;
+}
+
+.evidence-grid p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.77rem;
+  line-height: 1.7;
+}
+
+/* 两张截图并排（窄屏自动堆叠） */
+.shot-pair.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+/* ------------------------------- 嵌入教师端时 ------------------------------- */
+
+.guide-embed .guide-bar,
+.guide-embed .guide-hero,
+.guide-embed .guide-skip {
+  display: none;
+}
+
+.guide-embed .guide-shell {
+  padding-top: 20px;
+  padding-bottom: 40px;
+}
+
+.guide-embed .guide-chapter {
+  scroll-margin-top: 18px;
+}
+
+.guide-embed .guide-foot {
+  margin-top: 10px;
+}
+
 /* ------------------------------- 页脚 ------------------------------- */
 
 .guide-foot {
@@ -945,10 +1043,14 @@
   .guide-toc { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   .chapter-body { padding-left: 0; }
+
+  .unit-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 680px) {
   .guide-bar-inner { padding: 10px 16px; }
+  .guide-brand span span { display: none; }
+  .guide-brand b { font-size: 1.05rem; }
   .guide-bar-actions { gap: 6px; }
   .guide-bar-actions .p-btn { padding: 7px 10px; }
   .guide-bar-actions .p-btn:first-child,
@@ -965,7 +1067,8 @@
   .guide-chapter { padding: 32px 0 38px; }
   .chapter-head { gap: 13px; }
   .chapter-num { width: 44px; height: 44px; font-size: 0.92rem; }
-  .entry-grid, .route-split, .shot-pair { grid-template-columns: 1fr; }
+  .entry-grid, .route-split, .shot-pair, .shot-pair.two { grid-template-columns: 1fr; }
+  .unit-strip, .evidence-grid { grid-template-columns: 1fr; }
   .flow { flex-direction: column; }
   .flow-arrow { transform: rotate(90deg); text-align: center; }
   .evo-line { grid-template-columns: repeat(2, minmax(0, 1fr)); }
