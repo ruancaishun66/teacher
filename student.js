@@ -19,6 +19,8 @@
   let timerId = null;
   let saveTimer = null;
   let pendingEnroll = null;
+  let pendingLinkCode = '';
+  let linkImportStarted = false;
 
   function loadData() {
     const raw = S.getJSON(STORAGE_KEY, null);
@@ -32,6 +34,14 @@
     raw.profile.trialDays = Math.max(1, Number(raw.profile.trialDays) || 3);
     raw.profile.trialExpiresAt = String(raw.profile.trialExpiresAt || '');
     raw.tasks = Array.isArray(raw.tasks) ? raw.tasks.filter((task) => task && task.id) : [];
+    /* 旧任务里的释义可能又长又杂；打开页面时顺手清洗成 1–2 个常用义。 */
+    raw.tasks.forEach((task) => {
+      if (!Array.isArray(task.words) || !task.words.length) return;
+      task.words = S.unpackWordList(task.words).map((word) => ({
+        ...word,
+        zh: word.zh ? S.meaningFor(word.w, word.zh) : ''
+      }));
+    });
     return raw;
   }
 
@@ -201,6 +211,26 @@
     $('#app-view').hidden = false;
     $('#user-area').hidden = false;
     renderAll();
+    setTimeout(maybeAutoImportLink, 500);
+  }
+
+  function takeLinkCode() {
+    const code = S.readCodeFromLocation();
+    if (!code) return;
+    pendingLinkCode = code;
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (error) { /* ignore */ }
+  }
+
+  function maybeAutoImportLink() {
+    if (linkImportStarted || !pendingLinkCode || !profile() || !sessionPin) return;
+    linkImportStarted = true;
+    const code = pendingLinkCode;
+    pendingLinkCode = '';
+    const box = $('#import-code');
+    if (!box) return;
+    box.value = code;
+    S.openDialog($('#import-dialog'));
+    setTimeout(() => { importTaskCode(); }, 320);
   }
 
   async function handleSetup() {
@@ -258,7 +288,7 @@
       return;
     }
     const auth = await S.sha256Hex(`enroll|${payload.studentId}|${payload.pin}`);
-    if (auth !== payload.auth) {
+    if (!S.authMatches(payload.auth, auth)) {
       S.toast('开通码校验失败，请让老师重新生成。', 'error', 5000);
       return;
     }
@@ -386,6 +416,162 @@
         { stage: 3, name: '幽都烛龙', min: 900, next: 2000, body: '#b95643', ear: '#7f2f22', belly: '#ffdcc4', accent: '#f0a45c', desc: '从幽都衔来一束不灭的光，照亮你最怕的那一页。' },
         { stage: 4, name: '衔日烛龙', min: 2000, next: null, body: '#e88a5e', ear: '#a94830', belly: '#fff0dc', accent: '#f6d99a', desc: '口衔烈日、身绕长风的钟山之神，睁眼便是一整个白昼。' }
       ]
+    },
+    xuanwu: {
+      name: '玄武',
+      color: '#4f8f86',
+      motion: 'water',
+      unlock: { type: 'checkins', value: 14, label: '累计打卡 14 天解锁', unit: '天' },
+      stages: [
+        { stage: 1, name: '玄甲幼龟', min: 0, next: 300, body: '#6fa39b', ear: '#3f6f6a', belly: '#e7f2e6', accent: '#d9b66f', desc: '背着一块还没长硬的玄甲，走路慢吞吞却很稳。' },
+        { stage: 2, name: '玄武', min: 300, next: 900, body: '#5d948d', ear: '#315d59', belly: '#eaf4e9', accent: '#e0c07c', desc: '龟甲上浮起水纹，身后跟着一条安静的小玄蛇。' },
+        { stage: 3, name: '沧溟玄武', min: 900, next: 2000, body: '#4f8b86', ear: '#264c4b', belly: '#eef8f5', accent: '#8fd3cf', desc: '一步步踩出深海的回声，玄蛇已经能盘住整片浪。' },
+        { stage: 4, name: '镇海玄武', min: 2000, next: null, body: '#77b3a8', ear: '#3a6d67', belly: '#f5fbf3', accent: '#f0c987', desc: '镇守北方的水神，甲上星图转动时，整片海都安静下来。' }
+      ]
+    },
+    fuzhu: {
+      name: '夫诸',
+      color: '#8fb6c9',
+      motion: 'water',
+      unlock: { type: 'streak', value: 3, label: '连续学习 3 天解锁', unit: '天' },
+      stages: [
+        { stage: 1, name: '漉角幼鹿', min: 0, next: 300, body: '#cfe6f2', ear: '#8fb6c9', belly: '#f8fdff', accent: '#8fd3cf', desc: '角上挂着露水的小鹿，走到哪里都留下一小片湿痕。' },
+        { stage: 2, name: '夫诸', min: 300, next: 900, body: '#b9dbea', ear: '#7aa5bc', belly: '#f6fcff', accent: '#7fc7d9', desc: '四只角像四道清泉，低头时水面会自己让开。' },
+        { stage: 3, name: '澄澜夫诸', min: 900, next: 2000, body: '#a8d2e4', ear: '#6798b2', belly: '#f2fbff', accent: '#b7e3f2', desc: '踏浪而行，鹿角上会落下细细的雨，把错题洗得干干净净。' },
+        { stage: 4, name: '四角灵夫诸', min: 2000, next: null, body: '#d3ecf5', ear: '#86b1c8', belly: '#ffffff', accent: '#f0c987', desc: '四角同时亮起，能听见远处河川报来的名字。' }
+      ]
+    },
+    jinwu: {
+      name: '金乌',
+      color: '#e0a24e',
+      motion: 'sun',
+      unlock: { type: 'night', value: 3, label: '晚上 6 点后完成 3 次打卡解锁', unit: '次' },
+      stages: [
+        { stage: 1, name: '雏乌', min: 0, next: 300, body: '#6b5560', ear: '#342531', belly: '#f7d9a0', accent: '#f0a93c', desc: '一只羽毛还没黑透的小乌鸦，翅膀边缘已经带着金光。' },
+        { stage: 2, name: '金乌', min: 300, next: 900, body: '#4d3b4a', ear: '#2a1d29', belly: '#f9dda6', accent: '#f2b445', desc: '背上驮着一小团太阳，飞到哪儿哪儿就亮一点。' },
+        { stage: 3, name: '曜日金乌', min: 900, next: 2000, body: '#40303f', ear: '#201520', belly: '#ffe6ab', accent: '#f6c35a', desc: '三足踏火，鸣叫一声就能把整个清晨叫醒。' },
+        { stage: 4, name: '三足金乌', min: 2000, next: null, body: '#573f4a', ear: '#2b1a25', belly: '#fff1c8', accent: '#f6d99a', desc: '从扶桑树上飞下的太阳神鸟，张开翅膀便是一轮日出。' }
+      ]
+    },
+    yutu: {
+      name: '玉兔',
+      color: '#b9c6e4',
+      motion: 'moon',
+      unlock: { type: 'wordTasks', value: 5, label: '完成 5 次单词打卡解锁', unit: '次' },
+      stages: [
+        { stage: 1, name: '月绒兔', min: 0, next: 300, body: '#e9eef9', ear: '#b9c6e4', belly: '#ffffff', accent: '#e8c37c', desc: '从月晕里滚出来的小绒球，耳朵比身体还长。' },
+        { stage: 2, name: '玉兔', min: 300, next: 900, body: '#dfe7f5', ear: '#a9b9da', belly: '#ffffff', accent: '#e8c37c', desc: '抱着一根小玉杵，专门把难题捣成容易记住的样子。' },
+        { stage: 3, name: '捣药玉兔', min: 900, next: 2000, body: '#eef3fd', ear: '#bbc8e4', belly: '#ffffff', accent: '#c9b0e0', desc: '药臼里装的不是药，是你今天背下来的单词。' },
+        { stage: 4, name: '望月玉兔', min: 2000, next: null, body: '#f5f8ff', ear: '#c8d1e8', belly: '#ffffff', accent: '#f0c987', desc: '坐在满月边上，把整本词表一页页摊开来看。' }
+      ]
+    },
+    mengdie: {
+      name: '梦蝶',
+      color: '#a98bd4',
+      motion: 'dream',
+      unlock: { type: 'grammarTasks', value: 3, label: '完成 3 次语法打卡解锁', unit: '次' },
+      stages: [
+        { stage: 1, name: '梦茧', min: 0, next: 300, body: '#cbb7e6', ear: '#8f76b8', belly: '#f7edff', accent: '#e8c37c', desc: '一团会轻轻呼吸的梦茧，里面藏着还没醒的翅膀。' },
+        { stage: 2, name: '梦蝶', min: 300, next: 900, body: '#b79ade', ear: '#7d63a8', belly: '#f8f0ff', accent: '#d9b66f', desc: '翅膀上全是会变的句子，眨一下眼就换个图案。' },
+        { stage: 3, name: '迷梦蝶', min: 900, next: 2000, body: '#a889d8', ear: '#6c559c', belly: '#fbf5ff', accent: '#8fd3cf', desc: '飞过的地方时间会慢半拍，正好够你把语法想清楚。' },
+        { stage: 4, name: '庄周梦蝶', min: 2000, next: null, body: '#c4a8ea', ear: '#8469b5', belly: '#fffaff', accent: '#f0c987', desc: '分不清是你在做梦，还是梦在背单词；醒来时已经全记住了。' }
+      ]
+    },
+    qingniao: {
+      name: '青鸟',
+      color: '#4f9fd1',
+      motion: 'wind',
+      unlock: { type: 'reports', value: 7, label: '生成 7 次学习汇报解锁', unit: '次' },
+      stages: [
+        { stage: 1, name: '青雏', min: 0, next: 300, body: '#8cc4e4', ear: '#4f8fba', belly: '#eaf8ff', accent: '#e8c37c', desc: '尾羽还短短的传信鸟，喜欢叼着纸条到处飞。' },
+        { stage: 2, name: '青鸟', min: 300, next: 900, body: '#6fb5dc', ear: '#3d7ba8', belly: '#e6f6ff', accent: '#7fc7d9', desc: '能把你的每日汇报稳稳送到老师窗前。' },
+        { stage: 3, name: '云信青鸟', min: 900, next: 2000, body: '#5aa7d4', ear: '#2f6d9e', belly: '#e2f5ff', accent: '#b7e3f2', desc: '飞过云层时会在身后拖出一条会发光的信笺。' },
+        { stage: 4, name: '九天青鸟', min: 2000, next: null, body: '#8ccbee', ear: '#4a8cbb', belly: '#f2fbff', accent: '#f0c987', desc: '西王母的信使，一振翅就把好消息带到九天之外。' }
+      ]
+    },
+    suanni: {
+      name: '狻猊',
+      color: '#d09a5e',
+      motion: 'fire',
+      unlock: { type: 'perfect', value: 1, label: '单词打卡正确率 100% 解锁', unit: '次' },
+      stages: [
+        { stage: 1, name: '烟尾幼狮', min: 0, next: 300, body: '#e2b47c', ear: '#b06a35', belly: '#fff1dd', accent: '#e8b56b', desc: '尾尖冒着一缕小烟，打喷嚏时会喷出火星。' },
+        { stage: 2, name: '狻猊', min: 300, next: 900, body: '#d9a466', ear: '#a25d2e', belly: '#fff3e2', accent: '#e0a24e', desc: '喜欢蹲在香炉边，把难记的词一条条叼出来。' },
+        { stage: 3, name: '烟霞狻猊', min: 900, next: 2000, body: '#d69a58', ear: '#985329', belly: '#fff6e8', accent: '#f0a93c', desc: '鬃毛像被晚霞点着，走过的地方烟雾都自动分开。' },
+        { stage: 4, name: '吞烟狻猊', min: 2000, next: null, body: '#e6b173', ear: '#a86432', belly: '#fffaf0', accent: '#f6d99a', desc: '龙生九子之一，张口能吞下整片烟雾，也能吞下最长的词表。' }
+      ]
+    },
+    baihu: {
+      name: '白虎',
+      color: '#c3cfdb',
+      motion: 'metal',
+      unlock: { type: 'words', value: 300, label: '累计学会 300 个单词解锁', unit: '词' },
+      stages: [
+        { stage: 1, name: '霜纹幼虎', min: 0, next: 300, body: '#e8edf2', ear: '#9aa8b7', belly: '#ffffff', accent: '#c9d6e2', desc: '脚掌还软软的小白虎，身上的霜纹会随呼吸一闪一闪。' },
+        { stage: 2, name: '白虎', min: 300, next: 900, body: '#e1e8ef', ear: '#8d9bab', belly: '#ffffff', accent: '#b7c6d4', desc: '西方的金之神兽，爪尖一碰，错题就被切成两半。' },
+        { stage: 3, name: '霜纹白虎', min: 900, next: 2000, body: '#edf2f7', ear: '#a1afbd', belly: '#ffffff', accent: '#9fd0e0', desc: '奔过雪原时不会留下脚印，只留下背熟的词。' },
+        { stage: 4, name: '庚金白虎', min: 2000, next: null, body: '#f4f8fb', ear: '#b4c1cd', belly: '#ffffff', accent: '#f0c987', desc: '张口是风，闭口是霜；它认可的单词，再也不会忘。' }
+      ]
+    },
+    kun: {
+      name: '鲲',
+      color: '#4f7fb0',
+      motion: 'water',
+      unlock: { type: 'pool', value: 3000, label: '总经验池累计获得 3000 解锁', unit: '经验池 EXP' },
+      stages: [
+        { stage: 1, name: '北冥幼鲲', min: 0, next: 300, body: '#86a9d4', ear: '#4f7fb0', belly: '#dbeaff', accent: '#71d0d9', desc: '在经验池里游来游去的小鱼，尾巴一摆就长大一圈。' },
+        { stage: 2, name: '鲲', min: 300, next: 900, body: '#6f97c8', ear: '#3d6a9c', belly: '#d6e7ff', accent: '#71bfd0', desc: '背鳍像一面小帆，游过的地方会留下细碎的星光。' },
+        { stage: 3, name: '北冥鲲', min: 900, next: 2000, body: '#5e88bd', ear: '#2f5c8f', belly: '#e2efff', accent: '#8c7fd1', desc: '整片北冥都装得下它，可它最在意的还是你今天的任务。' },
+        { stage: 4, name: '化鹏鲲', min: 2000, next: null, body: '#8fb4df', ear: '#5279ac', belly: '#f0f7ff', accent: '#f0c987', desc: '鲲化为鹏，双翼一展就是九万里；知识海再大也游得完。' }
+      ]
+    },
+    xianhe: {
+      name: '仙鹤',
+      color: '#efe9dc',
+      motion: 'wind',
+      unlock: { type: 'streak', value: 7, label: '连续学习 7 天解锁', unit: '天' },
+      stages: [
+        { stage: 1, name: '雏鹤', min: 0, next: 300, body: '#f3f0e6', ear: '#cfc7b5', belly: '#ffffff', accent: '#d96a4a', desc: '腿还站不太稳的小鹤，头顶已经有一点朱红。' },
+        { stage: 2, name: '仙鹤', min: 300, next: 900, body: '#f6f3eb', ear: '#d7cfbe', belly: '#ffffff', accent: '#d96a4a', desc: '在云边练习单脚站立，一站就是半页单词的时间。' },
+        { stage: 3, name: '云中仙鹤', min: 900, next: 2000, body: '#fbf8f0', ear: '#dcd4c3', belly: '#ffffff', accent: '#c9784e', desc: '展开翅膀能托住一小片云，载着你飞过语法难关。' },
+        { stage: 4, name: '九霄仙鹤', min: 2000, next: null, body: '#fffdf7', ear: '#e3dccb', belly: '#ffffff', accent: '#f0c987', desc: '一声清唳穿过九霄，所有背过的句子都排成队跟着它飞。' }
+      ]
+    },
+    lingyuan: {
+      name: '灵猿',
+      color: '#a98257',
+      motion: 'wood',
+      unlock: { type: 'tasks', value: 30, label: '累计完成 30 个任务解锁', unit: '个' },
+      stages: [
+        { stage: 1, name: '青枝幼猿', min: 0, next: 300, body: '#c2a077', ear: '#7e5a38', belly: '#f4e4cd', accent: '#d9b66f', desc: '挂在树枝上的小猿，尾巴比手臂还会抓东西。' },
+        { stage: 2, name: '灵猿', min: 300, next: 900, body: '#b08a5f', ear: '#6d4c2d', belly: '#f6e7d2', accent: '#c9a45e', desc: '会把你背错的词一个个摘下来，放进自己的树洞。' },
+        { stage: 3, name: '通臂灵猿', min: 900, next: 2000, body: '#a67c50', ear: '#614126', belly: '#f8ebd8', accent: '#8fbf6f', desc: '手臂一伸就能碰到整片树林，难题再也无处可藏。' },
+        { stage: 4, name: '参天灵猿', min: 2000, next: null, body: '#bf9668', ear: '#74512f', belly: '#fff3e0', accent: '#f0c987', desc: '坐在参天古木顶上，把学过的知识编成一张结实的网。' }
+      ]
+    },
+    jinchan: {
+      name: '金蟾',
+      color: '#d9a63f',
+      motion: 'gold',
+      unlock: { type: 'poolSpent', value: 500, label: '累计分配 500 点经验解锁', unit: '经验' },
+      stages: [
+        { stage: 1, name: '铜钱幼蟾', min: 0, next: 300, body: '#e0bd6d', ear: '#a8781f', belly: '#ffe9a8', accent: '#f6d36b', desc: '趴在铜钱堆里的小蟾，嘴边总叼着一枚亮闪闪的币。' },
+        { stage: 2, name: '金蟾', min: 300, next: 900, body: '#d9a63f', ear: '#9a6a18', belly: '#ffe9a8', accent: '#f2c44e', desc: '每分一次经验，它背上的金纹就多一道。' },
+        { stage: 3, name: '招财金蟾', min: 900, next: 2000, body: '#e0ad45', ear: '#a2701c', belly: '#fff0bd', accent: '#f6d36b', desc: '蹲在经验池边，把攒下的成长值一枚枚数清楚。' },
+        { stage: 4, name: '月宫金蟾', min: 2000, next: null, body: '#edc464', ear: '#b07a22', belly: '#fff8d9', accent: '#f6d99a', desc: '月宫里的金蟾，张口吐出的不是钱，是整整一池可以自由分配的经验。' }
+      ]
+    },
+    yinglong: {
+      name: '应龙',
+      color: '#5fb3bd',
+      motion: 'storm',
+      unlock: { type: 'fusion', value: 1, label: '首次融合精灵后解锁', unit: '次' },
+      stages: [
+        { stage: 1, name: '翼龙崽', min: 0, next: 300, body: '#7fc7cf', ear: '#2f7f8c', belly: '#e8ffff', accent: '#e8c37c', desc: '背上的小翅膀还飞不高，却已经能招来一朵乌云。' },
+        { stage: 2, name: '应龙', min: 300, next: 900, body: '#6bbcc5', ear: '#286e7b', belly: '#e8ffff', accent: '#b7e3f2', desc: '有翼的龙，飞过的地方会落下细细的雨。' },
+        { stage: 3, name: '风雨应龙', min: 900, next: 2000, body: '#5ab0ba', ear: '#226370', belly: '#ecffff', accent: '#8fd3cf', desc: '一振翅就起风，一摆尾就下雨，语法难点被冲得干干净净。' },
+        { stage: 4, name: '太虚应龙', min: 2000, next: null, body: '#87cfd5', ear: '#3d8793', belly: '#f5ffff', accent: '#f0c987', desc: '蓄水行雨的上古龙神，双翼展开时，雷声都替它让路。' }
+      ]
     }
   };
 
@@ -419,20 +605,48 @@
     return Math.max(0, pool.earned - pool.spent);
   }
 
+  function petUnlockStats(p) {
+    const who = p || profile() || {};
+    const tasks = (data && Array.isArray(data.tasks) ? data.tasks : [])
+      .filter((task) => task && task.status === 'done');
+    const wordTasks = tasks.filter((task) => task.mode === 'words');
+    const grammarTasks = tasks.filter((task) => task.mode === 'grammar');
+    const words = wordTasks.reduce((sum, task) => sum + ((task.wordStats || []).length), 0);
+    const perfect = wordTasks.filter((task) => Number(task.score) === 100 && (task.wordStats || []).length >= 5).length;
+    const night = tasks.filter((task) => {
+      const at = new Date(task.submittedAt || task.doneAt || task.completedAt || '');
+      return !Number.isNaN(at.getTime()) && at.getHours() >= 18;
+    }).length;
+    const pool = petPoolOf(who);
+    return {
+      checkins: ((who && who.checkins) || []).length,
+      streak: activityStreak(who),
+      pool: pool.earned,
+      poolSpent: pool.spent,
+      words,
+      wordTasks: wordTasks.length,
+      grammarTasks: grammarTasks.length,
+      reports: Math.max(0, Number(who.reportCount) || 0),
+      perfect,
+      tasks: tasks.length,
+      night,
+      fusion: who && who.fusion ? 1 : 0
+    };
+  }
+
   function petUnlockState(p, id) {
     const species = PET_SPECIES[id];
-    if (!species || !species.unlock) return { unlocked: true, progress: 1, text: '已解锁' };
+    if (!species || !species.unlock) return { unlocked: true, progress: 1, text: '已解锁', have: 1, need: 1, unit: '' };
     const need = Math.max(1, Number(species.unlock.value) || 1);
-    const have = species.unlock.type === 'pool'
-      ? petPoolOf(p).earned
-      : ((p && p.checkins) || []).length;
+    const stats = petUnlockStats(p);
+    const have = Math.max(0, Number(stats[species.unlock.type]) || 0);
     return {
       unlocked: have >= need,
       progress: Math.min(1, have / need),
       have,
       need,
       text: species.unlock.label,
-      unit: species.unlock.type === 'pool' ? '经验池 EXP' : '天'
+      unit: species.unlock.unit || ''
     };
   }
 
@@ -716,6 +930,7 @@
         species: artSpecies,
         colors: { body: artColors.body, ear: artColors.ear, belly: artColors.belly, accent: artColors.accent },
         fused: Boolean(fused),
+        motion: fused ? 'storm' : (petSpeciesInfo(artSpecies).motion || 'earth'),
         label: `${fused ? '融合精灵' : petSpeciesInfo(artSpecies).name} · ${artColors.name}`
       });
     }
@@ -1139,13 +1354,26 @@
     }
   }
 
+  let petRosterOpen = false;
+
   function renderPetRoster(p) {
     const box = $('#pet-roster');
     if (!box) return;
     const active = activePetId(p);
-    const cards = Object.keys(PET_SPECIES).map((id) => {
+    const ids = Object.keys(PET_SPECIES);
+    const states = {};
+    ids.forEach((id) => { states[id] = petUnlockState(p, id); });
+    const unlockedCount = ids.filter((id) => states[id].unlocked).length;
+    const ordered = ids.slice().sort((a, b) => {
+      const ua = states[a].unlocked ? 0 : 1;
+      const ub = states[b].unlocked ? 0 : 1;
+      if (ua !== ub) return ua - ub;
+      if (ua === 1) return states[b].progress - states[a].progress;
+      return ids.indexOf(a) - ids.indexOf(b);
+    });
+    const cards = ordered.map((id) => {
       const species = PET_SPECIES[id];
-      const lock = petUnlockState(p, id);
+      const lock = states[id];
       const pet = ensurePet(p, id);
       const info = petStageOf(pet.xp, id);
       if (!lock.unlocked) {
@@ -1170,7 +1398,19 @@
         `<button class="p-btn small" type="button" id="pet-fuse-btn" data-fuse="${S.escapeHtml(`${pair.a}|${pair.b}`)}">融合成 ${S.escapeHtml(pair.name)}</button></div>`
       : '';
     box.innerHTML = `<div class="pet-roster-head"><b>精灵图鉴</b><span>每一只单独成长，喂食和打卡都会加到当前出战精灵。</span></div>` +
-      `<div class="pet-chips">${cards}${fusion}</div>${fuseButton}`;
+      `<button class="pet-roster-toggle" type="button" data-pet-roster-toggle aria-expanded="${petRosterOpen ? 'true' : 'false'}">` +
+        `<span><b>神兽收藏 · 已解锁 ${unlockedCount} / ${ids.length}</b><small>${petRosterOpen ? '收起图鉴' : '点这里展开，看看还有哪些神兽等你解锁'}</small></span>` +
+        `<i aria-hidden="true">${petRosterOpen ? '▴' : '▾'}</i>` +
+      `</button>` +
+      `<div class="pet-chips${petRosterOpen ? ' is-open' : ''}"${petRosterOpen ? '' : ' hidden'}>${cards}${fusion}</div>` +
+      fuseButton;
+    const toggle = box.querySelector('[data-pet-roster-toggle]');
+    if (toggle) {
+      toggle.onclick = () => {
+        petRosterOpen = !petRosterOpen;
+        renderPetRoster(p);
+      };
+    }
   }
 
   function renderWheelEntry(p) {
@@ -1227,6 +1467,83 @@
     return list.find((task) => task.status !== 'done') || null;
   }
 
+  const grammarExtraState = { open: false, filter: 'all', topics: new Set(), drills: new Map() };
+
+  function grammarExtraHTML() {
+    const extra = window.ShunshiGrammarExtra;
+    const topics = extra && Array.isArray(extra.topics) ? extra.topics : [];
+    if (!topics.length) return '';
+    const countOf = (level) => topics.filter((topic) => topic.level === level).length;
+    const filters = [
+      ['all', `全部 ${topics.length}`],
+      ['基础', `基础 ${countOf('基础')}`],
+      ['进阶', `进阶 ${countOf('进阶')}`],
+      ['冲刺', `冲刺 ${countOf('冲刺')}`]
+    ];
+    const filterHTML = filters.map(([value, label]) =>
+      `<button type="button" class="${grammarExtraState.filter === value ? 'is-on' : ''}" data-grammar-filter="${value}">${label}</button>`
+    ).join('');
+    const cards = topics.map((topic) => {
+      const levelClass = topic.level === '基础' ? 'is-basic' : topic.level === '冲刺' ? 'is-sprint' : 'is-mid';
+      const open = grammarExtraState.topics.has(topic.id);
+      const hidden = grammarExtraState.filter !== 'all' && grammarExtraState.filter !== topic.level;
+      const points = (topic.points || []).map((point, index) =>
+        `<section class="grammar-point">` +
+          `<h4><span>${index + 1}</span>${S.escapeHtml(point.h)}</h4>` +
+          `<p>${S.escapeHtml(point.body)}</p>` +
+          `<div class="grammar-egs">${(point.eg || []).map((pair) =>
+            `<p class="grammar-eg"><span class="grammar-eg-en">${S.escapeHtml(pair[0])}</span><span class="grammar-eg-zh">${S.escapeHtml(pair[1])}</span></p>`
+          ).join('')}</div>` +
+        `</section>`
+      ).join('');
+      const drills = (topic.drills || []).map((drill, index) => {
+        const key = `${topic.id}:${index}`;
+        const answered = grammarExtraState.drills.get(key);
+        const answer = Number(drill.answer) || 0;
+        const options = (drill.options || []).map((option, optionIndex) => {
+          const right = answered && optionIndex === answer;
+          const wrong = answered && optionIndex === answered.choice && answered.choice !== answer;
+          return `<button type="button" class="${right ? 'is-correct' : wrong ? 'is-wrong' : ''}" data-grammar-choose="${optionIndex}">` +
+            `<i>${String.fromCharCode(65 + optionIndex)}</i><span>${S.escapeHtml(option)}</span></button>`;
+        }).join('');
+        return `<details class="grammar-drill" data-drill-key="${S.escapeHtml(key)}" data-answer="${answer}"${answered ? ' data-answered="1"' : ''}>` +
+          `<summary><b>自测 ${index + 1}</b><span>${answered ? (answered.correct ? '已答对' : '已作答') : '点开做题'}</span><i aria-hidden="true">▾</i></summary>` +
+          `<p class="grammar-q">${S.escapeHtml(drill.q)}</p>` +
+          `<div class="grammar-options">${options}</div>` +
+          `<div class="grammar-answer"${answered ? '' : ' hidden'}>` +
+            `<p><b>答案：${String.fromCharCode(65 + answer)}</b>${S.escapeHtml(drill.explain)}</p>` +
+            `<button type="button" class="grammar-retry" data-grammar-retry>再练一次</button>` +
+          `</div>` +
+        `</details>`;
+      }).join('');
+      return `<details class="grammar-topic" data-level="${S.escapeHtml(topic.level)}" data-topic="${S.escapeHtml(topic.id)}"${open ? ' open' : ''}${hidden ? ' hidden' : ''}>` +
+        `<summary class="grammar-topic-head">` +
+          `<span class="grammar-topic-level ${levelClass}">${S.escapeHtml(topic.level)}</span>` +
+          `<span class="grammar-topic-title"><b>${S.escapeHtml(topic.title)}</b><small>${S.escapeHtml(topic.tag)} · 约 ${Number(topic.minutes) || 5} 分钟 · ${(topic.drills || []).length} 道自测</small></span>` +
+          `<i class="grammar-topic-arrow" aria-hidden="true">▾</i>` +
+        `</summary>` +
+        `<div class="grammar-topic-body">` +
+          `<p class="grammar-topic-intro">${S.escapeHtml(topic.intro)}</p>` +
+          `<div class="grammar-points">${points}</div>` +
+          `<p class="grammar-pitfall"><b>易错提醒</b><span>${S.escapeHtml(topic.pitfall)}</span></p>` +
+          `<div class="grammar-drills">${drills}</div>` +
+        `</div>` +
+      `</details>`;
+    }).join('');
+    return `<details class="grammar-extra"${grammarExtraState.open ? ' open' : ''}>` +
+      `<summary class="grammar-extra-head">` +
+        `<span class="grammar-extra-icon" aria-hidden="true">📚</span>` +
+        `<span class="grammar-extra-title"><b>语法专题库</b><small>${topics.length} 个高频考点 · 点开专题看规则，再做 2 道自测</small></span>` +
+        `<i class="grammar-extra-arrow" aria-hidden="true">▾</i>` +
+      `</summary>` +
+      `<div class="grammar-extra-body">` +
+        `<p class="grammar-extra-note">这些是 60 天主线之外的加练，不影响每日打卡。建议每周挑 1 个专题，看懂规则、做完自测，再回主线。</p>` +
+        `<div class="grammar-extra-filters" role="group" aria-label="按难度筛选专题">${filterHTML}</div>` +
+        `<div class="grammar-extra-list">${cards}</div>` +
+      `</div>` +
+    `</details>`;
+  }
+
   function renderGrammarCamp() {
     const camp = $('#grammar-camp');
     if (!camp) return;
@@ -1277,6 +1594,7 @@
         `<button class="p-btn small ghost" type="button" data-grammar-scroll="1">看全部任务</button>` +
       `</div>` +
       `<div class="grammar-camp-map" aria-label="60 天进度">${dots.join('')}</div>` +
+      grammarExtraHTML() +
     `</div>`;
   }
 
@@ -1507,7 +1825,7 @@
           `<h3 class="task-title">${S.escapeHtml(task.title || '未命名任务')}</h3>` +
           `<div class="task-meta">` +
             (task.planId ? `<span class="plan-tag">周计划 · D${task.planDay}/${task.planTotal || 7}</span>` : '') +
-            `<span>${S.escapeHtml(task.grade || '未标注')}</span>` +
+            `<span>${S.escapeHtml(task.grade || (profile() && profile().grade) || '未标注')}</span>` +
             `<span>${task.mode === 'words' ? `单词闯关 · ${taskQuestionCount(task)} 词` : task.mode === 'grammar' ? `语法小营 · D${task.grammarDay || '?'} · 5 关` : `${taskQuestionCount(task)} 题`}</span>` +
             `<span>${scoreText}</span>` +
             (task.due ? `<span>截止 ${S.escapeHtml(S.fmtDate(task.due))}</span>` : '') +
@@ -2168,11 +2486,12 @@
   }
 
   function wordOptionsFor(task, word, index) {
-    const others = (task.words || []).map((item) => item.zh).filter((zh) => zh && zh !== word.zh);
-    const pool = Array.from(new Set((task.pool || []).concat(WORD_FALLBACK_ZH, others)))
-      .filter((zh) => zh && zh !== word.zh);
+    const answer = S.primaryMeaning(word.zh);
+    const others = (task.words || []).map((item) => S.primaryMeaning(item.zh)).filter((zh) => zh && zh !== answer);
+    const pool = Array.from(new Set(others.concat(WORD_FALLBACK_ZH)))
+      .filter((zh) => zh && zh !== answer);
     const distractors = seededShuffle(pool, hashString(`${word.w}|${index}|zh`)).slice(0, 3);
-    return seededShuffle([word.zh].concat(distractors), hashString(`${word.w}|${index}|options`));
+    return seededShuffle([answer].concat(distractors), hashString(`${word.w}|${index}|options`));
   }
 
   function reviewOptionsFor(task, word) {
@@ -2489,7 +2808,7 @@
       : kind === 'context'
         ? contextOptionsFor(task, word, index)
         : wordOptionsFor(task, word, index);
-    const correctText = kind === 'meaning' ? word.zh : word.w;
+    const correctText = kind === 'meaning' ? S.primaryMeaning(word.zh) : word.w;
     const progress = isReview
       ? (run.reviewQueue.length ? run.reviewI / run.reviewQueue.length : 1)
       : (total ? index / total : 0);
@@ -2510,7 +2829,7 @@
     const stage = kind === 'review'
       ? `<div class="word-stage review">` +
           `<div class="word-stage-label"><span>错词回炉 · ${word.w}</span><span class="word-phase">中 → 英</span></div>` +
-          `<div class="word-main"><p class="word-big cn">${S.escapeHtml(word.zh || '')}</p>` +
+          `<div class="word-main"><p class="word-big cn">${S.escapeHtml(S.primaryMeaning(word.zh))}</p>` +
           `<p class="word-phon">选回对应的英文单词</p></div>` +
         `</div>`
       : kind === 'context'
@@ -2652,10 +2971,10 @@
         : '';
       feedback.innerHTML = ok
         ? `<b>${context.isReview ? '订正成功' : '答对了'} · 连击 x${run.combo}</b>` +
-          `<div class="word-answer-line">${S.escapeHtml(context.word.w)} · ${S.escapeHtml(context.word.zh || '')}${context.isReview ? '' : '　已记入本轮成绩'}</div>` +
+          `<div class="word-answer-line">${S.escapeHtml(context.word.w)} · ${S.escapeHtml(S.primaryMeaning(context.word.zh))}${context.isReview ? '' : '　已记入本轮成绩'}</div>` +
           contextAnswer
         : `<b>${context.isReview ? '这次还没记住' : '先记一下'}</b>` +
-          `<div class="word-answer-line"><strong>${S.escapeHtml(context.word.w)}</strong> · ${S.escapeHtml(context.word.zh || '')}${context.word.kk ? ` · ${S.escapeHtml(context.word.kk)}` : ''}</div>` +
+          `<div class="word-answer-line"><strong>${S.escapeHtml(context.word.w)}</strong> · ${S.escapeHtml(S.primaryMeaning(context.word.zh))}${context.word.kk ? ` · ${S.escapeHtml(context.word.kk)}` : ''}</div>` +
           contextAnswer +
           `<div class="word-answer-line">${context.isReview ? '下一轮再遇到它，试着先回想发音。' : '这个词会在最后再考一次。'}</div>`;
     }
@@ -2872,14 +3191,60 @@
 
   /* ------------------------------- 任务码 / 汇报码 ------------------------------- */
 
+  /* 新代码为了短，只带英文单词；学生端用本机同一份 glossary.json 补回释义、音标和词性。 */
+  let studentGlossaryPromise = null;
+  function loadStudentGlossary() {
+    if (!studentGlossaryPromise) {
+      studentGlossaryPromise = fetch('vendor/glossary.json', { cache: 'force-cache' })
+        .then((response) => (response.ok ? response.json() : {}))
+        .catch(() => ({}));
+    }
+    return studentGlossaryPromise;
+  }
+
+  /* 新代码为了短，只带 grammarDay 和压缩后的单词；导入时在这里还原成完整任务。 */
+  async function hydrateTaskPayload(task) {
+    if (!task || typeof task !== 'object') return task;
+    if (Array.isArray(task.words) && task.words.length) {
+      const hasSlimWords = task.words.some((item) => typeof item === 'string');
+      const glossary = hasSlimWords ? await loadStudentGlossary() : null;
+      const exampleBank = window.ShunshiWordExamples || {};
+      task.words = S.unpackWordList(task.words).map((word) => {
+        const key = String(word.w || '').toLowerCase();
+        const entry = glossary && glossary[key];
+        const bank = exampleBank[key] || {};
+        const rawZh = word.zh || (entry && entry.zh) || '';
+        return {
+          ...word,
+          zh: rawZh ? S.meaningFor(word.w, rawZh) : '',
+          kk: word.kk || (entry && entry.kk) || '',
+          pos: word.pos || (entry && entry.pos) || '',
+          ex: word.ex || bank.ex || '',
+          exZh: word.exZh || bank.exZh || ''
+        };
+      });
+      if (!task.wordTotal) task.wordTotal = task.words.length;
+    }
+    if (task.mode === 'grammar' && Number(task.grammarDay) > 0) {
+      const G = window.ShunshiGrammar;
+      const lesson = G ? G.lessonByDay(Number(task.grammarDay)) : null;
+      if (lesson && (!task.lesson || !Array.isArray(task.blocks) || task.blocks.length < 4)) {
+        task.lesson = G.summary(lesson);
+        task.blocks = G.buildBlocks(lesson, G.lessonByDay(G.reviewDayFor(lesson.day)));
+      }
+    }
+    return task;
+  }
+
   async function importPlanPayload(payload) {
     const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
     if (!tasks.length) { S.toast('这份周计划里没有任务，请让老师重新生成。', 'error'); return; }
     if (tasks.length > 80) { S.toast('这份计划任务过多，已拒绝导入。', 'error'); return; }
     for (const task of tasks) {
       if (!task || task.kind !== 'task' || !task.id) { S.toast('周计划里有损坏的任务，请让老师重新生成。', 'error'); return; }
+      await hydrateTaskPayload(task);
       const taskAuth = await S.sha256Hex(`${profile().id}|${sessionPin}|${task.id}`);
-      if (taskAuth !== task.auth) { S.toast('周计划校验失败，可能不是发给你的。', 'error', 7000); return; }
+      if (!S.authMatches(task.auth, taskAuth)) { S.toast('周计划校验失败，可能不是发给你的。', 'error', 7000); return; }
       if (task.mode === 'words') {
         if (!Array.isArray(task.words) || task.words.length < 4) { S.toast('周计划里的单词任务不完整。', 'error'); return; }
       } else if (task.mode === 'grammar') {
@@ -2933,7 +3298,7 @@
     }
     if (!requireTrial('体验卡已到期，先申请延长，再导入新的周计划。')) return;
     const auth = await S.sha256Hex(`${payload.studentId}|${sessionPin}|${payload.id}`);
-    if (auth !== payload.auth) {
+    if (!S.authMatches(payload.auth, auth)) {
       S.toast('任务码和当前密码不匹配，可能不是发给你的。', 'error', 6000);
       return;
     }
@@ -2941,6 +3306,7 @@
       await importPlanPayload(payload);
       return;
     }
+    await hydrateTaskPayload(payload);
     const wordMode = payload.mode === 'words';
     if (wordMode) {
       if (!Array.isArray(payload.words) || payload.words.length < 4) {
@@ -3005,7 +3371,7 @@
   async function buildReport(scope, day) {
     if (!profile() || !sessionPin) throw new Error('档案还没有解锁。');
     const reportId = S.uid('R');
-    const auth = await S.sha256Hex(`${profile().id}|${sessionPin}|${reportId}`);
+    const auth = S.authCode(await S.sha256Hex(`${profile().id}|${sessionPin}|${reportId}`));
     const p = profile();
     const daily = scope === 'daily';
     const reportDay = daily ? String(day || S.todayIso()).slice(0, 10) : '';
@@ -3040,7 +3406,23 @@
       archive: !daily,
       daily: dailySummary,
       generatedAt: S.nowIso(),
-      profile: {
+      profile: daily ? {
+        /* 今日汇报只带老师当天要看的部分；神兽、仓库等大块数据留在学生本机，
+           老师端保留上一次的完整档案。这样汇报码能短一大截。 */
+        id: p.id,
+        name: p.name,
+        grade: p.grade,
+        avatar: p.avatar,
+        createdAt: p.createdAt,
+        xp: p.xp,
+        attrs: p.attrs,
+        checkins: (p.checkins || []).filter((day) => String(day) >= S.addDays(reportDay, -60)),
+        badges: p.badges,
+        accountType: p.accountType || 'regular',
+        trialDays: p.trialDays || 0,
+        trialExpiresAt: p.trialExpiresAt || '',
+        trialStartedAt: p.trialStartedAt || ''
+      } : {
         id: p.id,
         name: p.name,
         grade: p.grade,
@@ -3099,11 +3481,14 @@
     const report = await buildReport(scope, day);
     const code = await S.packCode(report);
     $('#report-code').value = code;
+    const p = profile();
+    p.reportCount = Math.max(0, Number(p.reportCount) || 0) + 1;
     if (scope === 'daily') {
-      const p = profile();
       p.lastDailyReport = { day: report.reportDay, at: report.generatedAt, reportId: report.reportId, taskCount: report.tasks.length };
       save();
       renderReportStatus();
+    } else {
+      save();
     }
     return report;
   }
@@ -3180,7 +3565,7 @@
       return;
     }
     const auth = await S.sha256Hex(`${payload.studentId}|${pin}|${payload.reportId}`);
-    if (auth !== payload.auth) {
+    if (!S.authMatches(payload.auth, auth)) {
       S.toast('密码不对，无法恢复这份档案。', 'error', 5000);
       return;
     }
@@ -3234,7 +3619,7 @@
       return;
     }
     const auth = await S.sha256Hex(`reset|${payload.studentId}|${payload.pin}|${payload.createdAt || ''}`);
-    if (auth !== payload.auth) {
+    if (!S.authMatches(payload.auth, auth)) {
       S.toast('重置码校验失败，可能被改动过，请让老师重新生成。', 'error', 6500);
       return;
     }
@@ -3284,7 +3669,7 @@
     if (!p || !sessionPin) { S.toast('先解锁档案。', 'error'); return; }
     if (p.accountType !== 'trial') { S.toast('正式学生账户不需要申请延长。', 'ok'); return; }
     const state = trialState(p);
-    const auth = await S.sha256Hex(`${p.id}|${sessionPin}|trial-request|${state.expiresAt}`);
+    const auth = S.authCode(await S.sha256Hex(`${p.id}|${sessionPin}|trial-request|${state.expiresAt}`));
     const code = await S.packCode({
       v: 1,
       kind: 'trial-request',
@@ -3317,7 +3702,7 @@
     }
     if (payload.kind === 'upgrade') {
       const upgradeAuth = await S.sha256Hex(`${p.id}|${sessionPin}|upgrade`);
-      if (upgradeAuth !== payload.auth) {
+      if (!S.authMatches(payload.auth, upgradeAuth)) {
         S.toast('转正码和当前密码不匹配，请让老师重新生成。', 'error', 6000);
         return;
       }
@@ -3333,7 +3718,7 @@
     }
     const days = Math.max(1, Math.min(60, Number(payload.days) || 3));
     const auth = await S.sha256Hex(`${p.id}|${sessionPin}|extend|${days}`);
-    if (auth !== payload.auth) {
+    if (!S.authMatches(payload.auth, auth)) {
       S.toast('延长码和当前密码不匹配，请让老师重新生成。', 'error', 6000);
       return;
     }
@@ -3440,6 +3825,51 @@
     const grammarCamp = $('#grammar-camp');
     if (grammarCamp) {
       grammarCamp.addEventListener('click', (event) => {
+        const filterBtn = event.target.closest('[data-grammar-filter]');
+        if (filterBtn) {
+          grammarExtraState.filter = filterBtn.dataset.grammarFilter;
+          grammarCamp.querySelectorAll('[data-grammar-filter]').forEach((btn) => {
+            btn.classList.toggle('is-on', btn === filterBtn);
+          });
+          grammarCamp.querySelectorAll('.grammar-topic').forEach((topic) => {
+            topic.hidden = grammarExtraState.filter !== 'all' && topic.dataset.level !== grammarExtraState.filter;
+          });
+          return;
+        }
+        const choose = event.target.closest('[data-grammar-choose]');
+        if (choose) {
+          const drill = choose.closest('.grammar-drill');
+          if (!drill || drill.dataset.answered === '1') return;
+          const answer = Number(drill.dataset.answer) || 0;
+          const choice = Number(choose.dataset.grammarChoose) || 0;
+          grammarExtraState.drills.set(drill.dataset.drillKey, { choice, correct: choice === answer });
+          drill.dataset.answered = '1';
+          drill.querySelectorAll('[data-grammar-choose]').forEach((btn) => {
+            const index = Number(btn.dataset.grammarChoose) || 0;
+            btn.classList.toggle('is-correct', index === answer);
+            btn.classList.toggle('is-wrong', index === choice && choice !== answer);
+          });
+          const answerBox = drill.querySelector('.grammar-answer');
+          if (answerBox) answerBox.hidden = false;
+          const status = drill.querySelector('summary span');
+          if (status) status.textContent = choice === answer ? '已答对' : '已作答';
+          return;
+        }
+        const retry = event.target.closest('[data-grammar-retry]');
+        if (retry) {
+          const drill = retry.closest('.grammar-drill');
+          if (!drill) return;
+          grammarExtraState.drills.delete(drill.dataset.drillKey);
+          delete drill.dataset.answered;
+          drill.querySelectorAll('[data-grammar-choose]').forEach((btn) => {
+            btn.classList.remove('is-correct', 'is-wrong');
+          });
+          const answerBox = drill.querySelector('.grammar-answer');
+          if (answerBox) answerBox.hidden = true;
+          const status = drill.querySelector('summary span');
+          if (status) status.textContent = '点开做题';
+          return;
+        }
         if (event.target.closest('[data-grammar-scroll]')) {
           const tasksCard = $('#tasks');
           if (tasksCard) tasksCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -3452,6 +3882,16 @@
         if (button.dataset.grammarLocked === '1' || taskLocked(task)) unlockPlanDay(task);
         openTask(task.id);
       });
+      grammarCamp.addEventListener('toggle', (event) => {
+        const target = event.target;
+        if (!target || !target.classList) return;
+        if (target.classList.contains('grammar-extra')) {
+          grammarExtraState.open = target.open;
+        } else if (target.classList.contains('grammar-topic')) {
+          if (target.open) grammarExtraState.topics.add(target.dataset.topic);
+          else grammarExtraState.topics.delete(target.dataset.topic);
+        }
+      }, true);
     }
     const runnerBody = $('#runner-body');
     if (runnerBody) {
@@ -3470,6 +3910,17 @@
       try {
         await S.copyText($('#report-code').value);
         S.toast('汇报码已复制，发给阮老师即可。', 'ok');
+      } catch (error) {
+        S.toast('复制失败，请手动全选复制。', 'error');
+      }
+    });
+    $('#copy-report-link').addEventListener('click', async () => {
+      const code = $('#report-code').value.trim();
+      if (!code) { S.toast('汇报码还没有生成。', 'error'); return; }
+      try {
+        const link = S.codeLink('teacher.html', code);
+        await S.copyText(`老师，这是我今天的学习汇报，点开就能导入：\n${link}`);
+        S.toast('汇报链接已复制，发给老师即可。', 'ok', 4200);
       } catch (error) {
         S.toast('复制失败，请手动全选复制。', 'error');
       }
@@ -3523,6 +3974,7 @@
   }
 
   function init() {
+    takeLinkCode();
     bindEvents();
     showAuth();
   }

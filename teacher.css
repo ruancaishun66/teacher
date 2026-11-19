@@ -132,6 +132,89 @@
 .teacher-pane { display: none; }
 .teacher-pane.active { display: block; animation: fadeIn 0.3s var(--ease); }
 
+/* 发布任务：合并“练习卷”和“每日打卡”后的二级导航 */
+.publish-head { margin-bottom: 12px; }
+.publish-subnav {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding: 5px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(31, 107, 119, 0.07);
+}
+.publish-subnav button {
+  flex: 1;
+  padding: 9px 12px;
+  border: 1px solid rgba(31, 107, 119, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 253, 247, 0.72);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: 0.2s var(--ease);
+}
+.publish-subnav button span {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.6rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  opacity: 0.7;
+}
+.publish-subnav button:hover { color: var(--ink); background: rgba(76, 154, 166, 0.1); }
+.publish-subnav button.active {
+  background: var(--red-deep);
+  color: #fff;
+  box-shadow: 0 0 18px -5px rgba(224, 66, 59, 0.9);
+}
+.publish-subpane { display: none; }
+.publish-subpane.active { display: block; animation: fadeIn 0.3s var(--ease); }
+.publish-subpane[data-publish-pane="daily"].active { display: flex; flex-direction: column; }
+.publish-subpane[data-publish-pane="daily"] > .publish-banner { order: 1; }
+.publish-subpane[data-publish-pane="daily"] > [data-publish-block="words"] { order: 2; }
+.publish-subpane[data-publish-pane="daily"] > [data-publish-block="grammar"] { order: 3; }
+.publish-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid rgba(76, 154, 166, 0.28);
+  border-radius: 14px;
+  background: linear-gradient(120deg, rgba(76, 154, 166, 0.09), rgba(232, 181, 107, 0.09));
+}
+.publish-banner > div { min-width: 0; }
+.publish-banner b { font-size: 0.86rem; color: var(--ink); }
+.publish-banner p { margin: 4px 0 0; font-size: 0.7rem; line-height: 1.65; color: var(--muted); }
+.publish-block { margin-top: 24px; }
+.publish-block:first-of-type { margin-top: 0; }
+
+/* 教师端语法“为什么这样设计”默认折叠，避免发布页过长 */
+.grammar-evidence summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+  cursor: pointer;
+  list-style: none;
+}
+.grammar-evidence summary::-webkit-details-marker { display: none; }
+.grammar-evidence summary b { font-family: var(--display); font-size: 1rem; letter-spacing: 0.06em; color: var(--ink); }
+.grammar-evidence summary small { margin-left: 6px; font-size: 0.62rem; color: var(--dim); }
+.grammar-evidence summary i { font-style: normal; font-size: 0.66rem; color: var(--blue); }
+.grammar-evidence-body { margin-top: 12px; }
+
+@media (max-width: 700px) {
+  .publish-banner { flex-direction: column; align-items: flex-start; }
+  .publish-subnav button { padding: 8px; font-size: 0.7rem; }
+}
+
 .pane-title { margin: 0; font-family: var(--display); font-size: 1.1rem; letter-spacing: 0.06em; }
 .pane-sub { max-width: 66ch; margin: 4px 0 0; color: var(--dim); font-size: 0.7rem; }
 

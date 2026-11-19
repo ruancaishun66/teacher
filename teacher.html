@@ -84,7 +84,7 @@
         <h1>因势利导，<em>看见每一个学生。</em></h1>
         <p class="hero-tip">把资料库里的练习卷拆成任务码，发给学生；学生回传汇报码后，这里会自动生成学情总览与认知画像。所有数据只在本机。</p>
         <div class="hero-actions">
-          <button class="p-btn" type="button" id="hero-words">发布单词打卡</button>
+          <button class="p-btn" type="button" id="hero-words">发布任务</button>
           <button class="p-btn ghost" type="button" id="hero-assign">布置练习任务</button>
           <button class="p-btn ghost" type="button" id="hero-import">导入学生汇报</button>
           <button class="p-btn ghost" type="button" id="hero-add">添加学生</button>
@@ -108,11 +108,8 @@
     <nav class="teacher-tabs" id="teacher-tabs" aria-label="教师端页面">
       <button type="button" class="active" data-tab="overview">总览</button>
       <button type="button" data-tab="students">学生</button>
-      <button type="button" data-tab="assignments">任务</button>
-      <button type="button" data-tab="plan">周计划</button>
+      <button type="button" data-tab="publish">发布任务</button>
       <button type="button" data-tab="weekly">周备课</button>
-      <button type="button" data-tab="grammar">语法打卡</button>
-      <button type="button" data-tab="words">单词打卡</button>
       <button type="button" data-tab="reports">汇报</button>
       <button type="button" data-tab="trial">体验卡</button>
       <button type="button" data-tab="insights">心得</button>
@@ -157,23 +154,40 @@
       <div class="student-grid" id="student-grid"></div>
     </section>
 
-    <!-- 任务 -->
-    <section class="teacher-pane" data-pane="assignments">
-      <div class="roster-toolbar">
+    <!-- 发布任务（练习卷 + 每日打卡，合并入口） -->
+    <section class="teacher-pane" data-pane="publish">
+      <div class="publish-head">
         <div>
-          <h2 class="pane-title">已布置的任务</h2>
-          <p class="pane-sub">任务码一人一码，学生用学号和密码导入。练习卷来自组卷工作台，单词任务在“单词打卡”里发布。</p>
-        </div>
-        <div class="toolbar-actions">
-          <a class="p-btn small ghost" href="library.html">组卷工作台 ↗</a>
-          <button class="p-btn small" type="button" id="assignment-add">＋ 布置任务</button>
+          <h2 class="pane-title">发布任务 <small>PUBLISH</small></h2>
+          <p class="pane-sub">先选类型：每日打卡管单词和语法，练习卷管阅读、完形和语法题。推荐用“词汇书周编排”，一次把 7 天的单词和语法混排好，一人一码。</p>
         </div>
       </div>
-      <div class="assignment-list" id="assignment-list"></div>
-    </section>
+      <div class="publish-subnav" id="publish-subnav" role="tablist" aria-label="发布类型">
+        <button type="button" class="active" data-publish-sub="daily" role="tab" aria-selected="true">每日打卡 <span>单词 + 语法</span></button>
+        <button type="button" data-publish-sub="papers" role="tab" aria-selected="false">练习卷 <span>周计划 + 单次</span></button>
+      </div>
 
-    <!-- 周计划 -->
-    <section class="teacher-pane" data-pane="plan">
+      <div class="publish-subpane" data-publish-pane="papers">
+        <div class="publish-banner">
+          <div><b>一周练习卷，用“周计划”一次拆好</b><p>选资料库里的练习卷，按每位学生的难度档自动分到 7 天；临时补一套卷，用下面的“已布置的任务”。</p></div>
+          <a class="p-btn small ghost" href="library.html">组卷工作台 ↗</a>
+        </div>
+
+        <section class="publish-block" data-publish-block="assignments">
+          <div class="roster-toolbar">
+            <div>
+              <h2 class="pane-title">练习卷任务</h2>
+              <p class="pane-sub">单次布置一套练习卷；任务码一人一码，学生用学号和密码导入。</p>
+            </div>
+            <div class="toolbar-actions">
+              <a class="p-btn small ghost" href="library.html">组卷工作台 ↗</a>
+              <button class="p-btn small" type="button" id="assignment-add">＋ 布置任务</button>
+            </div>
+          </div>
+          <div class="assignment-list" id="assignment-list"></div>
+        </section>
+
+        <section class="publish-block" data-publish-block="plan">
       <div class="roster-toolbar">
         <div>
           <h2 class="pane-title">一周任务计划 <small>WEEKLY PLAN</small></h2>
@@ -220,54 +234,21 @@
           <div id="plan-list"></div>
         </section>
       </div>
-    </section>
-
-
-    <!-- 周备课 -->
-    <section class="teacher-pane" data-pane="weekly">
-      <div class="roster-toolbar">
-        <div>
-          <h2 class="pane-title">本周上课建议 <small>WEEKLY COACH</small></h2>
-          <p class="pane-sub">先汇总这一周学生的打卡、单词和语法错题，再给出 90 分钟课的结构、例句和作业。规则版不调用 AI、不花钱；需要润色时再手动点 AI。</p>
-        </div>
-        <div class="toolbar-actions">
-          <button class="p-btn small ghost" type="button" id="weekly-print">打印 / 存 PDF</button>
-          <button class="p-btn small ghost" type="button" id="weekly-handout">下载学生讲义</button>
-        </div>
-      </div>
-      <div class="p-grid">
-        <section class="p-card p-col-4">
-          <div class="p-card-head"><h3 class="p-card-title">1. 选一周 <small>WEEK</small></h3></div>
-          <div class="field">
-            <label for="weekly-start">这周从哪天开始</label>
-            <input class="input" id="weekly-start" type="date">
-          </div>
-          <div class="field">
-            <label>看哪些学生</label>
-            <div class="check-list" id="weekly-students"></div>
-          </div>
-          <button class="p-btn block" type="button" id="weekly-generate">生成上课建议</button>
-          <p class="hint" style="text-align:left;">只读本机已有的汇报与打卡，不会上传。建议先导入学生本周汇报，结果会更准。</p>
-          <hr class="weekly-sep">
-          <h3 class="dialog-subtitle">可选：AI 精简</h3>
-          <p class="hint" style="text-align:left;">把汇总后的匿名数据交给 DeepSeek，生成更顺的课堂话术。约 300–500 tokens，点一次才调用一次。</p>
-          <button class="p-btn small ghost block" type="button" id="weekly-ai">AI 润色这节课（消耗少量额度）</button>
-          <p class="hint" id="weekly-ai-note"></p>
-        </section>
-        <section class="p-card p-col-8">
-          <div id="weekly-advice-output" class="weekly-output">
-            <div class="empty-state"><strong>还没有生成</strong>选好这一周，点“生成上课建议”。系统会把出勤、单词错词、语法卡点和课堂材料整理成一页。</div>
-          </div>
         </section>
       </div>
-    </section>
 
-    <!-- 语法打卡 -->
-    <section class="teacher-pane" data-pane="grammar">
+      <div class="publish-subpane active" data-publish-pane="daily">
+        <div class="publish-banner">
+          <div><b>推荐：词汇书周编排</b><p>导入整本词汇书，插入任务 1、2、3…；单词日和语法日可以混排，系统按学情分好每天的词，生成一人一码。下面也可以单独补发单词或语法。</p></div>
+          <button class="p-btn small" type="button" id="publish-book">打开周编排</button>
+        </div>
+
+        <!-- 语法打卡 -->
+        <section class="publish-block" data-publish-block="grammar">
       <div class="roster-toolbar">
         <div>
           <h2 class="pane-title">60 天语法小营 <small>GRAMMAR CAMP</small></h2>
-          <p class="pane-sub">一天 5 分钟：看一句故事里的句子，记一条规则，做 3 道小题，复习 1 道旧题，再写 1 句。老师一次发 7 天，学生每天自动解锁一天。</p>
+          <p class="pane-sub">一天 5 分钟：看一句故事里的句子，记一条规则，做 3 道小题，复习 1 道旧题，再写 1 句。老师一次发 7 天，学生每天自动解锁一天。如果本周已在“词汇书周编排”里混排了语法，这里不用重复发。</p>
         </div>
         <div class="toolbar-actions">
           <span class="hint" id="grammar-selected-count">已选 0 人</span>
@@ -315,8 +296,13 @@
           </div>
           <div class="grammar-pack-list" id="grammar-list"></div>
         </section>
-        <section class="p-card p-col-12">
-          <div class="p-card-head"><h3 class="p-card-title">为什么这样设计 <small>EVIDENCE</small></h3></div>
+        <section class="p-card p-col-12 grammar-evidence-card">
+          <details class="grammar-evidence">
+            <summary>
+              <span><b>为什么这样设计</b> <small>EVIDENCE</small></span>
+              <i aria-hidden="true">展开看方法来源 ▾</i>
+            </summary>
+            <div class="grammar-evidence-body">
           <p class="hint" style="text-align:left;margin-top:0;">课程骨架参考了你给的两本语法书：叶永昌《英语阅读参考手册》用关联词和常用词讲清功能词的判别与搭配；《语法透析手册》用“五大句型 + 八大成分 + 场景句”先搭骨架、再添修饰。每日形式则参考了下面这些成熟做法与研究结论。</p>
           <div class="research-grid">
             <div><b>四股绳理论</b><span>Nation, 2007</span><p>语言学习建议约四分之一时间做“聚焦语言形式”的练习。每天 5 分钟语法，正好补上这一股。</p></div>
@@ -329,25 +315,67 @@
             <div><b>NoRedInk / Duolingo</b><span>自适应练习与连击</span><p>即时反馈、难度自适应、连续记录能帮助坚持；但连击也可能变成压力。对应：不排名、可补学、奖励只记本机。</p></div>
           </div>
           <p class="hint" style="text-align:left;margin-bottom:0;">两本书是方法来源，课程句子与题目均为原创，不复制书中的例句和练习，避免版权问题。</p>
+            </div>
+          </details>
         </section>
       </div>
     </section>
 
-    <!-- 单词打卡 -->
-    <section class="teacher-pane" data-pane="words">
+        <!-- 单词打卡 -->
+        <section class="publish-block" data-publish-block="words">
       <div class="roster-toolbar">
         <div>
           <h2 class="pane-title">单词打卡 <small>WORD QUEST</small></h2>
-          <p class="pane-sub">粘贴一本单词书，或从资料库的文章里提取生词，发布成闯关任务。学生在学生端逐词作答，交回汇报码后，这里显示完成进度与错词。</p>
+          <p class="pane-sub">粘贴一本单词书，或从资料库的文章里提取生词，发布成单次闯关。学生交回汇报码后，这里显示完成进度与错词；如果本周已用上面的“词汇书周编排”发过，这里不用重复发。</p>
         </div>
         <div class="toolbar-actions">
-          <a class="p-btn small ghost" href="library.html">组卷工作台 ↗</a>
-          <button class="p-btn small ghost" type="button" id="book-add">词汇书周编排</button>
+          <a class="p-btn small ghost" href="library.html">从文章提词 ↗</a>
           <button class="p-btn small" type="button" id="word-add">＋ 发布单词任务</button>
         </div>
       </div>
       <div class="word-dash" id="word-stats"></div>
       <div class="assignment-list" id="word-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- 周备课 -->
+    <section class="teacher-pane" data-pane="weekly">
+      <div class="roster-toolbar">
+        <div>
+          <h2 class="pane-title">本周上课建议 <small>WEEKLY COACH</small></h2>
+          <p class="pane-sub">先汇总这一周学生的打卡、单词和语法错题，再给出 90 分钟课的结构、例句和作业。规则版不调用 AI、不花钱；需要润色时再手动点 AI。</p>
+        </div>
+        <div class="toolbar-actions">
+          <button class="p-btn small ghost" type="button" id="weekly-print">打印 / 存 PDF</button>
+          <button class="p-btn small ghost" type="button" id="weekly-handout">下载学生讲义</button>
+        </div>
+      </div>
+      <div class="p-grid">
+        <section class="p-card p-col-4">
+          <div class="p-card-head"><h3 class="p-card-title">1. 选一周 <small>WEEK</small></h3></div>
+          <div class="field">
+            <label for="weekly-start">这周从哪天开始</label>
+            <input class="input" id="weekly-start" type="date">
+          </div>
+          <div class="field">
+            <label>看哪些学生</label>
+            <div class="check-list" id="weekly-students"></div>
+          </div>
+          <button class="p-btn block" type="button" id="weekly-generate">生成上课建议</button>
+          <p class="hint" style="text-align:left;">只读本机已有的汇报与打卡，不会上传。建议先导入学生本周汇报，结果会更准。</p>
+          <hr class="weekly-sep">
+          <h3 class="dialog-subtitle">可选：AI 精简</h3>
+          <p class="hint" style="text-align:left;">把汇总后的匿名数据交给 DeepSeek，生成更顺的课堂话术。约 300–500 tokens，点一次才调用一次。</p>
+          <button class="p-btn small ghost block" type="button" id="weekly-ai">AI 润色这节课（消耗少量额度）</button>
+          <p class="hint" id="weekly-ai-note"></p>
+        </section>
+        <section class="p-card p-col-8">
+          <div id="weekly-advice-output" class="weekly-output">
+            <div class="empty-state"><strong>还没有生成</strong>选好这一周，点“生成上课建议”。系统会把出勤、单词错词、语法卡点和课堂材料整理成一页。</div>
+          </div>
+        </section>
+      </div>
     </section>
 
     <!-- 汇报 -->
@@ -1200,6 +1228,7 @@
 <script src="insights-core.js"></script>
 <script src="insights.js"></script>
 <script src="portal.js"></script>
+<script src="word-examples.js"></script>
 <script src="teacher.js"></script>
 <script src="pwa.js" defer></script>
 </body>

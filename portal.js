@@ -247,6 +247,178 @@
     return Promise.resolve((hash >>> 0).toString(16).padStart(8, '0'));
   }
 
+  /* 校验码只保留前 16 位十六进制，短一半；旧版 64 位整串仍然能通过。 */
+  function authCode(hash) {
+    return String(hash || '').slice(0, 16);
+  }
+
+  function authMatches(stored, expected) {
+    const a = String(stored || '').trim().toLowerCase();
+    const b = String(expected || '').trim().toLowerCase();
+    if (!a || !b) return false;
+    if (a.length === b.length) return a === b;
+    if (a.length === 16) return b.slice(0, 16) === a;
+    return false;
+  }
+
+  /* 从整段微信消息、链接或代码里把 SS0./SS1. 代码抠出来。 */
+  function extractCode(raw) {
+    let text = String(raw || '').trim();
+    if (!text) return '';
+    if (/^https?:\/\//i.test(text)) {
+      try {
+        const url = new URL(text);
+        const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
+        const fromHash = hash.get('code');
+        const fromQuery = url.searchParams.get('code');
+        if (fromHash || fromQuery) text = fromHash || fromQuery;
+      } catch (error) { /* 不是完整链接就按普通文本处理 */ }
+    }
+    try { text = decodeURIComponent(text); } catch (error) { /* ignore */ }
+    text = text.replace(/\s+/g, '');
+    const match = text.match(/SS[01]\.[A-Za-z0-9_-]+/);
+    return match ? match[0] : text;
+  }
+
+  function codeLink(page, code) {
+    const url = new URL(page || 'student.html', location.href);
+    url.hash = 'code=' + encodeURIComponent(String(code || ''));
+    return url.href;
+  }
+
+  function readCodeFromLocation() {
+    try {
+      const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+      const query = new URLSearchParams(location.search);
+      return hash.get('code') || query.get('code') || '';
+    } catch (error) {
+      return '';
+    }
+  }
+
+  /* 常见词只保留学生最常考的一两个意思，避免词典里生僻义项堆在一起。 */
+  const COMMON_MEANINGS = {
+    a: '一个', an: '一个', account: '账户', address: '地址；演讲', appreciate: '欣赏；感激',
+    available: '可获得的；有空的', benefit: '益处；好处', capital: '首都；资本', case: '情况；案例',
+    certain: '确定的；某些', confident: '自信的', project: '项目；计划', respect: '尊重；敬意',
+    solve: '解决', succeed: '成功',
+    bear: '熊；忍受', change: '变化；零钱', charge: '费用；充电',
+    company: '公司；陪伴', decline: '下降；拒绝', even: '甚至；平坦的',
+    fair: '公平的；集市', figure: '数字；人物', fine: '好的；罚款',
+    firm: '公司；坚定的', issue: '问题；发行', last: '最后的；持续',
+    lead: '领导；带领', leave: '离开；留下', lie: '躺；撒谎',
+    light: '光；轻的', like: '喜欢；像', long: '长的；渴望',
+    may: '可以；可能', matter: '事情；要紧', mean: '意味着；吝啬的',
+    might: '可能', order: '顺序；命令', patient: '病人；耐心的',
+    present: '礼物；现在的', pretty: '漂亮的；相当', race: '比赛；种族',
+    rare: '稀有的', right: '正确的；右边', ring: '戒指；铃声',
+    row: '一排；划船', saw: '锯子', scale: '规模；刻度', seal: '印章；海豹',
+    second: '第二；秒', sound: '声音；听起来', spring: '春天；泉水',
+    state: '状态；州', still: '仍然；静止的', subject: '科目；主题',
+    term: '学期；术语', tip: '小费；提示', top: '顶部；最高的',
+    watch: '观看；手表', wave: '波浪；挥手', will: '将；意志', wonder: '想知道；奇迹'
+  };
+
+  const RARE_MEANING = /(古|诗|律|医|解剖|植物学|动物学|化学|物理|军事|航海|印刷|牌戏|俚|谑|罕|废|方言|苏格兰|爱尔兰|加拿大|南非|圣经|神学|纹章|逻辑|修辞|板球|高尔夫|棒球|赛马|狩猎|钓鱼|航空|电学|力学|几何|统计|会计|法庭|议会|外交|宗教|基督教|犹太|伊斯兰|希腊|罗马|北欧|神话)/;
+
+  function cleanSense(part) {
+    return String(part || '')
+      .replace(/<[^>]*>/g, '')
+      .replace(/^[\s:：=·•\-—]+|[\s:：=·•\-—]+$/g, '')
+      .replace(/[.。]+$/g, '')
+      .trim();
+  }
+
+  function senseScore(part, index) {
+    let score = 100 - index * 4;
+    const len = part.length;
+    if (len <= 4) score += 6;
+    else if (len <= 8) score += 2;
+    else if (len <= 12) score -= 3;
+    else score -= 10;
+    if (RARE_MEANING.test(part)) score -= 28;
+    if (/[A-Za-z]{2,}/.test(part)) score -= 8;
+    if (/…/.test(part)) score -= 3;
+    if (/的$/.test(part)) score += 1;
+    return score;
+  }
+
+  function simplifyMeaning(raw, limit) {
+    const max = limit || 12;
+    const text = String(raw || '')
+      .replace(/\[[^\]]*\]|【[^】]*】|\([^)]*\)|（[^）]*）/g, ' ')
+      .replace(/[.．]{2,}|…+/g, '…');
+    const seen = new Set();
+    const parts = text.split(/[;；,，、/|]+/)
+      .map(cleanSense)
+      .filter((part) => {
+        if (!part || part.length > max) return false;
+        const key = part.replace(/…/g, '').replace(/\s+/g, '');
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    if (!parts.length) return cleanSense(text).slice(0, max);
+    const ranked = parts
+      .map((part, index) => ({ part, index, score: senseScore(part, index) }))
+      .sort((a, b) => b.score - a.score || a.index - b.index);
+    const first = ranked[0];
+    let second = null;
+    for (const item of ranked.slice(1)) {
+      if (item.score < 55) break;
+      const overlap = item.part.split('').filter((ch) => first.part.includes(ch)).length;
+      if (overlap >= Math.min(item.part.length, first.part.length) * 0.7) continue;
+      if (first.part.length + item.part.length > 18) continue;
+      second = item;
+      break;
+    }
+    const picked = [first.part].concat(second ? [second.part] : []);
+    return picked.join('；');
+  }
+
+  function meaningFor(word, raw) {
+    const key = String(word || '').toLowerCase();
+    if (COMMON_MEANINGS[key]) return COMMON_MEANINGS[key];
+    return simplifyMeaning(raw);
+  }
+
+  function primaryMeaning(zh) {
+    const first = String(zh || '').split(/[；;、|/]/).map((part) => part.trim()).filter(Boolean)[0];
+    return first || String(zh || '').trim();
+  }
+
+  /* 代码里用短数组装单词，比重复写 w/zh/kk/pos 省一大截。
+     如果本机释义库有这个词，就只发英文单词，学生端用同一份 glossary.json 补齐释义和音标；
+     生僻词或老师自定义的词才带上完整字段，保证离线也能用。 */
+  function packWordList(words, glossary) {
+    const exampleBank = window.ShunshiWordExamples || {};
+    return (words || []).map((word) => {
+      const key = String(word.w || '').toLowerCase();
+      const entry = glossary && glossary[key];
+      const bank = exampleBank[key] || {};
+      const expectedZh = entry && entry.zh ? meaningFor(key, entry.zh) : '';
+      const canSlim = entry && entry.zh && entry.kk &&
+        (!word.zh || word.zh === expectedZh) &&
+        (!word.kk || word.kk === entry.kk) &&
+        (!word.pos || word.pos === entry.pos) &&
+        (!word.ex || word.ex === bank.ex) &&
+        (!word.exZh || word.exZh === bank.exZh);
+      if (canSlim) return word.w;
+      return [word.w || '', word.zh || '', word.kk || '', word.pos || '', word.ex || '', word.exZh || ''];
+    });
+  }
+
+  function unpackWordList(list) {
+    if (!Array.isArray(list)) return [];
+    return list.map((item) => {
+      if (typeof item === 'string') return { w: item, zh: '', kk: '', pos: '', ex: '', exZh: '' };
+      if (Array.isArray(item)) {
+        return { w: item[0] || '', zh: item[1] || '', kk: item[2] || '', pos: item[3] || '', ex: item[4] || '', exZh: item[5] || '' };
+      }
+      return item || {};
+    }).filter((word) => word.w);
+  }
+
   function bytesToBase64Url(bytes) {
     let binary = '';
     const chunk = 0x8000;
@@ -281,7 +453,7 @@
   }
 
   async function unpackCode(code) {
-    const text = String(code || '').replace(/\s+/g, '');
+    const text = extractCode(code);
     if (!text) throw new Error('任务是空的，先把整段代码粘贴进来。');
     const prefix = text.slice(0, 4);
     if (prefix !== 'SS0.' && prefix !== 'SS1.') {
@@ -610,6 +782,16 @@
     getJSON,
     setJSON,
     sha256Hex,
+    authCode,
+    authMatches,
+    extractCode,
+    codeLink,
+    readCodeFromLocation,
+    simplifyMeaning,
+    meaningFor,
+    primaryMeaning,
+    packWordList,
+    unpackWordList,
     packCode,
     unpackCode,
     copyText,

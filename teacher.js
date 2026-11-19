@@ -53,6 +53,8 @@
   let assignPaperId = null;
   let lastCodes = [];
   let lastEnroll = null;
+  let pendingReportLink = '';
+  let reportLinkStarted = false;
   let editingInsightId = null;
   let glossaryPromise = null;
   let wordMaterials = [];
@@ -173,6 +175,26 @@
     $('#student-detail').hidden = true;
     $('#teacher-user').hidden = false;
     renderAll();
+    setTimeout(maybeImportReportLink, 500);
+  }
+
+  function takeReportLink() {
+    const code = S.readCodeFromLocation();
+    if (!code) return;
+    pendingReportLink = code;
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (error) { /* ignore */ }
+  }
+
+  function maybeImportReportLink() {
+    if (reportLinkStarted || !pendingReportLink || !data || !sessionPin) return;
+    reportLinkStarted = true;
+    const code = pendingReportLink;
+    pendingReportLink = '';
+    switchTab('reports');
+    const box = $('#import-report-code');
+    if (!box) return;
+    box.value = code;
+    setTimeout(() => { importReportCode(); }, 320);
   }
 
   async function setupTeacher() {
@@ -578,7 +600,7 @@
     counts.forEach((count, word) => {
       const entry = glossary[word];
       if (!entry || !entry.zh) return;
-      candidates.push({ w: word, count, zh: entry.zh, kk: entry.kk || '', pos: entry.pos || '' });
+      candidates.push({ w: word, count, zh: S.meaningFor(word, entry.zh), kk: entry.kk || '', pos: entry.pos || '' });
     });
     candidates.sort((a, b) => b.count - a.count || b.w.length - a.w.length || a.w.localeCompare(b.w));
     const picked = [];
@@ -632,7 +654,12 @@
       const key = word.toLowerCase();
       if (seen.has(key)) return;
       seen.add(key);
-      list.push({ w: word, zh: meaning, kk: '', pos: '', ex: example, exZh: exampleZh });
+      const meaningCount = String(meaning || '').split(/[;；,，、/|]+/).filter((part) => part.trim()).length;
+      list.push({
+        w: word,
+        zh: meaning ? (meaningCount >= 4 ? S.meaningFor(word.toLowerCase(), meaning) : S.simplifyMeaning(meaning)) : '',
+        kk: '', pos: '', ex: example, exZh: exampleZh
+      });
       if (list.length >= 2000) return;
     });
     return list;
@@ -805,31 +832,27 @@
   /* ------------------------------- 任务码 ------------------------------- */
 
   async function taskCodeFor(assignment, student) {
-    const auth = await S.sha256Hex(`${student.id}|${student.pin}|${assignment.id}`);
+    const auth = S.authCode(await S.sha256Hex(`${student.id}|${student.pin}|${assignment.id}`));
     const base = {
       v: 1,
       kind: 'task',
       id: assignment.id,
       studentId: student.id,
-      studentName: student.name,
-      teacherName: data.teacherName || '阮老师',
       title: assignment.title,
       grade: assignment.paperGrade || student.grade || '',
       due: assignment.due || '',
       xp: assignment.xp,
       createdAt: assignment.createdAt,
-      paperId: assignment.paperId,
-      paperTitle: assignment.paperTitle,
       auth
     };
     if (assignment.kind === 'words') {
       const studentWords = adaptiveWordsFor(assignment, student);
+      const glossary = await loadGlossary();
       return S.packCode({
         ...base,
         mode: 'words',
         wordTotal: studentWords.length,
-        words: studentWords,
-        pool: wordPoolFor(studentWords)
+        words: S.packWordList(studentWords, glossary)
       });
     }
     return S.packCode({
@@ -839,57 +862,66 @@
     });
   }
 
-  function wordTaskPayload(assignment, student) {
+  function wordTaskPayload(assignment, student, glossary) {
     const studentWords = adaptiveWordsFor(assignment, student);
     return {
       v: 1,
       kind: 'task',
       id: assignment.id,
       studentId: student.id,
-      studentName: student.name,
-      teacherName: data.teacherName || '阮老师',
       title: assignment.title,
       grade: assignment.paperGrade || student.grade || '',
       due: assignment.due || '',
       xp: assignment.xp,
       createdAt: assignment.createdAt,
-      paperId: '',
-      paperTitle: assignment.paperTitle || '单词打卡',
       mode: 'words',
       wordTotal: studentWords.length,
-      words: studentWords,
-      pool: wordPoolFor(studentWords)
+      words: S.packWordList(studentWords, glossary)
     };
   }
 
   async function bundleCodeFor(assignment, student, grammarPlan) {
-    const wordTask = wordTaskPayload(assignment, student);
-    wordTask.auth = await S.sha256Hex(`${student.id}|${student.pin}|${assignment.id}`);
+    const glossary = await loadGlossary();
+    const wordTask = wordTaskPayload(assignment, student, glossary);
+    wordTask.auth = S.authCode(await S.sha256Hex(`${student.id}|${student.pin}|${assignment.id}`));
     const tasks = [wordTask];
     if (grammarPlan) {
       for (const day of grammarPlan.days || []) {
-        const task = planTaskPayload(grammarPlan, day, student, data.teacherName || '阮老师');
-        task.auth = await S.sha256Hex(`${student.id}|${student.pin}|${day.taskId}`);
+        const task = planTaskPayload(grammarPlan, day, student, data.teacherName || '阮老师', glossary);
+        task.auth = S.authCode(await S.sha256Hex(`${student.id}|${student.pin}|${day.taskId}`));
         tasks.push(task);
       }
     }
     const bundleId = `${assignment.id}-B`;
-    const auth = await S.sha256Hex(`${student.id}|${student.pin}|${bundleId}`);
+    const auth = S.authCode(await S.sha256Hex(`${student.id}|${student.pin}|${bundleId}`));
     return S.packCode({
       v: 1,
       kind: 'plan',
       id: bundleId,
       studentId: student.id,
-      studentName: student.name,
-      teacherName: data.teacherName || '阮老师',
-      title: `本周单词 + 语法 · ${student.name}`,
-      planStart: grammarPlan ? grammarPlan.weekStart : assignment.createdAt.slice(0, 10),
-      planTotal: tasks.length,
-      level: student.planLevel || 5,
       createdAt: S.nowIso(),
       auth,
       tasks
     });
+  }
+
+  function codeCardButtons(item, index) {
+    return `<div class="code-card-actions">` +
+      `<button class="p-btn small" type="button" data-copy-message-index="${index}">复制微信消息</button>` +
+      `<button class="p-btn small ghost" type="button" data-copy-index="${index}">复制纯码</button>` +
+    `</div>`;
+  }
+
+  /* 纯码默认折叠：老师平时发“微信消息”里的链接即可，学生点开自动导入。 */
+  function codeTextareaHtml(code) {
+    return `<details class="code-raw"><summary>纯码备用（一般不用复制）</summary>` +
+      `<textarea class="code-text" readonly>${S.escapeHtml(code)}</textarea>` +
+    `</details>`;
+  }
+
+  function codeMessageFor(item) {
+    const link = S.codeLink('student.html', item.code);
+    return `${item.student.name}，点开这个链接会自动导入本周任务：\n${link}`;
   }
 
   async function showBundleCodes(items, grammarUsed) {
@@ -913,9 +945,9 @@
       return `<div class="code-card">` +
         `<div class="code-card-head">` +
           `<div><strong>${S.escapeHtml(item.student.name)}</strong> <span>${S.escapeHtml(item.student.id)} · ${note}</span></div>` +
-          `<button class="p-btn small ghost" type="button" data-copy-index="${index}">复制</button>` +
+          codeCardButtons(item, index) +
         `</div>` +
-        `<textarea class="code-text" readonly>${S.escapeHtml(item.code)}</textarea>` +
+        codeTextareaHtml(item.code) +
       `</div>`;
     }).join('');
     S.openDialog($('#codes-dialog'));
@@ -923,7 +955,7 @@
 
   async function buildResetCode(student) {
     const createdAt = S.nowIso();
-    const auth = await S.sha256Hex(`reset|${student.id}|${student.pin}|${createdAt}`);
+    const auth = S.authCode(await S.sha256Hex(`reset|${student.id}|${student.pin}|${createdAt}`));
     return S.packCode({
       v: 1,
       kind: 'reset',
@@ -937,7 +969,7 @@
   }
 
   async function buildEnrollCode(student) {
-    const auth = await S.sha256Hex(`enroll|${student.id}|${student.pin}`);
+    const auth = S.authCode(await S.sha256Hex(`enroll|${student.id}|${student.pin}`));
     return S.packCode({
       v: 1,
       kind: 'enroll',
@@ -1491,16 +1523,40 @@
 
   /* ------------------------------- 标签切换 ------------------------------- */
 
-  function switchTab(name) {
-    $$('#teacher-tabs button').forEach((button) => button.classList.toggle('active', button.dataset.tab === name));
-    $$('.teacher-pane').forEach((pane) => pane.classList.toggle('active', pane.dataset.pane === name));
-    if (name === 'insights') renderInsights();
-    if (name === 'words') renderWords();
-    if (name === 'plan') {
+  let publishSub = 'daily';
+
+  function setPublishSub(name) {
+    publishSub = name === 'papers' ? 'papers' : 'daily';
+    $$('#publish-subnav button').forEach((button) => {
+      const on = button.dataset.publishSub === publishSub;
+      button.classList.toggle('active', on);
+      button.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    $$('[data-publish-pane]').forEach((pane) => {
+      pane.classList.toggle('active', pane.dataset.publishPane === publishSub);
+    });
+    if (publishSub === 'papers') {
+      renderAssignments();
       renderPlanTab();
       if (!planPapers.length) loadPlanPapers().then(() => renderPlanTab());
+    } else {
+      renderWords();
+      renderGrammarTab();
     }
-    if (name === 'grammar') renderGrammarTab();
+  }
+
+  function switchTab(name) {
+    /* 旧入口（任务 / 周计划 / 语法 / 单词）都收进“发布任务”，保留跳转兼容。 */
+    const publishAlias = { assignments: 'papers', plan: 'papers', grammar: 'daily', words: 'daily' };
+    if (publishAlias[name]) {
+      switchTab('publish');
+      setPublishSub(publishAlias[name]);
+      return;
+    }
+    $$('#teacher-tabs button').forEach((button) => button.classList.toggle('active', button.dataset.tab === name));
+    $$('.teacher-pane').forEach((pane) => pane.classList.toggle('active', pane.dataset.pane === name));
+    if (name === 'publish') setPublishSub(publishSub);
+    if (name === 'insights') renderInsights();
     if (name === 'weekly') renderWeeklyTab();
     if (name === 'guide') {
       const frame = $('#guide-frame');
@@ -1799,9 +1855,9 @@
       return `<div class="code-card">` +
         `<div class="code-card-head">` +
           `<div><strong>${S.escapeHtml(item.student.name)}</strong> <span>${S.escapeHtml(item.student.id)}</span></div>` +
-          `<button class="p-btn small ghost" type="button" data-copy-index="${index}">复制</button>` +
+          codeCardButtons(item, index) +
         `</div>` +
-        `<textarea class="code-text" readonly>${S.escapeHtml(item.code)}</textarea>` +
+        codeTextareaHtml(item.code) +
       `</div>`;
     }).join('');
     S.openDialog($('#codes-dialog'));
@@ -1988,61 +2044,68 @@
     };
   }
 
-  function planTaskPayload(plan, day, student, teacherName) {
-    return {
+  function planTaskPayload(plan, day, student, teacherName, glossary) {
+    const task = {
       v: 1,
       kind: 'task',
       id: day.taskId,
       studentId: student.id,
-      studentName: student.name,
-      teacherName: teacherName || '阮老师',
       title: day.title,
       grade: student.grade || '',
       due: day.date,
       xp: day.xp,
       createdAt: plan.createdAt,
-      paperId: '',
-      paperTitle: day.paperTitle || plan.title,
       planId: plan.id,
       planDay: day.day,
       planTotal: (plan.days || []).length || 7,
-      planStart: plan.weekStart,
-      planTitle: plan.title,
-      planLevel: plan.level,
       assignmentId: day.assignmentId || plan.bookAssignmentId || '',
       wordSlot: day.wordSlot || '',
-      slotLabel: day.slotLabel || '',
       mode: day.kind === 'grammar' ? 'grammar' : day.kind === 'words' ? 'words' : '',
       grammarDay: day.grammarDay || 0,
-      lesson: day.lesson || null,
       wordTotal: day.wordTotal || 0,
-      words: day.words || [],
-      pool: day.pool || [],
-      avgDifficulty: day.avgDifficulty || null,
-      blocks: day.blocks || []
+      words: S.packWordList(day.words || [], glossary),
+      avgDifficulty: day.avgDifficulty || null
     };
+    /* 语法课由学生端按 grammarDay 用同一份 grammar-data.js 重建，
+       不再把 5 个关卡整包塞进代码里；练习卷没有固定课程数据，仍需带题目。 */
+    if (day.kind === 'grammar') {
+      task.lesson = null;
+      task.blocks = [];
+      delete task.grade;
+      delete task.createdAt;
+      delete task.assignmentId;
+      delete task.wordSlot;
+      delete task.wordTotal;
+      delete task.words;
+      delete task.avgDifficulty;
+    } else if (day.kind === 'words') {
+      delete task.grade;
+      delete task.createdAt;
+      delete task.avgDifficulty;
+      task.lesson = null;
+      task.blocks = [];
+    } else {
+      task.lesson = day.lesson || null;
+      task.blocks = day.blocks || [];
+    }
+    return task;
   }
 
   async function planCodeFor(plan, student) {
     const teacherName = data.teacherName || '阮老师';
+    const glossary = await loadGlossary();
     const tasks = [];
     for (const day of plan.days) {
-      const task = planTaskPayload(plan, day, student, teacherName);
-      task.auth = await S.sha256Hex(`${student.id}|${student.pin}|${day.taskId}`);
+      const task = planTaskPayload(plan, day, student, teacherName, glossary);
+      task.auth = S.authCode(await S.sha256Hex(`${student.id}|${student.pin}|${day.taskId}`));
       tasks.push(task);
     }
-    const auth = await S.sha256Hex(`${student.id}|${student.pin}|${plan.id}`);
+    const auth = S.authCode(await S.sha256Hex(`${student.id}|${student.pin}|${plan.id}`));
     return S.packCode({
       v: 1,
       kind: 'plan',
       id: plan.id,
       studentId: student.id,
-      studentName: student.name,
-      teacherName,
-      title: plan.title,
-      planStart: plan.weekStart,
-      planTotal: (plan.days || []).length || 7,
-      level: plan.level,
       createdAt: plan.createdAt,
       auth,
       tasks
@@ -2220,9 +2283,9 @@
       return `<div class="code-card">` +
         `<div class="code-card-head">` +
           `<div><strong>${S.escapeHtml(item.student.name)}</strong> <span>${S.escapeHtml(item.student.id)} · ${dayCount} 天 · ${S.escapeHtml(kindLabel)}</span></div>` +
-          `<button class="p-btn small ghost" type="button" data-copy-index="${index}">复制</button>` +
+          codeCardButtons(item, index) +
         `</div>` +
-        `<textarea class="code-text" readonly>${S.escapeHtml(item.code)}</textarea>` +
+        codeTextareaHtml(item.code) +
       `</div>`;
     }).join('');
     S.openDialog($('#codes-dialog'));
@@ -2564,7 +2627,7 @@
     const student = getStudent(payload.studentId);
     if (!student) { S.toast(`名册里没有学号 ${payload.studentId}。`, 'error'); return; }
     const auth = await S.sha256Hex(`${student.id}|${student.pin}|trial-request|${payload.expiresAt}`);
-    if (auth !== payload.auth) { S.toast('申请码校验失败，可能不是这个学生发来的。', 'error', 7000); return; }
+    if (!S.authMatches(payload.auth, auth)) { S.toast('申请码校验失败，可能不是这个学生发来的。', 'error', 7000); return; }
     trialRequestPayload = payload;
     planRequestStudentId = student.id;
     student.trialRequestAt = payload.requestedAt || S.nowIso();
@@ -2577,7 +2640,7 @@
   }
 
   async function buildExtendCode(student, days) {
-    const auth = await S.sha256Hex(`${student.id}|${student.pin}|extend|${days}`);
+    const auth = S.authCode(await S.sha256Hex(`${student.id}|${student.pin}|extend|${days}`));
     return S.packCode({
       v: 1,
       kind: 'extend',
@@ -2612,7 +2675,7 @@
     if (!student) return;
     if (!student.pin) { S.toast('这个学生没有登记密码，无法生成转正码。', 'error'); return; }
     if (!window.confirm(`把 ${student.name} 转为正式学生？会生成一个转正码，学生使用后不再受体验期限制。`)) return;
-    const auth = await S.sha256Hex(`${student.id}|${student.pin}|upgrade`);
+    const auth = S.authCode(await S.sha256Hex(`${student.id}|${student.pin}|upgrade`));
     const code = await S.packCode({
       v: 1,
       kind: 'upgrade',
@@ -2913,8 +2976,8 @@
       const key = word.w.toLowerCase();
       const entry = glossary[key] || {};
       const bank = WORD_EXAMPLES[key] || {};
-      const zh = String(word.zh || entry.zh || '').trim();
-      if (!word.zh && entry.zh) filled += 1;
+      const zh = word.zh ? S.simplifyMeaning(word.zh) : S.meaningFor(key, entry.zh || '');
+      if (!word.zh && zh) filled += 1;
       const ex = String(word.ex || bank.ex || '').trim();
       const exZh = String(word.exZh || bank.exZh || '').trim();
       if (ex) exampleCount += 1;
@@ -3030,7 +3093,7 @@
     const xp = clamp(Number($('#word-xp').value) || 80, 20, 600);
     const words = wordDraft.map((word) => ({
       w: word.w,
-      zh: word.zh,
+      zh: S.simplifyMeaning(word.zh),
       kk: word.kk || '',
       pos: word.pos || '',
       ex: String(word.ex || '').trim(),
@@ -3263,7 +3326,7 @@
       if (!key) return;
       const entry = glossary[key] || {};
       const bank = WORD_EXAMPLES[key] || {};
-      const zh = String(word.zh || entry.zh || '').trim();
+      const zh = word.zh ? S.simplifyMeaning(word.zh) : S.meaningFor(key, entry.zh || '');
       if (!zh) { skipped += 1; return; }
       words.push({
         w: word.w,
@@ -3718,33 +3781,43 @@
       return;
     }
     const auth = await S.sha256Hex(`${student.id}|${student.pin}|${payload.reportId}`);
-    if (auth !== payload.auth) {
+    if (!S.authMatches(payload.auth, auth)) {
       S.toast('校验失败：汇报码与这个学生登记的密码不一致，可能是旧密码或拿错了码。', 'error', 7000);
       return;
     }
 
     const profile = payload.profile || {};
+    const previous = student.profile || {};
+    const dailyReport = payload.scope === 'daily';
     const reportedAccountType = profile.accountType === 'trial' ? 'trial' : 'regular';
+    const mergedCheckins = dailyReport
+      ? Array.from(new Set([...(previous.checkins || []), ...(Array.isArray(profile.checkins) ? profile.checkins : [])]))
+      : (Array.isArray(profile.checkins) ? profile.checkins : []);
+    const mergedBadges = dailyReport
+      ? Array.from(new Set([...(previous.badges || []), ...(Array.isArray(profile.badges) ? profile.badges : [])]))
+      : (Array.isArray(profile.badges) ? profile.badges : []);
     student.accountType = reportedAccountType;
     student.profile = {
+      ...(dailyReport ? previous : {}),
       ...profile,
       id: student.id,
       name: profile.name || student.name,
       grade: profile.grade || student.grade,
       avatar: profile.avatar || student.avatar,
       attrs: S.normalizeAttrs(profile.attrs),
-      checkins: Array.isArray(profile.checkins) ? profile.checkins : [],
-      badges: Array.isArray(profile.badges) ? profile.badges : [],
+      checkins: mergedCheckins,
+      badges: mergedBadges,
       xp: Number(profile.xp) || 0,
       accountType: reportedAccountType,
       trialDays: Math.max(1, Number(profile.trialDays) || student.trialDays || 3),
       trialExpiresAt: String(profile.trialExpiresAt || ''),
       trialStartedAt: String(profile.trialStartedAt || ''),
-      pets: profile.pets || null,
-      petPool: profile.petPool || null,
-      activePet: String(profile.activePet || ''),
-      fusion: profile.fusion || null,
-      wheel: profile.wheel || null
+      pets: profile.pets || previous.pets || null,
+      petPool: profile.petPool || previous.petPool || null,
+      unlockedPets: profile.unlockedPets || previous.unlockedPets || null,
+      activePet: String(profile.activePet || previous.activePet || ''),
+      fusion: profile.fusion || previous.fusion || null,
+      wheel: profile.wheel || previous.wheel || null
     };
     if (!student.name) student.name = profile.name || student.name;
     if (!student.grade && profile.grade) student.grade = profile.grade;
@@ -5010,7 +5083,12 @@
     $('#teacher-restore-btn').addEventListener('click', restoreTeacher);
 
     $('#nav-assign').addEventListener('click', () => openAssign(null));
-    $('#hero-words').addEventListener('click', () => openWordDialog(null));
+    $('#hero-words').addEventListener('click', () => {
+      switchTab('publish');
+      setPublishSub('daily');
+      const pane = $('.teacher-pane[data-pane="publish"]');
+      if (pane) pane.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     $('#nav-import').addEventListener('click', () => {
       $('#import-report-code').value = '';
       S.openDialog($('#import-report-dialog'));
@@ -5145,6 +5223,15 @@
       const button = event.target.closest('button[data-tab]');
       if (button) switchTab(button.dataset.tab);
     });
+    const publishNav = $('#publish-subnav');
+    if (publishNav) {
+      publishNav.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-publish-sub]');
+        if (button) setPublishSub(button.dataset.publishSub);
+      });
+    }
+    const publishBook = $('#publish-book');
+    if (publishBook) publishBook.addEventListener('click', () => openBookDialog(''));
     $$('[data-goto]').forEach((button) => {
       button.addEventListener('click', () => {
         switchTab(button.dataset.goto);
@@ -5350,13 +5437,15 @@
     $('#assign-generate').addEventListener('click', generateAssignment);
 
     $('#codes-list').addEventListener('click', async (event) => {
+      const messageButton = event.target.closest('[data-copy-message-index]');
       const button = event.target.closest('[data-copy-index]');
-      if (!button) return;
-      const item = lastCodes[Number(button.dataset.copyIndex)];
+      if (!messageButton && !button) return;
+      const index = Number(messageButton ? messageButton.dataset.copyMessageIndex : button.dataset.copyIndex);
+      const item = lastCodes[index];
       if (!item || !item.code) return;
       try {
-        await S.copyText(item.code);
-        S.toast(`${item.student.name} 的任务码已复制。`, 'ok');
+        await S.copyText(messageButton ? codeMessageFor(item) : item.code);
+        S.toast(messageButton ? `已复制给 ${item.student.name} 的微信消息（含可点链接）。` : `${item.student.name} 的纯码已复制。`, 'ok', 4200);
       } catch (error) {
         S.toast('复制失败，请手动全选复制。', 'error');
       }
@@ -5495,6 +5584,7 @@
   }
 
   function init() {
+    takeReportLink();
     bindEvents();
     showAuth();
   }

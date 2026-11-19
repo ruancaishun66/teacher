@@ -1449,6 +1449,7 @@ dialog.p-dialog[open] { animation: dialogIn 0.28s var(--ease); }
 
 .code-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .code-card-head strong { font-size: 0.8rem; }
+.code-card-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 
 .code-text {
   width: 100%;
@@ -1463,6 +1464,26 @@ dialog.p-dialog[open] { animation: dialogIn 0.28s var(--ease); }
   line-height: 1.5;
   resize: none;
 }
+
+/* 纯码折叠：老师默认只发微信消息里的链接，长码收起来不撑破界面。 */
+.code-raw { margin-top: 2px; }
+.code-raw summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  color: var(--dim);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.code-raw summary::-webkit-details-marker { display: none; }
+.code-raw summary::before { content: '▸'; font-size: 0.7rem; }
+.code-raw[open] summary::before { content: '▾'; }
+.code-raw summary:hover { color: var(--gold); }
+.code-raw .code-text { margin-top: 6px; }
 
 .paper-list { display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow: auto; padding-right: 4px; }
 
@@ -3618,11 +3639,37 @@ body.trial-expired .trial-banner {
 .pet-roster-head b { font-size: 0.82rem; color: var(--ink); }
 .pet-roster-head span { font-size: 0.68rem; color: var(--dim); }
 
+.pet-roster-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid rgba(79, 168, 179, 0.3);
+  border-radius: 13px;
+  background: linear-gradient(120deg, rgba(143, 211, 207, 0.16), rgba(240, 201, 135, 0.1));
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: 0.2s var(--ease);
+}
+
+.pet-roster-toggle:hover { border-color: rgba(79, 168, 179, 0.55); }
+.pet-roster-toggle b { display: block; font-size: 0.8rem; color: var(--ink); line-height: 1.35; }
+.pet-roster-toggle small { display: block; margin-top: 2px; font-size: 0.66rem; color: var(--dim); line-height: 1.45; }
+.pet-roster-toggle i { flex: none; font-style: normal; font-size: 0.9rem; color: var(--blue); }
+
 .pet-chips {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 8px;
+  margin-top: 10px;
 }
+
+.pet-chips[hidden] { display: none; }
+.pet-chip-art .pet-svg * { animation: none !important; }
 
 .pet-chip {
   display: flex;
@@ -3965,6 +4012,281 @@ body.trial-expired .trial-banner {
 @keyframes grammar-pulse {
   0%, 100% { box-shadow: 0 0 0 3px rgba(217, 110, 81, 0.18); }
   50% { box-shadow: 0 0 0 6px rgba(217, 110, 81, 0.06); }
+}
+
+/* 语法专题库（折叠式，放在 60 天主线之后） */
+.grammar-extra {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  border: 1px solid rgba(31, 107, 119, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 253, 247, 0.72);
+  overflow: hidden;
+}
+
+.grammar-extra-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+  background: linear-gradient(120deg, rgba(76, 154, 166, 0.08), rgba(232, 181, 107, 0.08));
+}
+
+.grammar-extra-head::-webkit-details-marker { display: none; }
+
+.grammar-extra-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(31, 107, 119, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 253, 247, 0.9);
+  font-size: 0.9rem;
+}
+
+.grammar-extra-title { flex: 1; min-width: 0; }
+.grammar-extra-title b { display: block; font-size: 0.82rem; color: var(--ink); }
+.grammar-extra-title small { display: block; margin-top: 2px; font-size: 0.66rem; color: var(--dim); line-height: 1.45; }
+
+.grammar-extra-arrow,
+.grammar-topic-arrow {
+  flex: none;
+  font-style: normal;
+  color: var(--blue);
+  transition: transform 0.2s var(--ease);
+}
+
+.grammar-extra[open] > .grammar-extra-head .grammar-extra-arrow { transform: rotate(180deg); }
+
+.grammar-extra-body { padding: 4px 14px 14px; }
+
+.grammar-extra-note {
+  margin: 8px 0 10px;
+  font-size: 0.68rem;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.grammar-extra-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+
+.grammar-extra-filters button {
+  padding: 5px 11px;
+  border: 1px solid rgba(31, 107, 119, 0.16);
+  border-radius: 99px;
+  background: rgba(255, 253, 247, 0.7);
+  font: inherit;
+  font-size: 0.66rem;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: 0.18s var(--ease);
+}
+
+.grammar-extra-filters button:hover { border-color: rgba(31, 107, 119, 0.35); }
+.grammar-extra-filters button.is-on { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+.grammar-extra-list { display: grid; gap: 8px; }
+
+.grammar-topic {
+  border: 1px solid rgba(31, 107, 119, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 253, 247, 0.86);
+  overflow: hidden;
+}
+
+.grammar-topic[hidden] { display: none; }
+
+.grammar-topic-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.grammar-topic-head::-webkit-details-marker { display: none; }
+.grammar-topic-head:hover { background: rgba(76, 154, 166, 0.05); }
+
+.grammar-topic-level {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  border-radius: 99px;
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.grammar-topic-level.is-basic { color: #4c9aa6; }
+.grammar-topic-level.is-mid { color: #b7832f; }
+.grammar-topic-level.is-sprint { color: #c25a3f; }
+
+.grammar-topic-title { flex: 1; min-width: 0; }
+.grammar-topic-title b { display: block; font-size: 0.78rem; color: var(--ink); line-height: 1.4; }
+.grammar-topic-title small { display: block; margin-top: 2px; font-size: 0.63rem; color: var(--dim); }
+
+.grammar-topic[open] > .grammar-topic-head .grammar-topic-arrow { transform: rotate(180deg); }
+
+.grammar-topic-body {
+  padding: 2px 12px 12px;
+  border-top: 1px dashed rgba(31, 107, 119, 0.12);
+}
+
+.grammar-topic-intro { margin: 10px 0; font-size: 0.72rem; color: var(--muted); line-height: 1.7; }
+
+.grammar-points { display: grid; gap: 8px; }
+
+.grammar-point {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(76, 154, 166, 0.045);
+}
+
+.grammar-point h4 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 4px;
+  font-size: 0.74rem;
+  color: var(--ink);
+}
+
+.grammar-point h4 span {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 6px;
+  background: rgba(76, 154, 166, 0.16);
+  color: var(--blue);
+  font-size: 0.6rem;
+}
+
+.grammar-point > p { margin: 0; font-size: 0.7rem; color: var(--muted); line-height: 1.7; }
+
+.grammar-egs { display: grid; gap: 4px; margin-top: 6px; }
+.grammar-eg { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0; font-size: 0.68rem; line-height: 1.6; }
+.grammar-eg-en { color: var(--ink); font-family: var(--display); font-style: italic; }
+.grammar-eg-zh { color: var(--dim); }
+
+.grammar-pitfall {
+  display: flex;
+  gap: 8px;
+  margin: 9px 0 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(217, 110, 81, 0.16);
+  border-radius: 9px;
+  background: rgba(217, 110, 81, 0.07);
+  font-size: 0.68rem;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
+.grammar-pitfall b { flex: none; color: var(--red-deep); }
+
+.grammar-drills { display: grid; gap: 7px; margin-top: 10px; }
+
+.grammar-drill {
+  border: 1px solid rgba(31, 107, 119, 0.14);
+  border-radius: 10px;
+  background: #fffdf7;
+  overflow: hidden;
+}
+
+.grammar-drill summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.7rem;
+}
+
+.grammar-drill summary::-webkit-details-marker { display: none; }
+.grammar-drill summary b { color: var(--ink); }
+.grammar-drill summary span { flex: 1; color: var(--dim); font-size: 0.63rem; }
+.grammar-drill summary i { font-style: normal; color: var(--blue); transition: transform 0.2s var(--ease); }
+.grammar-drill[open] summary i { transform: rotate(180deg); }
+
+.grammar-q { margin: 0 11px 8px; font-size: 0.74rem; color: var(--ink); line-height: 1.6; }
+
+.grammar-options { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 0 11px; }
+
+.grammar-options button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border: 1px solid rgba(31, 107, 119, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 253, 247, 0.8);
+  font: inherit;
+  font-size: 0.68rem;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  transition: 0.16s var(--ease);
+}
+
+.grammar-options button:hover { border-color: rgba(31, 107, 119, 0.4); background: rgba(76, 154, 166, 0.06); }
+
+.grammar-options button i {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: rgba(31, 107, 119, 0.08);
+  font-style: normal;
+  font-size: 0.58rem;
+  color: var(--blue);
+}
+
+.grammar-options button.is-correct { border-color: rgba(90, 150, 110, 0.55); background: rgba(90, 150, 110, 0.1); color: var(--ink); }
+.grammar-options button.is-correct i { background: var(--green); color: #fff; }
+.grammar-options button.is-wrong { border-color: rgba(217, 110, 81, 0.55); background: rgba(217, 110, 81, 0.09); color: var(--ink); }
+.grammar-options button.is-wrong i { background: var(--red); color: #fff; }
+
+.grammar-answer {
+  margin: 8px 0 0;
+  padding: 8px 11px 10px;
+  border-top: 1px dashed rgba(31, 107, 119, 0.14);
+  font-size: 0.68rem;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.grammar-answer[hidden] { display: none; }
+.grammar-answer b { margin-right: 6px; color: var(--green); }
+
+.grammar-retry {
+  margin-top: 6px;
+  padding: 4px 10px;
+  border: 1px solid rgba(31, 107, 119, 0.2);
+  border-radius: 99px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.62rem;
+  color: var(--blue);
+  cursor: pointer;
+}
+
+.grammar-retry:hover { background: rgba(76, 154, 166, 0.08); }
+
+@media (max-width: 560px) {
+  .grammar-extra-body { padding: 4px 10px 12px; }
+  .grammar-extra-head { padding: 11px 12px; }
+  .grammar-topic-head { padding: 9px 10px; }
+  .grammar-topic-level { padding: 2px 6px; font-size: 0.55rem; }
+  .grammar-options { grid-template-columns: 1fr; }
 }
 
 /* 学生端语法课 */
@@ -4617,6 +4939,99 @@ body.trial-expired .trial-banner {
 .pet-chip { position: relative; }
 .pet-svg .pet-orb { animation: petOrb 3.2s ease-in-out infinite; transform-origin: 182px 52px; }
 @keyframes petOrb { 0%, 100% { opacity: 0.75; transform: scale(0.94); } 50% { opacity: 1; transform: scale(1.06); } }
+
+/* 每种属性的精灵有自己的动作，不再全部上下浮动 */
+.pet-svg .pet-wing-l,
+.pet-svg .pet-wing-r,
+.pet-svg .pet-ear-l,
+.pet-svg .pet-ear-r { transform-box: fill-box; }
+.pet-svg .pet-wing-l { transform-origin: 92% 58%; }
+.pet-svg .pet-wing-r { transform-origin: 8% 58%; }
+.pet-svg .pet-ear-l { transform-origin: 50% 92%; }
+.pet-svg .pet-ear-r { transform-origin: 50% 92%; }
+.pet-svg .pet-sun-disc { transform-box: fill-box; transform-origin: center; }
+
+.pet-scene:not(.is-motion) .pet-svg :is(.pet-body-group, .pet-tail, .pet-eye, .pet-bubble, .pet-aura, .pet-wing-l, .pet-wing-r, .pet-ear-l, .pet-ear-r, .pet-orb, .pet-sun-disc, .pet-lightning, .pet-smoke) {
+  animation-play-state: paused;
+}
+
+.pet-scene.is-motion .pet-svg.pet-motion-water .pet-body-group { animation: petSwim 5.2s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-water .pet-tail { animation: petTailSwim 2.3s ease-in-out infinite; }
+
+.pet-scene.is-motion .pet-svg.pet-motion-fire .pet-body-group { animation: petFlicker 2.8s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-fire .pet-aura { animation-duration: 2.6s; }
+.pet-scene.is-motion .pet-svg.pet-motion-fire .pet-smoke { animation: petSmoke 4.2s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-fire .pet-tail { animation: petTailSwim 1.8s ease-in-out infinite; }
+
+.pet-scene.is-motion .pet-svg.pet-motion-wind .pet-body-group { animation: petWindSway 4.6s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-wind .pet-wing-l { animation: petWingFlapL 2.2s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-wind .pet-wing-r { animation: petWingFlapR 2.2s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-wind .pet-tail { animation: petTailSwim 3.2s ease-in-out infinite; }
+
+.pet-scene.is-motion .pet-svg.pet-motion-earth .pet-body-group { animation: petStomp 4.4s ease-in-out infinite; }
+
+.pet-scene.is-motion .pet-svg.pet-motion-moon .pet-body-group { animation: petMoonFloat 5.6s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-moon .pet-ear-l { animation: petEarSwayL 3.4s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-moon .pet-ear-r { animation: petEarSwayR 3.4s 0.35s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-moon .pet-aura { animation-duration: 4.2s; }
+
+.pet-scene.is-motion .pet-svg.pet-motion-dream .pet-body-group { animation: petDream 6.2s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-dream .pet-wing-l { animation: petWingFlapL 3.4s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-dream .pet-wing-r { animation: petWingFlapR 3.4s 0.2s ease-in-out infinite; }
+
+.pet-scene.is-motion .pet-svg.pet-motion-metal .pet-body-group { animation: petMetal 3.8s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-metal .pet-tail { animation: petTailSwim 2.6s ease-in-out infinite; }
+
+.pet-scene.is-motion .pet-svg.pet-motion-wood .pet-body-group { animation: petSway 4.8s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-wood .pet-ear-l { animation: petEarSwayL 3.8s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-wood .pet-ear-r { animation: petEarSwayR 3.8s 0.3s ease-in-out infinite; }
+
+.pet-scene.is-motion .pet-svg.pet-motion-storm .pet-body-group { animation: petStormShake 2.1s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-storm .pet-wing-l { animation: petWingFlapL 1.05s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-storm .pet-wing-r { animation: petWingFlapR 1.05s 0.1s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-storm .pet-lightning { animation: petLightning 2.6s steps(1, end) infinite; }
+
+.pet-scene.is-motion .pet-svg.pet-motion-sun .pet-body-group { animation: petSunPulse 4.2s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-sun .pet-sun-disc { animation: petSunDisc 9s linear infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-sun .pet-wing-l { animation: petWingFlapL 3.2s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-sun .pet-wing-r { animation: petWingFlapR 3.2s 0.2s ease-in-out infinite; }
+
+.pet-scene.is-motion .pet-svg.pet-motion-gold .pet-body-group { animation: petGoldBounce 3.6s ease-in-out infinite; }
+.pet-scene.is-motion .pet-svg.pet-motion-gold .pet-eye { animation-duration: 4.8s; }
+
+@keyframes petSwim { 0%, 100% { transform: translateX(-3px) rotate(-1deg); } 50% { transform: translateX(4px) translateY(-3px) rotate(1.1deg); } }
+@keyframes petTailSwim { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(8deg); } }
+@keyframes petFlicker { 0%, 100% { transform: scale(1) skewX(0); } 25% { transform: scale(1.015, 0.99) skewX(0.8deg); } 60% { transform: scale(0.99, 1.02) skewX(-0.6deg); } 80% { transform: scale(1.008, 0.995) skewX(0.3deg); } }
+@keyframes petSmoke { 0%, 100% { transform: translateY(0); opacity: 0.45; } 50% { transform: translateY(-7px); opacity: 0.8; } }
+@keyframes petWindSway { 0%, 100% { transform: translateX(-2px) rotate(-0.8deg); } 50% { transform: translateX(3px) translateY(-3px) rotate(0.8deg); } }
+@keyframes petWingFlapL { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-12deg); } }
+@keyframes petWingFlapR { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(12deg); } }
+@keyframes petStomp { 0%, 100% { transform: translateY(0) scale(1); } 28% { transform: translateY(1px) scale(1.012, 0.984); } 52% { transform: translateY(-4px) scale(0.994, 1.012); } 74% { transform: translateY(0) scale(1.004, 0.996); } }
+@keyframes petMoonFloat { 0%, 100% { transform: translate(-2px, -1px) rotate(-1deg); } 50% { transform: translate(3px, -8px) rotate(1.1deg); } }
+@keyframes petEarSwayL { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-4deg); } }
+@keyframes petEarSwayR { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(4deg); } }
+@keyframes petDream { 0%, 100% { transform: translate(-3px, -2px) rotate(-1.4deg); } 50% { transform: translate(4px, -9px) rotate(1.4deg); } }
+@keyframes petMetal { 0%, 100% { transform: translateX(0) rotate(0); filter: drop-shadow(0 0 0 rgba(255, 255, 255, 0)); } 35% { transform: translateX(-1px) rotate(-0.4deg); filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.55)); } 70% { transform: translateX(1px) rotate(0.4deg); } }
+@keyframes petSway { 0%, 100% { transform: rotate(-1.5deg); } 50% { transform: rotate(1.7deg); } }
+@keyframes petStormShake { 0%, 100% { transform: translate(0, 0) rotate(-0.4deg); } 25% { transform: translate(-2px, -2px) rotate(0.5deg); } 50% { transform: translate(2px, -5px) rotate(-0.5deg); } 75% { transform: translate(-1px, -1px) rotate(0.4deg); } }
+@keyframes petSunPulse { 0%, 100% { transform: scale(1) translateY(0); } 50% { transform: scale(1.025) translateY(-4px); } }
+@keyframes petSunDisc { 0% { transform: rotate(0) scale(1); } 100% { transform: rotate(360deg) scale(1); } }
+@keyframes petGoldBounce { 0%, 100% { transform: translateY(0) scale(1); } 30% { transform: translateY(-5px) scale(0.99, 1.01); } 55% { transform: translateY(1px) scale(1.015, 0.985); } 78% { transform: translateY(-2px) scale(1); } }
+@keyframes petLightning { 0%, 100% { opacity: 0.25; } 12% { opacity: 0.95; } 22% { opacity: 0.35; } 34% { opacity: 0.85; } 46% { opacity: 0.3; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-scene.is-motion .pet-svg.pet-motion-water .pet-body-group { animation: petSwim 5.2s ease-in-out infinite !important; }
+  .pet-scene.is-motion .pet-svg.pet-motion-fire .pet-body-group { animation: petFlicker 2.8s ease-in-out infinite !important; }
+  .pet-scene.is-motion .pet-svg.pet-motion-wind .pet-body-group { animation: petWindSway 4.6s ease-in-out infinite !important; }
+  .pet-scene.is-motion .pet-svg.pet-motion-earth .pet-body-group { animation: petStomp 4.4s ease-in-out infinite !important; }
+  .pet-scene.is-motion .pet-svg.pet-motion-moon .pet-body-group { animation: petMoonFloat 5.6s ease-in-out infinite !important; }
+  .pet-scene.is-motion .pet-svg.pet-motion-dream .pet-body-group { animation: petDream 6.2s ease-in-out infinite !important; }
+  .pet-scene.is-motion .pet-svg.pet-motion-metal .pet-body-group { animation: petMetal 3.8s ease-in-out infinite !important; }
+  .pet-scene.is-motion .pet-svg.pet-motion-wood .pet-body-group { animation: petSway 4.8s ease-in-out infinite !important; }
+  .pet-scene.is-motion .pet-svg.pet-motion-storm .pet-body-group { animation: petStormShake 2.1s ease-in-out infinite !important; }
+  .pet-scene.is-motion .pet-svg.pet-motion-sun .pet-body-group { animation: petSunPulse 4.2s ease-in-out infinite !important; }
+  .pet-scene.is-motion .pet-svg.pet-motion-gold .pet-body-group { animation: petGoldBounce 3.6s ease-in-out infinite !important; }
+}
 @media (max-width: 520px) {
   .pet-pool-controls .input { flex: 1 1 80px; width: 80px; }
   .pet-pool-controls .p-btn { flex: 1 1 100%; }
