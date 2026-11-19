@@ -3311,7 +3311,11 @@
       if (button) switchTab(button.dataset.tab);
     });
     $$('[data-goto]').forEach((button) => {
-      button.addEventListener('click', () => switchTab(button.dataset.goto));
+      button.addEventListener('click', () => {
+        switchTab(button.dataset.goto);
+        const pane = $(`.teacher-pane[data-pane="${button.dataset.goto}"]`);
+        if (pane) pane.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     });
 
     $('#insight-new').addEventListener('click', () => openInsightDialog(null));
