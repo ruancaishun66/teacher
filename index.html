@@ -3184,7 +3184,23 @@
     }
 
     .ocean-waves {
-      animation: tideDrift 20s ease-in-out infinite alternate;
+      animation: tideDrift 26s ease-in-out infinite alternate;
+    }
+
+    /* 长段虚线沿着波峰缓慢流动，像水面被风推着走 */
+    .ocean-waves path {
+      stroke-dasharray: 132 26;
+      animation: currentFlow 24s linear infinite;
+    }
+
+    .ocean-waves path:nth-child(2n) {
+      animation-duration: 33s;
+      animation-delay: -11s;
+    }
+
+    .ocean-waves path:nth-child(3n) {
+      animation-duration: 19s;
+      animation-delay: -5s;
     }
 
     @keyframes sunBreathe {
@@ -3193,8 +3209,12 @@
     }
 
     @keyframes tideDrift {
-      0% { transform: translateX(-10px); }
-      100% { transform: translateX(14px); }
+      0% { transform: translateX(-18px) translateY(2px); }
+      100% { transform: translateX(22px) translateY(-3px); }
+    }
+
+    @keyframes currentFlow {
+      to { stroke-dashoffset: -158; }
     }
 
     .hero-coordinate {
@@ -4850,6 +4870,7 @@
       width: 100%;
       height: 100%;
       pointer-events: none;
+      animation: depthSway 34s ease-in-out infinite alternate;
     }
 
     .depth-waves path {
@@ -4857,6 +4878,32 @@
       stroke: #eefcf8;
       stroke-width: 1.3;
       stroke-linecap: round;
+      stroke-dasharray: 96 30;
+      animation: deepCurrent 27s linear infinite;
+    }
+
+    .depth-waves path:nth-child(2) {
+      animation-duration: 36s;
+      animation-delay: -12s;
+    }
+
+    .depth-waves path:nth-child(3) {
+      animation-duration: 22s;
+      animation-delay: -7s;
+    }
+
+    .depth-waves path:nth-child(4) {
+      animation-duration: 31s;
+      animation-delay: -3s;
+    }
+
+    @keyframes depthSway {
+      from { transform: translateX(-12px); }
+      to { transform: translateX(16px); }
+    }
+
+    @keyframes deepCurrent {
+      to { stroke-dashoffset: -126; }
     }
 
     .depth-scale {
@@ -5344,7 +5391,7 @@
       --sea-fill: 0.18;
       --sea-stroke: 0.32;
       filter: blur(0.4px);
-      animation: seaDrift 36s ease-in-out infinite;
+      animation: fishSchool 34s ease-in-out infinite;
     }
 
     .sea-life--crab {
@@ -5357,6 +5404,7 @@
       --sea-stroke: 0.32;
       filter: blur(0.3px);
       --sea-fade: linear-gradient(to bottom, #000 52%, transparent 96%);
+      animation: crabScuttle 13s ease-in-out infinite;
     }
 
     /* 中海：一条路过的鲨鱼，尾巴淡入水里 */
@@ -5371,7 +5419,7 @@
       --sea-stroke: 0.3;
       filter: blur(0.8px);
       --sea-fade: linear-gradient(104deg, #000 60%, transparent 97%);
-      animation: seaGlide 54s ease-in-out infinite;
+      animation: sharkGlide 46s ease-in-out infinite;
     }
 
     /* 下潜：两只水母与一条巨大的鲸影 */
@@ -5385,7 +5433,7 @@
       --sea-stroke: 0.34;
       filter: blur(0.9px);
       --sea-fade: linear-gradient(to bottom, #000 36%, rgba(0, 0, 0, 0.5) 72%, transparent 98%);
-      animation: seaFloat 24s ease-in-out infinite;
+      animation: jellyFloat 18s ease-in-out infinite;
     }
 
     .sea-life--jelly-b {
@@ -5398,7 +5446,7 @@
       --sea-stroke: 0.34;
       filter: blur(1.3px);
       --sea-fade: linear-gradient(to bottom, #000 32%, transparent 94%);
-      animation: seaFloat 31s ease-in-out infinite reverse;
+      animation: jellyFloat 25s ease-in-out infinite reverse;
     }
 
     .sea-life--whale-depth {
@@ -5412,7 +5460,7 @@
       --sea-stroke: 0.24;
       filter: blur(1.5px);
       --sea-fade: linear-gradient(to bottom, #000 58%, transparent 99%);
-      animation: seaDrift 64s ease-in-out infinite;
+      animation: whaleDrift 58s ease-in-out infinite;
     }
 
     /* 深海：巨型乌贼，触手没入黑暗 */
@@ -5426,7 +5474,7 @@
       --sea-stroke: 0.3;
       filter: blur(1px);
       --sea-fade: linear-gradient(to bottom, #000 54%, rgba(0, 0, 0, 0.5) 80%, transparent 99%);
-      animation: seaFloat 34s ease-in-out infinite;
+      animation: squidFloat 30s ease-in-out infinite;
     }
 
     /* 页尾：鲸鱼从左侧游过 */
@@ -5440,45 +5488,183 @@
       --sea-stroke: 0.28;
       filter: blur(1.8px);
       --sea-fade: linear-gradient(to top, #000 55%, transparent 98%);
-      animation: seaDrift 68s ease-in-out infinite;
+      animation: whalePass 62s ease-in-out infinite;
     }
 
-    @keyframes seaDrift {
+    /* 鱼群：整体慢慢摆尾、上下游动 */
+    @keyframes fishSchool {
+      0%,
+      100% {
+        translate: 5px 2px;
+        rotate: 0.4deg;
+      }
+
+      26% {
+        translate: -9px -7px;
+        rotate: -0.9deg;
+      }
+
+      52% {
+        translate: -21px 3px;
+        rotate: -0.2deg;
+      }
+
+      76% {
+        translate: -6px 8px;
+        rotate: 1deg;
+      }
+    }
+
+    /* 寄居蟹：偶尔横着挪两步，停一停 */
+    @keyframes crabScuttle {
+      0%,
+      100% {
+        translate: 0 0;
+      }
+
+      14% {
+        translate: 5px 0;
+      }
+
+      22% {
+        translate: 3px -1px;
+      }
+
+      40% {
+        translate: 4px 0;
+      }
+
+      58% {
+        translate: -3px 0;
+      }
+
+      66% {
+        translate: -5px 1px;
+      }
+
+      84% {
+        translate: -2px 0;
+      }
+    }
+
+    /* 鲨鱼：沿水面缓慢滑行，带一点起伏 */
+    @keyframes sharkGlide {
+      0%,
+      100% {
+        translate: 0 0;
+        rotate: 0deg;
+      }
+
+      28% {
+        translate: -24px 9px;
+        rotate: -0.8deg;
+      }
+
+      56% {
+        translate: -38px 0;
+        rotate: 0.2deg;
+      }
+
+      82% {
+        translate: -14px -8px;
+        rotate: 0.7deg;
+      }
+    }
+
+    /* 水母：一收一放地向上浮 */
+    @keyframes jellyFloat {
+      0%,
+      100% {
+        translate: 0 0;
+        scale: 1;
+      }
+
+      32% {
+        translate: -5px -16px;
+        scale: 1.04;
+      }
+
+      58% {
+        translate: 4px -7px;
+        scale: 0.98;
+      }
+
+      80% {
+        translate: 7px -20px;
+        scale: 1.02;
+      }
+    }
+
+    /* 鲸影：庞大的身体慢慢地起伏、漂移 */
+    @keyframes whaleDrift {
+      0%,
+      100% {
+        translate: 0 0;
+        rotate: 0deg;
+      }
+
+      38% {
+        translate: -26px 7px;
+        rotate: -0.9deg;
+      }
+
+      68% {
+        translate: -10px -7px;
+        rotate: 0.6deg;
+      }
+    }
+
+    /* 乌贼：随深水一起晃，触手像被水托着 */
+    @keyframes squidFloat {
+      0%,
+      100% {
+        translate: 0 0;
+        rotate: 0deg;
+      }
+
+      30% {
+        translate: 7px 13px;
+        rotate: 0.8deg;
+      }
+
+      58% {
+        translate: -6px 24px;
+        rotate: -0.7deg;
+      }
+
+      82% {
+        translate: -9px 7px;
+        rotate: 0.3deg;
+      }
+    }
+
+    /* 页尾鲸鱼：从左向右缓缓游过 */
+    @keyframes whalePass {
       0%,
       100% {
         translate: 0 0;
       }
 
       50% {
-        translate: -16px -7px;
-      }
-    }
-
-    @keyframes seaGlide {
-      0%,
-      100% {
-        translate: 0 0;
-      }
-
-      50% {
-        translate: -12px 9px;
-      }
-    }
-
-    @keyframes seaFloat {
-      0%,
-      100% {
-        translate: 0 0;
-      }
-
-      50% {
-        translate: 5px -15px;
+        translate: 34px -8px;
       }
     }
 
     @media (prefers-reduced-motion: reduce) {
       .sea-life {
         animation: none !important;
+      }
+
+      .ocean-waves,
+      .ocean-waves path,
+      .depth-waves,
+      .depth-waves path {
+        animation: none !important;
+      }
+
+      .ocean-waves path,
+      .depth-waves path {
+        stroke-dasharray: none;
       }
     }
 
