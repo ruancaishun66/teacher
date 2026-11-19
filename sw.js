@@ -1,5 +1,5 @@
 /* 顺势 · 离线缓存：联网时永远取最新，断网时用上次看过的版本。 */
-const CACHE = 'shunshi-pwa-v2';
+const CACHE = 'shunshi-pwa-v3';
 const CORE = [
   './',
   './index.html',
@@ -42,6 +42,8 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  /* OCR 引擎和 PDF 渲染包体积大，交给浏览器普通缓存，不塞进离线缓存。 */
+  if (/\/vendor\/(tesseract|pdf)/.test(url.pathname)) return;
 
   event.respondWith(
     fetch(request)
