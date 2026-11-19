@@ -655,6 +655,8 @@
     if (!Number.isFinite(Number(run.maxCombo))) run.maxCombo = 0;
     if (!Number.isFinite(Number(run.reviewI))) run.reviewI = 0;
     if (!['main', 'review', 'done'].includes(run.phase)) run.phase = 'main';
+    /* 作答后的短暂反馈锁只在内存里有效；刷新页面后必须解锁，否则选项点不动。 */
+    run.locked = false;
     return run;
   }
 
@@ -771,6 +773,19 @@
           `<p class="word-review-note">点击后成绩会写进本机档案。回主界面生成“汇报码”，老师导入后才能看到这次记录。</p>` +
         `</div></div>`;
       bindWordClicks(task, run);
+      return;
+    }
+
+    /* 最后一题答完后刷新页面：主轮已结束，按错词队列决定进入重练还是收尾。 */
+    if (run.phase === 'main' && Number(run.i) >= total) {
+      if (run.reviewQueue.length) {
+        run.phase = 'review';
+        run.reviewI = 0;
+      } else {
+        run.phase = 'done';
+      }
+      save();
+      renderWordRunner(task);
       return;
     }
 
