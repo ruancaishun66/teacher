@@ -148,7 +148,8 @@
       const saved = rememberedLogin();
       $('#login-pin').value = saved ? saved.pin : '';
       const remember = $('#login-remember');
-      if (remember) remember.checked = Boolean(saved);
+      // 没有保存过密码时保留页面默认的“记住密码”勾选，避免老学生第一次登录反而不被记住。
+      if (remember && saved) remember.checked = true;
       const button = $('#login-btn');
       if (button) button.textContent = saved ? '进入学习终端（密码已记住）' : '进入学习终端';
       setTimeout(() => {
