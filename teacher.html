@@ -109,8 +109,10 @@
       <button type="button" class="active" data-tab="overview">总览</button>
       <button type="button" data-tab="students">学生</button>
       <button type="button" data-tab="assignments">任务</button>
+      <button type="button" data-tab="plan">周计划</button>
       <button type="button" data-tab="words">单词打卡</button>
       <button type="button" data-tab="reports">汇报</button>
+      <button type="button" data-tab="trial">体验卡</button>
       <button type="button" data-tab="insights">心得</button>
       <button type="button" data-tab="settings">设置</button>
     </nav>
@@ -167,6 +169,56 @@
       <div class="assignment-list" id="assignment-list"></div>
     </section>
 
+    <!-- 周计划 -->
+    <section class="teacher-pane" data-pane="plan">
+      <div class="roster-toolbar">
+        <div>
+          <h2 class="pane-title">一周任务计划 <small>WEEKLY PLAN</small></h2>
+          <p class="pane-sub">选好一周的资料和学生，系统按每位学生的难度档自动拆成 7 天任务。生成一次，学生导入一份“周计划码”，之后每天按天解锁；老师不用每天再发任务。</p>
+        </div>
+        <div class="toolbar-actions">
+          <button class="p-btn small ghost" type="button" id="plan-refresh">刷新资料</button>
+          <a class="p-btn small ghost" href="library.html">去组卷 ↗</a>
+        </div>
+      </div>
+      <div class="p-grid">
+        <section class="p-card p-col-5">
+          <div class="p-card-head"><h3 class="p-card-title">1. 本周材料 <small>MATERIAL</small></h3></div>
+          <div class="field">
+            <label for="plan-week-start">这周从哪天开始</label>
+            <input class="input" id="plan-week-start" type="date">
+          </div>
+          <div class="field">
+            <label>选择练习卷（可多选，自动按题量分到各天）</label>
+            <div class="plan-check-list" id="plan-papers"><p class="hint">正在读取资料库…</p></div>
+          </div>
+          <div class="field">
+            <label for="plan-word-source">单词日来源（可选）</label>
+            <select class="select" id="plan-word-source">
+              <option value="">不加单词日，7 天都练题</option>
+            </select>
+            <p class="hint">选择一份已发布的单词任务后，第 2 / 4 / 6 天会变成单词闯关，其余 4 天练题。</p>
+          </div>
+          <button class="p-btn block" type="button" id="plan-generate">生成本周任务码</button>
+          <p class="hint" style="text-align:left;">拆分规则在本机计算，不调用 AI，不产生费用。难度档只影响选题难度和每日题量；每次导入汇报后会自动微调。</p>
+        </section>
+        <section class="p-card p-col-7">
+          <div class="p-card-head">
+            <h3 class="p-card-title">2. 学生与难度 <small>LEVEL</small></h3>
+            <span class="hint" id="plan-selected-count">已选 0 人</span>
+          </div>
+          <div class="plan-student-list" id="plan-students"></div>
+          <p class="hint" style="text-align:left;">1–10 档：低档更少、更基础；高档题量更多、难度更高。点 − / ＋ 即时保存，下次生成和自动调整都按这个档位。</p>
+        </section>
+        <section class="p-card p-col-12">
+          <div class="p-card-head">
+            <h3 class="p-card-title">已生成的周计划 <small>HISTORY</small></h3>
+          </div>
+          <div id="plan-list"></div>
+        </section>
+      </div>
+    </section>
+
     <!-- 单词打卡 -->
     <section class="teacher-pane" data-pane="words">
       <div class="roster-toolbar">
@@ -193,6 +245,54 @@
         <button class="p-btn small" type="button" id="report-import">＋ 导入汇报</button>
       </div>
       <div class="report-feed wide" id="report-list"></div>
+    </section>
+
+    <!-- 体验卡 -->
+    <section class="teacher-pane" data-pane="trial">
+      <div class="roster-toolbar">
+        <div>
+          <h2 class="pane-title">体验卡与延长 <small>TRIAL PASS</small></h2>
+          <p class="pane-sub">体验学生在学生端到期后会生成“延长申请码”。在这里粘贴申请码，选择延长天数，生成延长码发回即可。记录和连击都会保留。</p>
+        </div>
+      </div>
+      <div class="p-grid">
+        <section class="p-card p-col-5">
+          <div class="p-card-head"><h3 class="p-card-title">处理延长申请 <small>REQUEST</small></h3></div>
+          <div class="field">
+            <label for="trial-request-input">学生发来的延长申请码</label>
+            <textarea class="textarea" id="trial-request-input" rows="7" placeholder="SS1.…"></textarea>
+          </div>
+          <div class="field">
+            <label for="trial-grant-days">延长天数</label>
+            <select class="select" id="trial-grant-days">
+              <option value="3">3 天</option>
+              <option value="7" selected>7 天</option>
+              <option value="14">14 天</option>
+              <option value="30">30 天</option>
+            </select>
+          </div>
+          <div class="trial-grant-actions">
+            <button class="p-btn small" type="button" id="trial-parse-request">解析申请</button>
+            <button class="p-btn small ghost" type="button" id="trial-grant-btn" disabled>生成延长码</button>
+          </div>
+          <div class="trial-request-result" id="trial-request-result">还没有解析申请。</div>
+          <div class="field" style="margin-top:12px;">
+            <label for="trial-grant-output">延长码（发给学生）</label>
+            <textarea class="textarea" id="trial-grant-output" rows="6" readonly placeholder="解析申请后点“生成延长码”"></textarea>
+          </div>
+          <div class="trial-grant-actions">
+            <button class="p-btn small ghost" type="button" id="trial-copy-grant" disabled>复制延长码</button>
+          </div>
+        </section>
+        <section class="p-card p-col-7">
+          <div class="p-card-head">
+            <h3 class="p-card-title">体验学生名单 <small>TRIAL STUDENTS</small></h3>
+            <span class="hint" id="trial-count">0 人</span>
+          </div>
+          <div id="trial-students"></div>
+          <p class="hint" style="text-align:left;">名单里的到期时间来自学生最近一次汇报；没有汇报时显示“待汇报”。也可以直接在这里给某位体验学生生成延长码或转正码。</p>
+        </section>
+      </div>
     </section>
 
     <!-- 心得 -->
@@ -293,7 +393,23 @@
             <button class="p-btn small ghost" type="button" id="ai-key-test">测试连接（不消耗）</button>
             <button class="p-btn small ghost" type="button" id="ai-key-clear">清除 Key</button>
           </div>
-          <p class="hint" style="text-align:left;margin-bottom:0;" id="ai-usage">累计使用 0 tokens · 0 次</p>
+          <p class="hint" style="text-align:left;margin-bottom:0;" id="ai-usage">累计 0 tokens · 0 次 · 约 ¥0</p>
+          <ul class="ai-cost-log" id="ai-cost-log"><li><span>还没有调用记录。每次 AI 整理都会记在这里。</span></li></ul>
+          <p class="hint" style="text-align:left;margin:8px 0 0;">费用按 DeepSeek Flash 高峰价估算（输入 ¥2.2 / 百万 tokens，输出 ¥8.6 / 百万 tokens），实际以 DeepSeek 账单为准。</p>
+        </section>
+        <section class="p-card p-col-12">
+          <div class="p-card-head"><h2 class="p-card-title">正向反馈设计依据 <small>ENGAGEMENT NOTES</small></h2></div>
+          <p class="hint" style="text-align:left;margin-top:0;">学生端的精灵成长、连击、满月转盘和即时反馈，参考了以下公开研究与案例。它们解释的是“怎样让好习惯更容易坚持”，不是鼓励无节制上瘾；所有奖励都只在本机、只用于学习行为，不涉及充值或抽卡付费。</p>
+          <div class="research-grid">
+            <div><b>《Hooked》</b><span>Nir Eyal, 2014</span><p>触发 → 行动 → 可变奖励 → 投入。对应：每日任务入口、完成后的随机成长/小鱼干、精灵图鉴沉淀。</p></div>
+            <div><b>《The Power of Habit》</b><span>Charles Duhigg, 2012</span><p>线索 → 惯常行为 → 奖励。对应：固定打卡按钮、单词闯关、结算页的即时正反馈。</p></div>
+            <div><b>《Atomic Habits》</b><span>James Clear, 2018</span><p>让行为“有吸引力、容易做、令人满足”。对应：一天一个小任务、错词自动回炉、完成即得 EXP。</p></div>
+            <div><b>《Tiny Habits》</b><span>B.J. Fogg, 2019</span><p>微小行为后立刻庆祝，情绪会强化习惯回路。对应：答对一题精灵就长大一点、连击火焰。</p></div>
+            <div><b>自我决定理论</b><span>Deci &amp; Ryan, 2000</span><p>胜任感、自主感、归属感是内在动机的三大支柱。对应：难度档、可选“多学一天”、精灵陪伴。</p></div>
+            <div><b>目标梯度 / 预置进度</b><span>Kivetz et al., 2006</span><p>看得见的进度会加速坚持。对应：7 天周计划进度点、成长条、满月转盘倒计时。</p></div>
+            <div><b>《Flow》</b><span>Csikszentmihalyi, 1990</span><p>挑战与能力匹配时最容易进入心流。对应：按学生水平自动拆题，测试后自动升降档。</p></div>
+            <div><b>《The Social Dilemma》</b><span>Netflix, 2020</span><p>反面提醒：可变奖励和连续记录也可能变成操控。对应：不设付费抽卡、不公开排名、允许随时退出并保留记录。</p></div>
+          </div>
         </section>
         <section class="p-card p-col-12">
           <div class="p-card-head"><h2 class="p-card-title">这个平台怎么运转 <small>HOW IT WORKS</small></h2></div>
@@ -435,6 +551,19 @@
           <label><input type="radio" name="student-avatar" value="🔥"><span>🔥</span></label>
         </div>
       </div>
+      <div class="form-row">
+        <div class="field">
+          <label>账户类型</label>
+          <div class="account-type-picker" id="student-account-type">
+            <label><input type="radio" name="student-account-type" value="regular" checked><span>正式学生</span><small>长期使用，不受体验期限制</small></label>
+            <label><input type="radio" name="student-account-type" value="trial"><span>体验学生</span><small>先体验 3 天，到期后可申请延长</small></label>
+          </div>
+        </div>
+        <div class="field" id="student-trial-days-field" hidden>
+          <label for="student-trial-days">体验天数</label>
+          <input class="input" id="student-trial-days" type="number" min="1" max="30" value="3">
+        </div>
+      </div>
       <p class="hint warn" style="text-align:left;" id="student-pin-note">学生端和学生端之间靠“学号 + 密码”绑定。密码要给到学生本人，不要发在公开群里。</p>
     </div>
     <div class="p-dialog-foot">
@@ -522,8 +651,8 @@
   <div class="p-dialog-inner">
     <div class="p-dialog-head">
       <div>
-        <h2>任务码</h2>
-        <p>一位学生一码。复制后单独发给对应学生，不要发错。</p>
+        <h2 id="codes-title">任务码</h2>
+        <p id="codes-sub">一位学生一码。复制后单独发给对应学生，不要发错。</p>
       </div>
       <button class="p-close" type="button" data-close aria-label="关闭">×</button>
     </div>

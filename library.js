@@ -236,6 +236,7 @@
     ocrProgress: null,
     aiDialogMode: 'analysis',
     aiSplitId: null,
+    questionEdit: null,
     sectionAliases: [],
     usbHandle: null,
     wordDictionary: null,
@@ -3720,6 +3721,7 @@
     }
     const sourceAnswer = answerMap && answerMap[block.number] ? answerMap[block.number] : {};
     return {
+      id: uid(),
       number: block.number,
       stem: normalizeStemText(block.stem || ''),
       options: (block.options || []).map((option) => ({ letter: option.letter, text: option.text })),
@@ -5576,6 +5578,8 @@
         `</div>` +
         `<div class="material-actions">` +
         `<button class="icon-btn" type="button" data-action="preview" title="预览 / 修改" aria-label="预览或修改资料"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>` +
+        `<button class="icon-btn" type="button" data-action="questions" title="逐题查看与编辑" aria-label="逐题查看与编辑"><svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg></button>` +
+        `<button class="icon-btn" type="button" data-action="ai-clean" title="AI 清理杂物 / 重新分类" aria-label="AI 清理杂物并重新分类"><svg class="icon" aria-hidden="true"><use href="#i-flash"/></svg></button>` +
         `<button class="icon-btn" type="button" data-action="ai-split" title="豆包精排 / 重新分题" aria-label="豆包精排并重新分题"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg></button>` +
         `<button class="icon-btn" type="button" data-action="edit" title="修改信息" aria-label="修改资料信息"><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg></button>` +
         `${originalButton}${processedButton}` +
@@ -5612,6 +5616,7 @@
       `<small>${escapeHtml(paper.grade || '综合')} · ${escapeHtml(paper.command || '手动组卷')} · ${escapeHtml(formatDate(paper.createdAt, true))}</small></div>` +
       `<div class="material-actions">` +
       `<button class="icon-btn" type="button" data-action="preview-paper" title="预览" aria-label="预览练习卷"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>` +
+      `<button class="icon-btn" type="button" data-action="questions-paper" title="逐题编辑" aria-label="逐题编辑练习卷"><svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg></button>` +
       `<button class="icon-btn" type="button" data-action="download-paper" title="下载 Word" aria-label="下载练习卷 Word"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg></button>` +
       `<button class="icon-btn danger" type="button" data-action="delete-paper" title="删除" aria-label="删除练习卷"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg></button>` +
       `</div></div>`
@@ -5909,6 +5914,538 @@
     if (!paper) return;
     const blob = makePaperWordBlob(paper);
     downloadBlob(blob, paperFilename(paper, '.doc'));
+  }
+
+  /* ------------------------------------------------------------------------
+     AI 整理（DeepSeek 直连，共用教师端保存的本机 Key）
+     ------------------------------------------------------------------------ */
+
+  function aiTool() {
+    return window.Shunshi && window.Shunshi.ai ? window.Shunshi.ai : null;
+  }
+
+  function aiCostText(value) {
+    const tool = aiTool();
+    return tool ? tool.costText(value) : `¥${Number(value || 0).toFixed(4)}`;
+  }
+
+  function renderAiSettings() {
+    const tool = aiTool();
+    if (!tool) return;
+    const cfg = tool.config();
+    const input = $('#lib-ai-key');
+    if (input) {
+      input.value = '';
+      input.placeholder = cfg.key ? `已保存（尾号 ${cfg.key.slice(-4)}）` : 'sk-... 只存本机';
+    }
+    const usage = $('#lib-ai-usage');
+    if (usage) {
+      usage.textContent = `累计 ${cfg.totalTokens} tokens（输入 ${cfg.inputTokens} / 输出 ${cfg.outputTokens}）· ${cfg.calls} 次 · 约 ${aiCostText(cfg.cost)}`;
+    }
+    const log = $('#lib-ai-log');
+    if (log) {
+      log.innerHTML = cfg.log.length
+        ? cfg.log.slice(0, 8).map((item) => `<li><span>${escapeHtml(formatDate(item.at, true))} · ${escapeHtml(item.source)}</span><b>${item.tokens} tokens · ${aiCostText(item.cost)}</b></li>`).join('')
+        : '<li><span>还没有调用记录。每次 AI 整理都会记在这里。</span></li>';
+    }
+  }
+
+  function saveLibraryAiKey() {
+    const tool = aiTool();
+    if (!tool) return;
+    const key = String(($('#lib-ai-key') || {}).value || '').trim();
+    if (!key) { toast('先粘贴 API Key。', 'error'); return; }
+    if (!/^sk-[A-Za-z0-9_-]{20,}$/.test(key)) { toast('Key 格式看起来不对，通常以 sk- 开头。', 'error'); return; }
+    const cfg = tool.config();
+    cfg.key = key;
+    tool.save(cfg);
+    renderAiSettings();
+    toast('Key 已保存在这台电脑的浏览器里，不进入备份，也不会写进网页源码。', 'ok', 6000);
+  }
+
+  async function testLibraryAiKey() {
+    const tool = aiTool();
+    if (!tool) return;
+    const cfg = tool.config();
+    if (!cfg.key) { toast('先保存 Key，再测试。', 'error'); return; }
+    const usage = $('#lib-ai-usage');
+    if (usage) usage.textContent = '正在连接…';
+    try {
+      const response = await fetch('https://api.deepseek.com/models', {
+        headers: { Authorization: `Bearer ${cfg.key}` }
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const json = await response.json();
+      const models = (json.data || []).map((item) => item.id).join('、') || 'deepseek-flash';
+      renderAiSettings();
+      toast(`连接成功 · 可用：${models}。测试不消耗额度。`, 'ok', 6000);
+    } catch (error) {
+      renderAiSettings();
+      toast(`连接失败：${error.message}`, 'error', 7000);
+    }
+  }
+
+  function clearLibraryAiKey() {
+    const tool = aiTool();
+    if (!tool) return;
+    if (!window.confirm('清除这台电脑上保存的 API Key？教师端也会同步失效。')) return;
+    const cfg = tool.config();
+    cfg.key = '';
+    tool.save(cfg);
+    renderAiSettings();
+    toast('已清除 Key。');
+  }
+
+  function aiTypeKey(raw) {
+    const text = String(raw || '').trim();
+    if (TYPES[text]) return text;
+    const hit = Object.keys(TYPES).find((key) => TYPES[key].label === text || TYPES[key].short === text);
+    return hit || 'other';
+  }
+
+  function parseTaggedText(text, tags) {
+    const source = String(text || '').replace(/\r\n?/g, '\n');
+    const out = {};
+    tags.forEach((tag, index) => {
+      const next = tags.slice(index + 1).map((item) => `【${item}】`).join('|');
+      const pattern = new RegExp(`【${tag}】\\s*([\\s\\S]*?)(?=${next || '$'})`);
+      const match = pattern.exec(source);
+      out[tag] = match ? match[1].trim() : '';
+    });
+    return out;
+  }
+
+  function aiCleanPrompt(material, text) {
+    return [
+      '你是英语试卷资料整理助手。请把下面这份老师上传的资料整理成可直接入库的干净文本。',
+      '要求：',
+      '1. 删除页眉、页脚、页码、学校名、网站广告、水印、无关的考试须知等杂物；保留标题、大题说明、短文、题目、选项、答案与解析。',
+      '2. 修复 OCR 造成的断行、错位和多余空格；每题另起一行，选项 A/B/C/D 各占一行或紧凑排列，保持题号清晰。',
+      '3. 不要改编题目，不要新增或删除题目，不要编造答案。无法判断的内容保持原样。',
+      '4. 判断题型，只能从这些键里选一个：single, cloze, reading, five, grammar, dialogue, picture, writing, listening, other。',
+      '5. 判断年级：七年级、八年级、九年级、高一、高二、高三、中考、高考；无法判断就留空。',
+      '6. 只输出下面四个标记，不要写解释、不要用 Markdown 代码块。',
+      '【标题】不超过 30 字的资料标题',
+      '【题型】上面的英文键',
+      '【年级】年级或留空',
+      '【正文】整理后的完整正文（含答案与解析，如果有）',
+      '',
+      `资料原题：${material.title || '未命名'}`,
+      '原文如下：',
+      text
+    ].join('\n');
+  }
+
+  async function applyAiClean(material, text) {
+    const tool = aiTool();
+    if (!tool) { toast('AI 模块没有加载，请刷新页面。', 'error'); return; }
+    const source = String(text || '').slice(0, 5000);
+    const cut = String(text || '').length > 5000;
+    const estimate = tool.estimate(source.length + 900, 1800);
+    openConfirm({
+      title: '用 AI 整理这份资料？',
+      message: `将把正文约 ${source.length} 字${cut ? '（已截取前 5000 字）' : ''}发送给 DeepSeek，清理杂物、重新分类并整理排版。预计最多约 ${estimate.inputTokens + estimate.maxOutputTokens} tokens，约 ${aiCostText(estimate.cost)}。只在你确认后调用。`,
+      confirmText: '开始整理',
+      danger: false,
+      onConfirm: async () => {
+        const button = document.querySelector(`[data-id="${material.id}"] [data-action="ai-clean"]`);
+        if (button) { button.disabled = true; button.classList.add('is-busy'); }
+        try {
+          const result = await tool.call([
+            { role: 'system', content: '你是严谨的英语试卷排版校对员。只做清理、分类和排版，不改题意，不编造答案。严格按用户要求的分段标记输出。' },
+            { role: 'user', content: aiCleanPrompt(material, source) }
+          ], 1800, `整理资料：${material.title || '未命名'}`.slice(0, 40));
+          const parsed = parseTaggedText(result.text, ['标题', '题型', '年级', '正文']);
+          if (!parsed['正文']) throw new Error('AI 没有返回可用的正文，请再试一次。');
+          const typeKey = aiTypeKey(String(parsed['题型'] || '').trim());
+          const grade = GRADE_OPTIONS.includes(String(parsed['年级'] || '').trim()) ? String(parsed['年级']).trim() : material.grade;
+          const title = String(parsed['标题'] || '').trim().slice(0, 80) || material.title;
+          const fullText = toDisplayText(parsed['正文']);
+          const split = splitAnswerSection(fullText);
+          const body = toDisplayText(normalizePaperLayout(split.body));
+          const answers = toDisplayText(split.answers);
+          const updated = {
+            ...material,
+            title,
+            type: typeKey,
+            grade,
+            band: gradeBand(grade),
+            tags: unique([...(material.tags || []).filter((tag) => !GRADE_OPTIONS.includes(tag)), ...(grade ? [grade] : []), ...(gradeBand(grade) ? [bandLabel(gradeBand(grade))] : [])]),
+            text: fullText,
+            body,
+            answers,
+            answerMap: {},
+            note: [material.note, '已用 AI 清理并重新分类，请核对题目和答案。'].filter(Boolean).join(' '),
+            updatedAt: nowIso()
+          };
+          if (updated.processedBlob) {
+            updated.processedBlob = makeMaterialBlob(updated);
+            updated.processedSize = updated.processedBlob ? updated.processedBlob.size : 0;
+          }
+          const items = buildItemsForMaterial(updated);
+          updated.questionCount = items.length;
+          await saveMaterialWithItems(updated, items);
+          await reloadAndRender();
+          renderAiSettings();
+          toast(`整理完成：${typeLabel(typeKey)} · ${grade || '年级未标注'} · 本次 ${result.tokens} tokens · 约 ${aiCostText(result.cost)}。请打开“逐题编辑”核对。`, 'ok', 9000);
+        } catch (error) {
+          console.error(error);
+          toast(`AI 整理失败：${error.message || error}`, 'error', 8500);
+        } finally {
+          const latest = document.querySelector(`[data-id="${material.id}"] [data-action="ai-clean"]`);
+          if (latest) { latest.disabled = false; latest.classList.remove('is-busy'); }
+          renderAiSettings();
+        }
+      }
+    });
+  }
+
+  /* ------------------------------------------------------------------------
+     逐题编辑
+     ------------------------------------------------------------------------ */
+
+  function questionEditorSections() {
+    const edit = state.questionEdit;
+    if (!edit) return [];
+    if (edit.kind === 'paper') {
+      const paper = findPaper(edit.id);
+      if (!paper) return [];
+      return (paper.sections || []).map((section, si) => ({
+        key: `s${si}`,
+        type: normalizeType(section.type),
+        title: typeLabel(section.type),
+        items: section.items || [],
+        sectionIndex: si
+      }));
+    }
+    const material = findMaterial(edit.id);
+    if (!material) return [];
+    const items = state.items.filter((item) => item.materialId === material.id);
+    return [{
+      key: 'm0',
+      type: normalizeType(material.type),
+      title: material.title || '资料题组',
+      items,
+      sectionIndex: 0
+    }];
+  }
+
+  function optionsToText(options) {
+    return (options || []).map((option) => `${option.letter || ''}. ${option.text || ''}`).join('\n');
+  }
+
+  function textToOptions(text) {
+    const list = [];
+    String(text || '').split(/\n+/).forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      const match = trimmed.match(/^([A-Ga-g])\s*[.、．)）]\s*(.*)$/);
+      if (match) list.push({ letter: match[1].toUpperCase(), text: match[2].trim() });
+      else list.push({ letter: String.fromCharCode(65 + list.length), text: trimmed });
+    });
+    return list.filter((option) => option.text);
+  }
+
+  function questionRowHtml(item, qi, qj, question, sectionType) {
+    const qid = question.id || `q-${qi}-${qj}`;
+    const number = question.number || question.paperNumber || qj + 1;
+    const options = Array.isArray(question.options) ? question.options : [];
+    return `<div class="q-editor-row" data-qrow data-qi="${qi}" data-qj="${qj}" data-qid="${escapeAttr(qid)}">` +
+      `<div class="q-editor-row-head">` +
+        `<b>第 ${escapeHtml(number)} 题</b>` +
+        `<span>${escapeHtml(typeLabel(sectionType))}</span>` +
+        `<span class="q-diff-chip">难度 ${escapeHtml(question.difficulty || '—')}</span>` +
+        `<div class="q-row-actions">` +
+          `<button class="btn btn-ghost btn-tiny" type="button" data-q-ai>AI 精修此题</button>` +
+          `<button class="btn btn-ghost btn-tiny q-danger" type="button" data-q-remove>删除</button>` +
+        `</div>` +
+      `</div>` +
+      `<div class="q-editor-fields">` +
+        `<label class="q-field-wide">题干<textarea data-q-field="stem" rows="2">${escapeHtml(question.stem || '')}</textarea></label>` +
+        (options.length || ['single', 'cloze', 'reading', 'five', 'dialogue', 'listening'].includes(sectionType)
+          ? `<label class="q-field-wide">选项（每行一个，例如 A. ...）<textarea data-q-field="options" rows="4">${escapeHtml(optionsToText(options))}</textarea></label>`
+          : '') +
+        `<div class="q-field-row">` +
+          `<label>答案<input data-q-field="answer" type="text" value="${escapeAttr(question.answer || '')}"></label>` +
+          `<label>难度（1–10）<input data-q-field="difficulty" type="number" min="1" max="10" value="${escapeAttr(question.difficulty || 5)}"></label>` +
+        `</div>` +
+        `<label class="q-field-wide">解析<textarea data-q-field="explanation" rows="2">${escapeHtml(question.explanation || '')}</textarea></label>` +
+      `</div>` +
+    `</div>`;
+  }
+
+  function blankRowHtml(item, qi, number) {
+    const answer = (item.blankAnswers && item.blankAnswers[number]) || {};
+    const difficulty = (item.blankDifficulties && item.blankDifficulties[number]) || 5;
+    return `<div class="q-editor-row" data-qrow data-qi="${qi}" data-blank="${escapeAttr(number)}">` +
+      `<div class="q-editor-row-head">` +
+        `<b>第 ${escapeHtml(number)} 空</b><span>语法填空 / 短文填空</span>` +
+        `<span class="q-diff-chip">难度 ${escapeHtml(difficulty)}</span>` +
+        `<div class="q-row-actions"><button class="btn btn-ghost btn-tiny q-danger" type="button" data-q-remove>删除</button></div>` +
+      `</div>` +
+      `<div class="q-editor-fields">` +
+        `<div class="q-field-row">` +
+          `<label>答案<input data-q-field="blank-answer" type="text" value="${escapeAttr(answer.answer || '')}"></label>` +
+          `<label>难度（1–10）<input data-q-field="blank-difficulty" type="number" min="1" max="10" value="${escapeAttr(difficulty)}"></label>` +
+        `</div>` +
+        `<label class="q-field-wide">解析<textarea data-q-field="blank-explanation" rows="2">${escapeHtml(answer.explanation || '')}</textarea></label>` +
+      `</div>` +
+    `</div>`;
+  }
+
+  function renderQuestionEditor() {
+    const edit = state.questionEdit;
+    const body = $('#question-editor-body');
+    if (!edit || !body) return;
+    const source = edit.kind === 'paper' ? findPaper(edit.id) : findMaterial(edit.id);
+    if (!source) { closeQuestionEditor(); return; }
+    const sections = questionEditorSections();
+    let total = 0;
+    let html = '';
+    sections.forEach((section) => {
+      const itemHtml = (section.items || []).map((item, itemIndex) => {
+        const qi = `${section.sectionIndex}:${itemIndex}`;
+        const questions = Array.isArray(item.questions) ? item.questions : [];
+        const blanks = item.blankAnswers ? Object.keys(item.blankAnswers).sort((a, b) => Number(a) - Number(b)) : [];
+        if (!questions.length && !blanks.length) return '';
+        total += questions.length + blanks.length;
+        const rows = questions.map((question, qj) => questionRowHtml(item, qi, qj, question, section.type)).join('') +
+          blanks.map((number) => blankRowHtml(item, qi, number)).join('');
+        return `<details class="q-editor-item" open>` +
+          `<summary><b>${escapeHtml(item.title || section.title)}</b><span>${questions.length + blanks.length} 题</span></summary>` +
+          `<div class="q-editor-item-body">${rows}</div>` +
+        `</details>`;
+      }).join('');
+      if (itemHtml) {
+        html += `<section class="q-editor-section"><h3>${escapeHtml(section.title)}</h3>${itemHtml}</section>`;
+      }
+    });
+    body.innerHTML = html || `<div class="q-editor-empty">这份资料还没有识别出可编辑的题目。可以先在卡片上点“修改信息”，补充正文后保存，系统会重新分题。</div>`;
+    const count = $('#question-editor-count');
+    if (count) count.textContent = `${total} 道/空 · ${edit.kind === 'paper' ? '练习卷' : '资料库'}`;
+    const title = $('#question-editor-title');
+    if (title) title.textContent = edit.kind === 'paper' ? '逐题编辑 · 练习卷' : '逐题编辑 · 资料题目';
+    const sub = $('#question-editor-sub');
+    if (sub) sub.textContent = `${source.title || '未命名'}。修改会保存到本机资料库；练习卷是快照，改资料不会自动改已生成的练习卷。`;
+  }
+
+  function openQuestionEditor(kind, id) {
+    const source = kind === 'paper' ? findPaper(id) : findMaterial(id);
+    if (!source) { toast('找不到这份资料。', 'error'); return; }
+    state.questionEdit = { kind, id };
+    renderQuestionEditor();
+    const dialog = $('#question-editor-dialog');
+    if (dialog && !dialog.open) dialog.showModal();
+  }
+
+  function closeQuestionEditor() {
+    const dialog = $('#question-editor-dialog');
+    if (dialog && dialog.open) dialog.close();
+    state.questionEdit = null;
+  }
+
+  function itemAtKey(key) {
+    const edit = state.questionEdit;
+    if (!edit) return null;
+    const [si, ii] = String(key || '').split(':').map(Number);
+    if (edit.kind === 'paper') {
+      const paper = findPaper(edit.id);
+      const section = paper && paper.sections && paper.sections[si];
+      return section && section.items ? section.items[ii] : null;
+    }
+    const material = findMaterial(edit.id);
+    const items = state.items.filter((item) => item.materialId === (material && material.id));
+    return items[ii] || null;
+  }
+
+  function rowFields(row) {
+    const get = (name) => {
+      const field = row.querySelector(`[data-q-field="${name}"]`);
+      return field ? field.value : '';
+    };
+    return {
+      stem: get('stem'),
+      options: get('options'),
+      answer: get('answer'),
+      difficulty: get('difficulty'),
+      explanation: get('explanation'),
+      blankAnswer: get('blank-answer'),
+      blankDifficulty: get('blank-difficulty'),
+      blankExplanation: get('blank-explanation')
+    };
+  }
+
+  function applyRowToModel(row) {
+    const item = itemAtKey(row.dataset.qi);
+    if (!item) return;
+    const fields = rowFields(row);
+    if (row.dataset.blank) {
+      const number = row.dataset.blank;
+      item.blankAnswers = item.blankAnswers || {};
+      item.blankDifficulties = item.blankDifficulties || {};
+      item.blankAnswers[number] = {
+        ...(item.blankAnswers[number] || {}),
+        answer: String(fields.blankAnswer || '').trim(),
+        explanation: String(fields.blankExplanation || '').trim()
+      };
+      item.blankDifficulties[number] = clamp(Number(fields.blankDifficulty) || 5, 1, 10);
+      return;
+    }
+    const qj = Number(row.dataset.qj) || 0;
+    const question = (item.questions || [])[qj];
+    if (!question) return;
+    question.stem = String(fields.stem || '').trim();
+    question.options = textToOptions(fields.options);
+    question.answer = String(fields.answer || '').trim();
+    question.difficulty = clamp(Number(fields.difficulty) || 5, 1, 10);
+    question.explanation = String(fields.explanation || '').trim();
+  }
+
+  function removeMarkedRows(removed) {
+    const grouped = new Map();
+    Array.from(removed).forEach((key) => {
+      const [qi, qk] = key.split('|');
+      if (!grouped.has(qi)) grouped.set(qi, { questions: [], blanks: [] });
+      if (qk.startsWith('q')) grouped.get(qi).questions.push(Number(qk.slice(1)));
+      else grouped.get(qi).blanks.push(qk);
+    });
+    grouped.forEach(({ questions, blanks }, qi) => {
+      const item = itemAtKey(qi);
+      if (!item) return;
+      questions.sort((a, b) => b - a).forEach((qj) => {
+        if (Array.isArray(item.questions)) item.questions.splice(qj, 1);
+      });
+      blanks.forEach((number) => {
+        if (item.blankAnswers) delete item.blankAnswers[number];
+        if (item.blankDifficulties) delete item.blankDifficulties[number];
+      });
+    });
+  }
+
+  async function saveQuestionEdits() {
+    const edit = state.questionEdit;
+    if (!edit) return;
+    const rows = $$('#question-editor-body [data-qrow]');
+    const removed = new Set();
+    rows.forEach((row) => {
+      if (row.dataset.removed === '1') removed.add(`${row.dataset.qi}|${row.dataset.blank || `q${row.dataset.qj}`}`);
+      else applyRowToModel(row);
+    });
+    try {
+      if (edit.kind === 'paper') {
+        const paper = findPaper(edit.id);
+        if (!paper) return;
+        removeMarkedRows(removed);
+        paper.questionTotal = assignPaperNumbers(paper.sections || []);
+        paper.updatedAt = nowIso();
+        await dbPut('papers', paper);
+        await reloadAndRender();
+        if (state.currentPaper && state.currentPaper.id === paper.id) {
+          state.currentPaper = findPaper(paper.id);
+          if (state.currentPaper) renderPaper(state.currentPaper);
+        }
+      } else {
+        const material = findMaterial(edit.id);
+        if (!material) return;
+        const items = state.items.filter((item) => item.materialId === material.id);
+        removeMarkedRows(removed);
+        items.forEach((item) => {
+          const levels = (item.questions || []).map((question) => Number(question.difficulty)).filter((n) => n >= 1 && n <= 10);
+          if (levels.length) item.difficulty = Math.round(levels.reduce((sum, n) => sum + n, 0) / levels.length);
+        });
+        material.updatedAt = nowIso();
+        material.questionCount = items.length;
+        await saveMaterialWithItems(material, items);
+        await reloadAndRender();
+      }
+      closeQuestionEditor();
+      toast('逐题修改已保存。', 'ok');
+    } catch (error) {
+      console.error(error);
+      toast(`保存失败：${error.message || error}`, 'error', 8000);
+    }
+  }
+
+  async function aiPolishRow(row) {
+    const tool = aiTool();
+    if (!tool) return;
+    const edit = state.questionEdit;
+    if (!edit) return;
+    const cfg = tool.config();
+    if (!cfg.key) {
+      toast('还没有配置 API Key。请到“设置 → AI 整理与消耗”粘贴保存。', 'error', 7000);
+      go('settings');
+      return;
+    }
+    const item = itemAtKey(row.dataset.qi);
+    if (!item) return;
+    const fields = rowFields(row);
+    const isBlank = !!row.dataset.blank;
+    const payload = {
+      type: isBlank ? 'grammar' : (questionEditorSections().find((section) => section.items.includes(item)) || {}).type || 'other',
+      stem: fields.stem || (isBlank ? `语法填空第 ${row.dataset.blank} 空` : ''),
+      options: fields.options || '',
+      answer: isBlank ? fields.blankAnswer : fields.answer,
+      explanation: isBlank ? fields.blankExplanation : fields.explanation
+    };
+    const estimate = tool.estimate(JSON.stringify(payload).length + 300, 360);
+    if (!window.confirm(`只发送这一道题给 DeepSeek 精修，预计最多约 ${estimate.inputTokens + estimate.maxOutputTokens} tokens、约 ${aiCostText(estimate.cost)}。继续吗？`)) return;
+    row.classList.add('is-busy');
+    try {
+      const result = await tool.call([
+        { role: 'system', content: '你是英语试卷单题校对员。只整理这一道题：修复 OCR 断行和标点，规范选项排版，去掉页眉页码等杂物；不要改题意、不要换答案、不要编造解析。无法判断时保持原样。严格按标记输出。' },
+        { role: 'user', content: `题型：${payload.type}\n题干：${payload.stem}\n选项：\n${payload.options}\n答案：${payload.answer}\n解析：${payload.explanation}\n\n只输出：\n【题干】…\n【选项】每行一个 A. …；没有选项就留空\n【答案】…\n【解析】…` }
+      ], 360, `单题精修：${(findMaterial(edit.id) || findPaper(edit.id) || {}).title || '题目'}`.slice(0, 40));
+      const parsed = parseTaggedText(result.text, ['题干', '选项', '答案', '解析']);
+      const apply = (name, value) => {
+        const field = row.querySelector(`[data-q-field="${name}"]`);
+        if (field && value) field.value = value;
+      };
+      apply(isBlank ? 'stem' : 'stem', parsed['题干']);
+      apply('options', parsed['选项']);
+      apply(isBlank ? 'blank-answer' : 'answer', parsed['答案']);
+      apply(isBlank ? 'blank-explanation' : 'explanation', parsed['解析']);
+      if (parsed['题干'] && isBlank) {
+        // 语法填空没有独立题干，AI 返回的题干只用于校对，不写回。
+      }
+      renderAiSettings();
+      toast(`单题精修完成，本次 ${result.tokens} tokens · 约 ${aiCostText(result.cost)}。核对后点“保存全部修改”。`, 'ok', 8000);
+    } catch (error) {
+      console.error(error);
+      toast(`单题精修失败：${error.message || error}`, 'error', 8000);
+    } finally {
+      row.classList.remove('is-busy');
+    }
+  }
+
+  function bindQuestionEditorEvents() {
+    const body = $('#question-editor-body');
+    if (body) {
+      body.addEventListener('click', (event) => {
+        const aiButton = event.target.closest('[data-q-ai]');
+        if (aiButton) {
+          const row = aiButton.closest('[data-qrow]');
+          if (row) aiPolishRow(row);
+          return;
+        }
+        const removeButton = event.target.closest('[data-q-remove]');
+        if (removeButton) {
+          const row = removeButton.closest('[data-qrow]');
+          if (!row) return;
+          if (!window.confirm('删除这道题？保存后才会真正从资料库移除。')) return;
+          row.dataset.removed = '1';
+          row.hidden = true;
+          toast('已标记删除，点“保存全部修改”后生效。');
+        }
+      });
+    }
+    $$('[data-q-close]').forEach((button) => button.addEventListener('click', closeQuestionEditor));
+    const dialog = $('#question-editor-dialog');
+    if (dialog) {
+      dialog.addEventListener('click', (event) => {
+        if (event.target === dialog) closeQuestionEditor();
+      });
+    }
   }
 
   /* ------------------------------------------------------------------------
@@ -6742,6 +7279,7 @@ Li Hua`,
     }
 
     document.addEventListener('click', handleGlobalAction);
+    bindQuestionEditorEvents();
 
     const generateButton = $('#generate-paper');
     const commandInput = $('#command-input');
@@ -6893,6 +7431,32 @@ Li Hua`,
         case 'ai-split':
           if (id) openSplitDialog(id);
           break;
+        case 'questions':
+          if (id) openQuestionEditor('material', id);
+          break;
+        case 'questions-paper':
+          if (paperId) openQuestionEditor('paper', paperId);
+          break;
+        case 'ai-clean': {
+          const material = findMaterial(id);
+          const sourceText = material
+            ? [material.body || material.text || '', material.answers ? `参考答案\n${material.answers}` : ''].filter(Boolean).join('\n\n')
+            : '';
+          if (material) await applyAiClean(material, sourceText);
+          break;
+        }
+        case 'ai-key-save':
+          saveLibraryAiKey();
+          break;
+        case 'ai-key-test':
+          await testLibraryAiKey();
+          break;
+        case 'ai-key-clear':
+          clearLibraryAiKey();
+          break;
+        case 'save-question-edits':
+          await saveQuestionEdits();
+          break;
         case 'copy-split-prompt':
           await copySplitPrompt();
           break;
@@ -6973,6 +7537,7 @@ Li Hua`,
     populateTypeSelects();
     bindEvents();
     hydrateSettingsUI();
+    renderAiSettings();
     loadWordDictionary();
     try {
       state.db = await openDB();

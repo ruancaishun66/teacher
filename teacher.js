@@ -59,6 +59,11 @@
   let wordSourceMode = 'paste';
   let wordAssignStudentId = null;
   let wordDetailId = null;
+  let planPapers = [];
+  let planPaperIds = new Set();
+  let planStudentIds = null;
+  let planRequestStudentId = null;
+  let trialRequestPayload = null;
 
   /* ------------------------------- 存储 ------------------------------- */
 
@@ -69,6 +74,7 @@
     raw.teacherName = raw.teacherName || '阮老师';
     raw.students = Array.isArray(raw.students) ? raw.students.map(normalizeStudent).filter((s) => s.id) : [];
     raw.assignments = Array.isArray(raw.assignments) ? raw.assignments.filter((a) => a && a.id) : [];
+    raw.plans = Array.isArray(raw.plans) ? raw.plans.filter((plan) => plan && plan.id && plan.studentId) : [];
     raw.insights = Array.isArray(raw.insights) ? normalizeInsights(raw.insights) : defaultInsights();
     return raw;
   }
@@ -94,7 +100,12 @@
       tasks: Array.isArray(raw.tasks) ? raw.tasks : [],
       profile: raw.profile || null,
       lastReportAt: raw.lastReportAt || '',
-      aiAnalysis: String(raw.aiAnalysis || '')
+      aiAnalysis: String(raw.aiAnalysis || ''),
+      accountType: raw.accountType === 'trial' ? 'trial' : 'regular',
+      trialDays: Math.max(1, Math.min(30, Number(raw.trialDays) || 3)),
+      planLevel: Math.max(1, Math.min(10, Number(raw.planLevel) || 5)),
+      levelHistory: Array.isArray(raw.levelHistory) ? raw.levelHistory.slice(0, 30) : [],
+      trialRequestAt: String(raw.trialRequestAt || '')
     };
   }
 
@@ -114,6 +125,7 @@
       createdAt: S.nowIso(),
       students: [],
       assignments: [],
+      plans: [],
       insights: defaultInsights()
     };
   }
@@ -511,6 +523,8 @@
       avatar: student.avatar,
       pin: student.pin,
       teacherName: data.teacherName || '阮老师',
+      accountType: student.accountType || 'regular',
+      trialDays: student.trialDays || 3,
       createdAt: S.nowIso(),
       auth
     });
@@ -570,7 +584,9 @@
     renderTodo();
     renderStudentGrid();
     renderAssignments();
+    renderPlanList();
     renderWords();
+    if ($('#trial-students')) renderTrialTab();
     renderReportList();
     renderInsights();
     renderSettings();
@@ -608,6 +624,7 @@
           `<div style="display:flex;align-items:center;gap:6px;min-width:0;">` +
             `<h3>${S.escapeHtml(student.name)}</h3>` +
             (student.grade ? `<span class="grade-tag">${S.escapeHtml(student.grade)}</span>` : '') +
+            (student.accountType === 'trial' ? `<span class="account-badge">体验</span>` : '') +
           `</div>` +
           `<span class="sid">${S.escapeHtml(student.id)}</span>` +
         `</div>` +
@@ -686,6 +703,14 @@
       const score = scoreOfStudent(student);
       if (score != null && score < 60) {
         todos.push({ tone: 'var(--red)', studentId: student.id, text: `<strong>${S.escapeHtml(student.name)}</strong> 最近平均正确率 ${score}%，建议先回看错题再布置新任务。` });
+      }
+      const suspicious = (student.tasks || []).filter((task) => task.integrityScore != null && Number(task.integrityScore) < 55);
+      if (suspicious.length) {
+        todos.push({
+          tone: 'var(--red)',
+          studentId: student.id,
+          text: `<strong>${S.escapeHtml(student.name)}</strong> 有 ${suspicious.length} 次任务出现疑似乱选信号，建议打开档案核对答题过程。`
+        });
       }
     });
     $('#todo-list').innerHTML = todos.length
@@ -956,6 +981,11 @@
     $$('.teacher-pane').forEach((pane) => pane.classList.toggle('active', pane.dataset.pane === name));
     if (name === 'insights') renderInsights();
     if (name === 'words') renderWords();
+    if (name === 'plan') {
+      renderPlanTab();
+      if (!planPapers.length) loadPlanPapers().then(() => renderPlanTab());
+    }
+    if (name === 'trial') renderTrialTab();
   }
 
   /* ------------------------------- 学生管理 ------------------------------- */
@@ -984,6 +1014,13 @@
     $$('#student-avatar-picker input').forEach((input) => {
       input.checked = input.value === (student ? student.avatar : '🦊');
     });
+    const accountType = student ? student.accountType : 'regular';
+    $$('#student-account-type input').forEach((input) => {
+      input.checked = input.value === accountType;
+    });
+    const trialDays = student ? student.trialDays : 3;
+    if ($('#student-trial-days')) $('#student-trial-days').value = String(trialDays);
+    if ($('#student-trial-days-field')) $('#student-trial-days-field').hidden = accountType !== 'trial';
     S.openDialog($('#student-dialog'));
   }
 
@@ -993,6 +1030,9 @@
     const grade = $('#student-grade-input').value;
     const pin = $('#student-pin-input').value.trim();
     const avatar = selectedAvatar('student-avatar');
+    const accountTypeInput = $('#student-account-type input:checked');
+    const accountType = accountTypeInput && accountTypeInput.value === 'trial' ? 'trial' : 'regular';
+    const trialDays = clamp(Number(($('#student-trial-days') || {}).value) || 3, 1, 30);
     if (!name) { S.toast('先填学生姓名。', 'error'); return; }
     if (!/^[A-Z0-9_-]{3,24}$/.test(id)) { S.toast('学号用 3–24 位字母、数字或横线。', 'error'); return; }
     if (!/^[A-Za-z0-9]{4,12}$/.test(pin)) { S.toast('学生密码用 4–12 位字母或数字。', 'error'); return; }
@@ -1012,6 +1052,8 @@
       student.grade = grade;
       student.pin = pin;
       student.avatar = avatar;
+      student.accountType = accountType;
+      student.trialDays = trialDays;
       save();
       S.closeDialog($('#student-dialog'));
       renderAll();
@@ -1035,7 +1077,11 @@
       tasks: [],
       profile: null,
       lastReportAt: '',
-      aiAnalysis: ''
+      aiAnalysis: '',
+      accountType,
+      trialDays,
+      planLevel: 5,
+      levelHistory: []
     };
     data.students.push(student);
     save();
@@ -1167,6 +1213,10 @@
   }
 
   async function showCodes(assignment) {
+    const title = $('#codes-title');
+    const sub = $('#codes-sub');
+    if (title) title.textContent = '任务码';
+    if (sub) sub.textContent = '一位学生一码。复制后单独发给对应学生，不要发错。';
     const students = (assignment.studentIds || []).map(getStudent).filter(Boolean);
     if (!students.length) { S.toast('找不到任务对应的学生。', 'error'); return; }
     const items = [];
@@ -1203,6 +1253,577 @@
     const assignment = (data.assignments || []).find((item) => item.id === assignmentId);
     if (!assignment) return;
     await showCodes(assignment);
+  }
+
+  /* ------------------------------- 周计划 ------------------------------- */
+
+  function planWindow(level) {
+    const lv = clamp(Number(level) || 5, 1, 10);
+    if (lv <= 2) return { min: 1, max: 3 };
+    if (lv <= 4) return { min: 2, max: 4 };
+    if (lv <= 6) return { min: 3, max: 6 };
+    if (lv <= 8) return { min: 5, max: 8 };
+    return { min: 6, max: 10 };
+  }
+
+  function planLevelLabel(level) {
+    const lv = clamp(Number(level) || 5, 1, 10);
+    if (lv <= 2) return '打基础';
+    if (lv <= 4) return '稳步推进';
+    if (lv <= 6) return '同步提升';
+    if (lv <= 8) return '拔高训练';
+    return '冲刺挑战';
+  }
+
+  function cloneBlocksForPlan(paper) {
+    return blocksFromPaper(paper).map((block) => JSON.parse(JSON.stringify(block)));
+  }
+
+  function blockAvgLevel(block) {
+    const levels = (block.questions || []).map((question) => Number(question.difficulty)).filter((n) => n >= 1 && n <= 10);
+    return levels.length ? mean(levels) : 5;
+  }
+
+  function planPracticeBlocks(papersForPlan, level, practiceDayCount) {
+    const window = planWindow(level);
+    const collected = [];
+    papersForPlan.forEach((paper) => {
+      cloneBlocksForPlan(paper).forEach((block) => {
+        if (!(block.questions || []).length) return;
+        const kept = block.questions.filter((question) => {
+          const value = Number(question.difficulty);
+          return !value || (value >= window.min && value <= window.max);
+        });
+        const use = kept.length >= Math.min(2, block.questions.length) ? kept : block.questions;
+        collected.push({ ...block, questions: use, sourceTitle: paper.title || '' });
+      });
+    });
+    // 难度窗口筛得太狠时逐步放宽，保证一周有题可做。
+    if (countQuestions(collected) < practiceDayCount * 3) {
+      collected.length = 0;
+      papersForPlan.forEach((paper) => {
+        cloneBlocksForPlan(paper).forEach((block) => {
+          if ((block.questions || []).length) collected.push({ ...block, sourceTitle: paper.title || '' });
+        });
+      });
+    }
+    collected.sort((a, b) => {
+      const da = Math.abs(blockAvgLevel(a) - (window.min + window.max) / 2);
+      const db = Math.abs(blockAvgLevel(b) - (window.min + window.max) / 2);
+      return da - db;
+    });
+    return collected;
+  }
+
+  function splitPlanBlock(block, capacity) {
+    if (!block.questions || block.questions.length <= capacity * 1.6) return [block];
+    const chunks = [];
+    for (let i = 0; i < block.questions.length; i += capacity) {
+      chunks.push({
+        ...block,
+        id: `${block.id}-w${chunks.length + 1}`,
+        label: `${block.label || '练习'}（${chunks.length + 1}）`,
+        questions: block.questions.slice(i, i + capacity)
+      });
+    }
+    return chunks;
+  }
+
+  function distributePracticeBlocks(blocks, dayCount, level) {
+    const buckets = Array.from({ length: dayCount }, (_, index) => ({ dayIndex: index, blocks: [], questions: 0, difficulty: 5 }));
+    const totalQuestions = countQuestions(blocks);
+    const levelCapacity = clamp(7 + Math.round(Number(level) || 5), 8, 18);
+    // 题量不足时按“总题数 ÷ 天数”缩小每块容量，尽量让每天都有任务，
+    // 而不是把 28 道题堆成 3 天、另外 4 天没有内容。
+    const evenCapacity = dayCount && totalQuestions >= dayCount ? Math.ceil(totalQuestions / dayCount) : levelCapacity;
+    const capacity = Math.max(2, Math.min(levelCapacity, evenCapacity));
+    blocks.forEach((block) => {
+      splitPlanBlock(block, capacity).forEach((piece) => {
+        const pieceCount = countQuestions([piece]);
+        buckets.sort((a, b) => (a.questions - b.questions) || (a.dayIndex - b.dayIndex));
+        const target = buckets[0];
+        target.blocks.push(piece);
+        target.questions += pieceCount;
+      });
+    });
+    // 材料块少于天数时，把题目最多的一摞拆一份给空白天，保证每天都有任务。
+    buckets.forEach((bucket) => {
+      if (bucket.blocks.length) return;
+      const donor = buckets.filter((item) => item !== bucket).sort((a, b) => b.blocks.length - a.blocks.length)[0];
+      if (!donor || donor.blocks.length <= 1) return;
+      const block = donor.blocks.pop();
+      donor.questions -= countQuestions([block]);
+      bucket.blocks.push(block);
+      bucket.questions += countQuestions([block]);
+    });
+    buckets.forEach((bucket) => {
+      bucket.difficulty = avgDifficultyOf(bucket.blocks) || 5;
+    });
+    return buckets;
+  }
+
+  function buildStudentPlan(student, weekStart, selectedPapers, wordAssignment, level) {
+    const lv = clamp(Number(level) || 5, 1, 10);
+    const planId = S.uid('P');
+    const hasWords = Boolean(wordAssignment && (wordAssignment.words || []).length >= 8);
+    const practiceDays = hasWords ? [1, 3, 5, 7] : [1, 2, 3, 4, 5, 6, 7];
+    const wordDays = hasWords ? [2, 4, 6] : [];
+    const practiceBlocks = planPracticeBlocks(selectedPapers, lv, practiceDays.length);
+    if (!practiceBlocks.length) return null;
+    const buckets = distributePracticeBlocks(practiceBlocks, practiceDays.length, lv);
+    const title = `${S.fmtDate(weekStart)} 周计划 · ${student.name}`;
+    const wordsPerDay = clamp(6 + lv, 7, 16);
+    const days = [];
+    practiceDays.forEach((dayNumber, index) => {
+      const bucket = buckets[index];
+      const blocks = bucket.blocks;
+      if (!blocks.length) return;
+      const questionTotal = countQuestions(blocks);
+      const avgDifficulty = avgDifficultyOf(blocks);
+      days.push({
+        day: dayNumber,
+        date: S.addDays(weekStart, dayNumber - 1),
+        kind: 'paper',
+        taskId: `${planId}-D${dayNumber}`,
+        title: `第 ${dayNumber} 天 · 练习 ${questionTotal} 题`,
+        paperTitle: `${title} · 练习日`,
+        blocks,
+        questionTotal,
+        avgDifficulty,
+        xp: clamp(Math.round(45 + questionTotal * 12 + lv * 4), 60, 420)
+      });
+    });
+    if (hasWords) {
+      const sourceWords = wordAssignment.words || [];
+      wordDays.forEach((dayNumber, index) => {
+        const start = (index * wordsPerDay) % sourceWords.length;
+        const words = [];
+        for (let i = 0; i < wordsPerDay && i < sourceWords.length; i += 1) {
+          words.push(sourceWords[(start + i) % sourceWords.length]);
+        }
+        if (!words.length) return;
+        days.push({
+          day: dayNumber,
+          date: S.addDays(weekStart, dayNumber - 1),
+          kind: 'words',
+          taskId: `${planId}-D${dayNumber}`,
+          title: `第 ${dayNumber} 天 · 单词闯关 ${words.length} 词`,
+          paperTitle: `${title} · 单词日`,
+          words,
+          pool: wordPoolFor(words),
+          wordTotal: words.length,
+          xp: clamp(Math.round(35 + words.length * 8), 50, 260)
+        });
+      });
+    }
+    days.sort((a, b) => a.day - b.day);
+    return {
+      id: planId,
+      studentId: student.id,
+      studentName: student.name,
+      weekStart,
+      title,
+      level: lv,
+      createdAt: S.nowIso(),
+      wordSourceId: wordAssignment ? wordAssignment.id : '',
+      days
+    };
+  }
+
+  function planTaskPayload(plan, day, student, teacherName) {
+    return {
+      v: 1,
+      kind: 'task',
+      id: day.taskId,
+      studentId: student.id,
+      studentName: student.name,
+      teacherName: teacherName || '阮老师',
+      title: day.title,
+      grade: student.grade || '',
+      due: day.date,
+      xp: day.xp,
+      createdAt: plan.createdAt,
+      paperId: '',
+      paperTitle: day.paperTitle || plan.title,
+      planId: plan.id,
+      planDay: day.day,
+      planTotal: 7,
+      planStart: plan.weekStart,
+      planTitle: plan.title,
+      planLevel: plan.level,
+      mode: day.kind === 'words' ? 'words' : '',
+      wordTotal: day.wordTotal || 0,
+      words: day.words || [],
+      pool: day.pool || [],
+      avgDifficulty: day.avgDifficulty || null,
+      blocks: day.blocks || []
+    };
+  }
+
+  async function planCodeFor(plan, student) {
+    const teacherName = data.teacherName || '阮老师';
+    const tasks = [];
+    for (const day of plan.days) {
+      const task = planTaskPayload(plan, day, student, teacherName);
+      task.auth = await S.sha256Hex(`${student.id}|${student.pin}|${day.taskId}`);
+      tasks.push(task);
+    }
+    const auth = await S.sha256Hex(`${student.id}|${student.pin}|${plan.id}`);
+    return S.packCode({
+      v: 1,
+      kind: 'plan',
+      id: plan.id,
+      studentId: student.id,
+      studentName: student.name,
+      teacherName,
+      title: plan.title,
+      planStart: plan.weekStart,
+      planTotal: 7,
+      level: plan.level,
+      createdAt: plan.createdAt,
+      auth,
+      tasks
+    });
+  }
+
+  function renderPlanPapers() {
+    const box = $('#plan-papers');
+    if (!box) return;
+    if (!planPapers.length) {
+      box.innerHTML = '<p class="hint">还没有练习卷。先去 <a href="library.html">组卷工作台</a> 生成并保存一份。</p>';
+      return;
+    }
+    box.innerHTML = planPapers.map((paper) => (
+      `<label class="plan-check">` +
+        `<input type="checkbox" value="${S.escapeHtml(paper.id)}" ${planPaperIds.has(paper.id) ? 'checked' : ''}>` +
+        `<span><strong>${S.escapeHtml(paper.title)}</strong>` +
+        `<small>${S.escapeHtml(paper.grade || '未标注')} · ${paper.questionTotal || paper.total || 0} 题 · ${S.escapeHtml(S.fmtDate(paper.createdAt))}</small></span>` +
+      `</label>`
+    )).join('');
+  }
+
+  function renderPlanStudents() {
+    const box = $('#plan-students');
+    if (!box) return;
+    const list = sortedStudents();
+    if (!list.length) {
+      box.innerHTML = '<p class="hint">还没有学生。</p>';
+      return;
+    }
+    if (!planStudentIds) planStudentIds = new Set(list.map((student) => student.id));
+    box.innerHTML = list.map((student) => {
+      const level = clamp(Number(student.planLevel) || 5, 1, 10);
+      const last = (student.levelHistory || [])[0];
+      const history = last ? `<small class="plan-level-note">上次调整：${S.escapeHtml(last.reason || '')} → Lv.${level}</small>` : '';
+      return `<div class="plan-student${student.accountType === 'trial' ? ' is-trial' : ''}" data-plan-student="${S.escapeHtml(student.id)}">` +
+        `<label class="plan-student-check"><input type="checkbox" value="${S.escapeHtml(student.id)}" ${planStudentIds.has(student.id) ? 'checked' : ''}>` +
+          `<span class="student-avatar">${S.escapeHtml(student.avatar || '🦊')}</span>` +
+          `<span><strong>${S.escapeHtml(student.name)}</strong><small>${S.escapeHtml(student.id)} · ${S.escapeHtml(student.grade || '未标注')}${student.accountType === 'trial' ? ' · 体验' : ''}</small></span>` +
+        `</label>` +
+        `<div class="plan-level-control">` +
+          `<button class="p-btn small ghost" type="button" data-plan-level="-1" aria-label="降低难度">−</button>` +
+          `<span class="plan-level-value">Lv.${level}<small>${planLevelLabel(level)}</small></span>` +
+          `<button class="p-btn small ghost" type="button" data-plan-level="1" aria-label="提高难度">＋</button>` +
+        `</div>` +
+        history +
+      `</div>`;
+    }).join('');
+    updatePlanSelectedCount();
+  }
+
+  function updatePlanSelectedCount() {
+    const count = $$('#plan-students input[type="checkbox"]:checked').length;
+    const el = $('#plan-selected-count');
+    if (el) el.textContent = `已选 ${count} 人`;
+    const generate = $('#plan-generate');
+    if (generate) generate.disabled = !count || !planPaperIds.size;
+  }
+
+  function renderPlanWordSource() {
+    const select = $('#plan-word-source');
+    if (!select) return;
+    const list = wordAssignments().filter((assignment) => (assignment.words || []).length >= 8);
+    const current = select.value;
+    select.innerHTML = '<option value="">不加单词日，7 天都练题</option>' +
+      list.slice(0, 20).map((assignment) => (
+        `<option value="${S.escapeHtml(assignment.id)}">${S.escapeHtml(assignment.title)} · ${(assignment.words || []).length} 词</option>`
+      )).join('');
+    if (list.some((assignment) => assignment.id === current)) select.value = current;
+  }
+
+  function renderPlanList() {
+    const box = $('#plan-list');
+    if (!box) return;
+    const list = (data.plans || []).slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    if (!list.length) {
+      box.innerHTML = emptyState('还没有周计划', '选好材料和学生后，点“生成本周任务码”。');
+      return;
+    }
+    box.innerHTML = list.slice(0, 20).map((plan) => {
+      const student = getStudent(plan.studentId);
+      const days = (plan.days || []).map((day) => (
+        `<span class="plan-day-chip ${day.kind === 'words' ? 'is-words' : ''}">D${day.day}<b>${day.kind === 'words' ? `${day.wordTotal || (day.words || []).length} 词` : `${day.questionTotal} 题`}</b></span>`
+      )).join('');
+      return `<article class="plan-card" data-plan-id="${S.escapeHtml(plan.id)}">` +
+        `<div class="plan-card-main">` +
+          `<h4>${S.escapeHtml(plan.title)}</h4>` +
+          `<p>${S.escapeHtml(student ? `${student.name} · ${student.id}` : plan.studentId)} · Lv.${plan.level || 5} · 从 ${S.escapeHtml(S.fmtDate(plan.weekStart))} 起</p>` +
+          `<div class="plan-day-chips">${days}</div>` +
+        `</div>` +
+        `<div class="plan-card-actions">` +
+          `<button class="p-btn small" type="button" data-plan-action="codes">周计划码</button>` +
+          `<button class="p-btn small ghost" type="button" data-plan-action="delete">删除</button>` +
+        `</div>` +
+      `</article>`;
+    }).join('');
+  }
+
+  function renderPlanTab() {
+    renderPlanPapers();
+    renderPlanStudents();
+    renderPlanWordSource();
+    renderPlanList();
+    const start = $('#plan-week-start');
+    if (start && !start.value) start.value = S.todayIso();
+  }
+
+  async function loadPlanPapers() {
+    const box = $('#plan-papers');
+    if (box) box.innerHTML = '<p class="hint">正在读取资料库…</p>';
+    planPapers = await loadPapers();
+    const valid = new Set(planPapers.map((paper) => paper.id));
+    planPaperIds = new Set(Array.from(planPaperIds).filter((id) => valid.has(id)));
+    if (!planPaperIds.size) planPapers.slice(0, 2).forEach((paper) => planPaperIds.add(paper.id));
+    renderPlanPapers();
+    updatePlanSelectedCount();
+  }
+
+  async function generateWeeklyPlan() {
+    const weekStart = ($('#plan-week-start') || {}).value || S.todayIso();
+    const selectedPapers = planPapers.filter((paper) => planPaperIds.has(paper.id));
+    if (!selectedPapers.length) { S.toast('至少选一份练习卷。', 'error'); return; }
+    const studentIds = $$('#plan-students input[type="checkbox"]:checked').map((input) => input.value);
+    if (!studentIds.length) { S.toast('至少勾选一位学生。', 'error'); return; }
+    const wordSourceId = ($('#plan-word-source') || {}).value || '';
+    const wordAssignment = wordAssignments().find((assignment) => assignment.id === wordSourceId) || null;
+    const students = studentIds.map(getStudent).filter(Boolean);
+    const missingPin = students.find((student) => !student.pin);
+    if (missingPin) { S.toast(`${missingPin.name} 还没有密码，无法生成任务码。`, 'error'); return; }
+    const plans = [];
+    for (const student of students) {
+      const plan = buildStudentPlan(student, weekStart, selectedPapers, wordAssignment, student.planLevel || 5);
+      if (!plan) { S.toast(`${student.name} 没有可用题目，已跳过。`, 'error', 5000); continue; }
+      data.plans = (data.plans || []).filter((item) => !(item.studentId === student.id && item.weekStart === weekStart));
+      data.plans.unshift(plan);
+      plans.push(plan);
+    }
+    if (!plans.length) return;
+    save();
+    renderPlanList();
+    S.toast(`已生成 ${plans.length} 份周计划，正在生成周计划码…`, 'ok');
+    await showPlanCodes(plans);
+  }
+
+  async function showPlanCodes(plans) {
+    const items = [];
+    for (const plan of plans) {
+      const student = getStudent(plan.studentId);
+      if (!student) continue;
+      try {
+        const code = await planCodeFor(plan, student);
+        items.push({ student, code, plan });
+      } catch (error) {
+        items.push({ student, code: '', plan, error: error.message || '生成失败' });
+      }
+    }
+    lastCodes = items;
+    const title = $('#codes-title');
+    const sub = $('#codes-sub');
+    if (title) title.textContent = '周计划码';
+    if (sub) sub.textContent = '一位学生一码，一份码里含 7 天任务。学生导入后每天自动解锁一天，也可以点“多学一天”提前学下一天。';
+    $('#codes-list').innerHTML = items.map((item, index) => {
+      if (!item.code) {
+        return `<div class="code-card"><div class="code-card-head"><strong>${S.escapeHtml(item.student.name)} · ${S.escapeHtml(item.student.id)}</strong></div>` +
+          `<p class="hint warn">${S.escapeHtml(item.error)}</p></div>`;
+      }
+      const dayCount = (item.plan.days || []).length;
+      return `<div class="code-card">` +
+        `<div class="code-card-head">` +
+          `<div><strong>${S.escapeHtml(item.student.name)}</strong> <span>${S.escapeHtml(item.student.id)} · ${dayCount} 天 · Lv.${item.plan.level}</span></div>` +
+          `<button class="p-btn small ghost" type="button" data-copy-index="${index}">复制</button>` +
+        `</div>` +
+        `<textarea class="code-text" readonly>${S.escapeHtml(item.code)}</textarea>` +
+      `</div>`;
+    }).join('');
+    S.openDialog($('#codes-dialog'));
+  }
+
+  async function openPlanCodes(planId) {
+    const plan = (data.plans || []).find((item) => item.id === planId);
+    if (!plan) return;
+    await showPlanCodes([plan]);
+  }
+
+  /* ------------------------------- 周计划：难度自动调整 ------------------------------- */
+
+  function adjustLevelFromTasks(student, tasks) {
+    const scored = (tasks || []).filter((task) => hasScore(task));
+    if (!scored.length) return null;
+    const avg = mean(scored.map((task) => Number(task.score)));
+    const lowIntegrity = scored.some((task) => task.integrityScore != null && Number(task.integrityScore) < 45);
+    const before = clamp(Number(student.planLevel) || 5, 1, 10);
+    let after = before;
+    let reason = '';
+    if (lowIntegrity) {
+      reason = '有疑似乱选记录，先不提高难度';
+    } else if (avg >= 90 && scored.every((task) => Number(task.score) >= 80) && before < 10) {
+      after = before + 1;
+      reason = `平均 ${Math.round(avg)} 分，稳定达标`;
+    } else if (avg < 62 || scored.some((task) => Number(task.score) < 45)) {
+      if (before > 1) {
+        after = before - 1;
+        reason = `平均 ${Math.round(avg)} 分，先降一档稳住`;
+      } else {
+        reason = `平均 ${Math.round(avg)} 分，已在最低档`;
+      }
+    } else {
+      reason = `平均 ${Math.round(avg)} 分，保持当前档`;
+    }
+    if (after !== before) {
+      student.planLevel = after;
+    } else {
+      student.planLevel = before;
+    }
+    student.levelHistory = student.levelHistory || [];
+    student.levelHistory.unshift({
+      at: S.nowIso(),
+      before,
+      after,
+      avgScore: Math.round(avg),
+      reason
+    });
+    student.levelHistory = student.levelHistory.slice(0, 30);
+    return { before, after, avg: Math.round(avg), reason };
+  }
+
+  /* ------------------------------- 体验卡 ------------------------------- */
+
+  function trialStudentsList() {
+    return sortedStudents().filter((student) => student.accountType === 'trial');
+  }
+
+  function renderTrialTab() {
+    const box = $('#trial-students');
+    if (!box) return;
+    const list = trialStudentsList();
+    const count = $('#trial-count');
+    if (count) count.textContent = `${list.length} 人`;
+    if (!list.length) {
+      box.innerHTML = emptyState('还没有体验学生', '添加学生时把账户类型设为“体验学生”，开通码就会带上体验期。');
+      return;
+    }
+    box.innerHTML = list.map((student) => {
+      const profile = student.profile || {};
+      const expires = profile.trialExpiresAt || '';
+      const daysLeft = expires ? Math.round((new Date(`${expires}T23:59:59`).getTime() - Date.now()) / 86400000) : null;
+      const status = !expires ? '待学生汇报' : daysLeft < 0 ? `已到期 ${Math.abs(daysLeft)} 天` : `还剩 ${daysLeft} 天`;
+      const request = student.trialRequestAt ? `<small>最近申请：${S.escapeHtml(S.fmtDateTime(student.trialRequestAt))}</small>` : '';
+      return `<div class="trial-student" data-trial-student="${S.escapeHtml(student.id)}">` +
+        `<div class="trial-student-main">` +
+          `<span class="student-avatar">${S.escapeHtml(student.avatar || '🦊')}</span>` +
+          `<div><strong>${S.escapeHtml(student.name)}</strong>` +
+          `<small>${S.escapeHtml(student.id)} · ${S.escapeHtml(student.grade || '未标注')} · 到期 ${S.escapeHtml(expires || '未知')}</small>${request}</div>` +
+        `</div>` +
+        `<span class="trial-state ${daysLeft != null && daysLeft < 0 ? 'expired' : ''}">${S.escapeHtml(status)}</span>` +
+        `<div class="trial-student-actions">` +
+          `<button class="p-btn small ghost" type="button" data-trial-action="extend" data-days="3">+3 天</button>` +
+          `<button class="p-btn small ghost" type="button" data-trial-action="extend" data-days="7">+7 天</button>` +
+          `<button class="p-btn small ghost" type="button" data-trial-action="extend" data-days="30">+30 天</button>` +
+          `<button class="p-btn small" type="button" data-trial-action="upgrade">转正式</button>` +
+        `</div>` +
+      `</div>`;
+    }).join('');
+  }
+
+  async function parseTrialRequest() {
+    const raw = ($('#trial-request-input') || {}).value.trim();
+    const result = $('#trial-request-result');
+    const grantBtn = $('#trial-grant-btn');
+    if (!raw) { S.toast('先粘贴学生发来的延长申请码。', 'error'); return; }
+    let payload;
+    try {
+      payload = await S.unpackCode(raw);
+    } catch (error) {
+      S.toast(error.message || '申请码无法识别。', 'error', 5000);
+      return;
+    }
+    if (!payload || payload.kind !== 'trial-request') { S.toast('这不是延长申请码。', 'error'); return; }
+    const student = getStudent(payload.studentId);
+    if (!student) { S.toast(`名册里没有学号 ${payload.studentId}。`, 'error'); return; }
+    const auth = await S.sha256Hex(`${student.id}|${student.pin}|trial-request|${payload.expiresAt}`);
+    if (auth !== payload.auth) { S.toast('申请码校验失败，可能不是这个学生发来的。', 'error', 7000); return; }
+    trialRequestPayload = payload;
+    planRequestStudentId = student.id;
+    student.trialRequestAt = payload.requestedAt || S.nowIso();
+    save();
+    if (result) result.innerHTML = `<b>${S.escapeHtml(student.name)} · ${S.escapeHtml(student.id)}</b>` +
+      `<span>当前到期：${S.escapeHtml(payload.expiresAt || '未知')} · 申请时间：${S.escapeHtml(S.fmtDateTime(payload.requestedAt))}</span>`;
+    if (grantBtn) grantBtn.disabled = false;
+    renderTrialTab();
+    S.toast('申请码校验通过，可以生成延长码。', 'ok');
+  }
+
+  async function buildExtendCode(student, days) {
+    const auth = await S.sha256Hex(`${student.id}|${student.pin}|extend|${days}`);
+    return S.packCode({
+      v: 1,
+      kind: 'extend',
+      studentId: student.id,
+      studentName: student.name,
+      days,
+      teacherName: data.teacherName || '阮老师',
+      createdAt: S.nowIso(),
+      auth
+    });
+  }
+
+  async function grantTrial(studentId, days) {
+    const student = getStudent(studentId);
+    if (!student) return;
+    if (!student.pin) { S.toast('这个学生没有登记密码，无法生成延长码。', 'error'); return; }
+    const code = await buildExtendCode(student, days);
+    const output = $('#trial-grant-output');
+    if (output) output.value = code;
+    const copyBtn = $('#trial-copy-grant');
+    if (copyBtn) copyBtn.disabled = false;
+    try {
+      await S.copyText(code);
+      S.toast(`${student.name} 的 ${days} 天延长码已生成并复制。`, 'ok', 5000);
+    } catch (error) {
+      S.toast('延长码已生成，请手动复制。', 'ok');
+    }
+  }
+
+  async function upgradeTrialStudent(studentId) {
+    const student = getStudent(studentId);
+    if (!student) return;
+    if (!student.pin) { S.toast('这个学生没有登记密码，无法生成转正码。', 'error'); return; }
+    if (!window.confirm(`把 ${student.name} 转为正式学生？会生成一个转正码，学生使用后不再受体验期限制。`)) return;
+    const auth = await S.sha256Hex(`${student.id}|${student.pin}|upgrade`);
+    const code = await S.packCode({
+      v: 1,
+      kind: 'upgrade',
+      studentId: student.id,
+      studentName: student.name,
+      teacherName: data.teacherName || '阮老师',
+      createdAt: S.nowIso(),
+      auth
+    });
+    const output = $('#trial-grant-output');
+    if (output) output.value = code;
+    const copyBtn = $('#trial-copy-grant');
+    if (copyBtn) copyBtn.disabled = false;
+    try { await S.copyText(code); S.toast('转正码已生成并复制，发给学生使用。', 'ok', 5500); } catch (error) { S.toast('转正码已生成，请手动复制。', 'ok'); }
   }
 
   /* ------------------------------- 单词打卡：发布 ------------------------------- */
@@ -1582,6 +2203,8 @@
     }
 
     const profile = payload.profile || {};
+    const reportedAccountType = profile.accountType === 'trial' ? 'trial' : 'regular';
+    student.accountType = reportedAccountType;
     student.profile = {
       ...profile,
       id: student.id,
@@ -1591,7 +2214,15 @@
       attrs: S.normalizeAttrs(profile.attrs),
       checkins: Array.isArray(profile.checkins) ? profile.checkins : [],
       badges: Array.isArray(profile.badges) ? profile.badges : [],
-      xp: Number(profile.xp) || 0
+      xp: Number(profile.xp) || 0,
+      accountType: reportedAccountType,
+      trialDays: Math.max(1, Number(profile.trialDays) || student.trialDays || 3),
+      trialExpiresAt: String(profile.trialExpiresAt || ''),
+      trialStartedAt: String(profile.trialStartedAt || ''),
+      pets: profile.pets || null,
+      activePet: String(profile.activePet || ''),
+      fusion: profile.fusion || null,
+      wheel: profile.wheel || null
     };
     if (!student.name) student.name = profile.name || student.name;
     if (!student.grade && profile.grade) student.grade = profile.grade;
@@ -1604,6 +2235,12 @@
       else student.tasks.push(copy);
     });
     student.tasks.sort((a, b) => String(b.submittedAt || '').localeCompare(String(a.submittedAt || '')));
+
+    let levelChange = null;
+    if (student.lastLevelReportId !== payload.reportId) {
+      levelChange = adjustLevelFromTasks(student, tasks);
+      student.lastLevelReportId = payload.reportId;
+    }
 
     const scores = tasks.filter(hasScore).map((task) => Number(task.score));
     const summary = {
@@ -1626,7 +2263,10 @@
     S.closeDialog($('#import-report-dialog'));
     $('#import-report-code').value = '';
     renderAll();
-    S.toast(`已导入 ${student.name} 的汇报，共 ${summary.taskCount} 个任务。`, 'ok', 5000);
+    const levelNote = levelChange && levelChange.after !== levelChange.before
+      ? ` 难度档自动 ${levelChange.before} → ${levelChange.after}（${levelChange.reason}）。`
+      : levelChange && levelChange.reason ? ` ${levelChange.reason}。` : '';
+    S.toast(`已导入 ${student.name} 的汇报，共 ${summary.taskCount} 个任务。${levelNote}`, 'ok', 8000);
     openDetail(student.id);
   }
 
@@ -2010,12 +2650,27 @@
     renderDetailReports(student);
   }
 
+  function integrityBadge(task) {
+    const score = task.integrityScore != null ? Number(task.integrityScore) : null;
+    if (score == null) return '<span class="integrity-chip none">未采集</span>';
+    const tone = score >= 80 ? 'good' : score >= 55 ? 'warn' : 'bad';
+    const flags = Array.isArray(task.integrityFlags) ? task.integrityFlags : [];
+    return `<span class="integrity-chip ${tone}" title="${S.escapeHtml(flags.join('；') || '未发现异常')}">${score}</span>` +
+      (flags.length ? `<small class="integrity-flag">${S.escapeHtml(flags[0])}</small>` : '');
+  }
+
   function renderDetailTasks(student, profile) {
     const tasks = (student.tasks || []).slice().sort((a, b) => String(b.submittedAt || '').localeCompare(String(a.submittedAt || '')));
     if (!tasks.length) {
       $('#detail-task-table').innerHTML = emptyState('还没有任务记录', '导入汇报后，任务历史会出现在这里。');
       return;
     }
+    const suspicious = tasks.filter((task) => task.integrityScore != null && Number(task.integrityScore) < 55);
+    const integrityNote = suspicious.length
+      ? `<div class="integrity-alert"><b>有 ${suspicious.length} 次任务出现疑似乱选信号</b>` +
+        `<span>${S.escapeHtml(suspicious.slice(0, 3).map((task) => `${task.title || '任务'}（${task.integrityScore} 分：${(task.integrityFlags || []).join('、') || '异常'}）`).join('；'))}</span>` +
+        `<small>这是按答题速度、改答次数、离开页面和选项分布做的本机估算，只能当提醒，不能当处分依据。</small></div>`
+      : '';
     const rows = tasks.map((task) => {
       const score = hasScore(task) ? `${task.score}%` : '待批';
       const minutes = task.timeSpent ? Math.max(1, Math.round(task.timeSpent / 60)) : null;
@@ -2026,9 +2681,10 @@
         `<td><b>${score}</b></td>` +
         `<td>${task.correct == null ? '—' : `${task.correct}/${task.total || 0}`}</td>` +
         `<td>${minutes == null ? '—' : minutes + '′'}</td>` +
+        `<td>${integrityBadge(task)}</td>` +
       `</tr>`;
     }).join('');
-    let html = `<table class="history-table"><thead><tr><th>任务</th><th>提交</th><th>得分</th><th>答对</th><th>用时</th></tr></thead><tbody>${rows}</tbody></table>`;
+    let html = integrityNote + `<table class="history-table"><thead><tr><th>任务</th><th>提交</th><th>得分</th><th>答对</th><th>用时</th><th>答题可信度</th></tr></thead><tbody>${rows}</tbody></table>`;
 
     if (profile.wrongReviews.length) {
       html += `<h3 class="dialog-subtitle" style="margin-top:20px;">最近错题</h3>` +
@@ -2114,20 +2770,13 @@
   /* --------------------------- AI 直连（可选，省额度） --------------------------- */
 
   const AI_STORAGE_KEY = 'shunshi.ai.v1';
-  const AI_ENDPOINT = 'https://api.deepseek.com/chat/completions';
 
   function aiConfig() {
-    const raw = S.getJSON(AI_STORAGE_KEY, null) || {};
-    return {
-      key: String(raw.key || '').trim(),
-      model: 'deepseek-flash',
-      totalTokens: Math.max(0, Number(raw.totalTokens) || 0),
-      calls: Math.max(0, Number(raw.calls) || 0)
-    };
+    return S.ai.config();
   }
 
   function saveAiConfig(cfg) {
-    S.setJSON(AI_STORAGE_KEY, cfg);
+    S.ai.save(cfg);
   }
 
   function updateAiSettingsUI() {
@@ -2140,7 +2789,18 @@
       input.placeholder = cfg.key ? `已保存（尾号 ${cfg.key.slice(-4)}）` : 'sk-... 只存本机';
     }
     const usage = $('#ai-usage');
-    if (usage) usage.textContent = `累计使用 ${cfg.totalTokens} tokens · ${cfg.calls} 次`;
+    if (usage) {
+      usage.textContent = `累计 ${cfg.totalTokens} tokens（输入 ${cfg.inputTokens} / 输出 ${cfg.outputTokens}）· ${cfg.calls} 次 · 约 ${S.ai.costText(cfg.cost)}`;
+    }
+    const logEl = $('#ai-cost-log');
+    if (logEl) {
+      logEl.innerHTML = cfg.log.length
+        ? cfg.log.slice(0, 8).map((item) => (
+          `<li><span>${S.escapeHtml(S.fmtDateTime(item.at))} · ${S.escapeHtml(item.source)}</span>` +
+          `<b>${item.tokens} tokens · ${S.ai.costText(item.cost)}</b></li>`
+        )).join('')
+        : '<li><span>还没有调用记录。每次 AI 整理都会记在这里。</span></li>';
+    }
   }
 
   function saveAiKey() {
@@ -2185,48 +2845,10 @@
     }
   }
 
-  async function callDeepSeek(messages, maxTokens) {
-    const cfg = aiConfig();
-    if (!cfg.key) throw new Error('还没有配置 API Key，请到“设置 → AI 直连”粘贴并保存。');
-    const response = await fetch(AI_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${cfg.key}`
-      },
-      body: JSON.stringify({
-        model: cfg.model,
-        messages,
-        temperature: 0.4,
-        max_tokens: maxTokens,
-        stream: false,
-        thinking: { type: 'disabled' }
-      })
-    });
-    if (!response.ok) {
-      let detail = '';
-      try {
-        const error = await response.json();
-        detail = (error.error && error.error.message) || '';
-      } catch (error) { /* ignore */ }
-      const hints = {
-        401: 'Key 无效或已失效',
-        402: '账户余额不足',
-        429: '调用太频繁，等一会儿再试',
-        500: 'DeepSeek 服务暂时不可用'
-      };
-      throw new Error(`${hints[response.status] || '调用失败'}（HTTP ${response.status}）${detail ? `：${detail}` : ''}`);
-    }
-    const json = await response.json();
-    const choice = (json.choices || [])[0] || {};
-    const text = String((choice.message && choice.message.content) || '').trim();
-    if (!text) throw new Error('这次没有返回内容，请再试一次。');
-    const usage = json.usage || {};
-    cfg.totalTokens += Number(usage.total_tokens) || 0;
-    cfg.calls += 1;
-    saveAiConfig(cfg);
+  async function callDeepSeek(messages, maxTokens, source) {
+    const result = await S.ai.call(messages, maxTokens, source || '学习画像分析');
     updateAiSettingsUI();
-    return { text, usage, finishReason: choice.finish_reason || '' };
+    return result;
   }
 
   async function runAiAnalysis() {
@@ -2249,14 +2871,14 @@
       const result = await callDeepSeek([
         { role: 'system', content: '你是严谨的英语学习诊断助手。只基于提供的数据说话，保护学生隐私，不给学生贴固定标签。用中文分点回答。' },
         { role: 'user', content: prompt }
-      ], 700);
+      ], 700, `画像分析 · ${student.name}`);
       $('#ai-result').value = result.text;
       const inputTokens = Number(result.usage.prompt_tokens) || 0;
       const outputTokens = Number(result.usage.completion_tokens) || 0;
       const used = Number(result.usage.total_tokens) || (inputTokens + outputTokens);
       const truncated = result.finishReason === 'length' ? ' · 内容达到上限，可再点一次生成更短版本' : '';
-      if (note) note.textContent = `本次 ${used} tokens（输入 ${inputTokens} / 输出 ${outputTokens}）${truncated}。确认内容无误后，点“保存 AI 分析”。`;
-      S.toast(`分析完成，本次 ${used} tokens。`, 'ok', 6000);
+      if (note) note.textContent = `本次 ${used} tokens（输入 ${inputTokens} / 输出 ${outputTokens}）· 约 ${S.ai.costText(result.cost)}${truncated}。确认内容无误后，点“保存 AI 分析”。`;
+      S.toast(`分析完成，本次 ${used} tokens · 约 ${S.ai.costText(result.cost)}。`, 'ok', 6000);
     } catch (error) {
       if (note) note.textContent = '';
       S.toast(error.message || 'AI 调用失败。', 'error', 8500);
@@ -2277,6 +2899,7 @@
       pinHash: data.pinHash,
       students: data.students,
       assignments: data.assignments,
+      plans: data.plans || [],
       insights: IC ? IC.normalizePosts(data.insights) : []
     });
   }
@@ -2320,6 +2943,7 @@
       createdAt: payload.createdAt || S.nowIso(),
       students: (payload.students || []).map(normalizeStudent).filter((student) => student.id),
       assignments: Array.isArray(payload.assignments) ? payload.assignments : [],
+      plans: Array.isArray(payload.plans) ? payload.plans : [],
       insights: Array.isArray(payload.insights) ? normalizeInsights(payload.insights) : defaultInsights()
     };
     sessionPin = pin;
@@ -2469,6 +3093,105 @@
     $('#student-search').addEventListener('input', renderStudentGrid);
     $('#student-save').addEventListener('click', saveStudent);
     $('#student-delete').addEventListener('click', deleteStudent);
+    $$('#student-account-type input').forEach((input) => {
+      input.addEventListener('change', () => {
+        const field = $('#student-trial-days-field');
+        if (field) field.hidden = input.value !== 'trial' || !input.checked;
+      });
+    });
+
+    $('#plan-refresh').addEventListener('click', loadPlanPapers);
+    const planWeekStart = $('#plan-week-start');
+    if (planWeekStart) planWeekStart.value = S.todayIso();
+    const planGenerate = $('#plan-generate');
+    if (planGenerate) planGenerate.addEventListener('click', generateWeeklyPlan);
+    const planPapersBox = $('#plan-papers');
+    if (planPapersBox) {
+      planPapersBox.addEventListener('change', (event) => {
+        const input = event.target.closest('input[type="checkbox"]');
+        if (!input) return;
+        if (input.checked) planPaperIds.add(input.value);
+        else planPaperIds.delete(input.value);
+        updatePlanSelectedCount();
+      });
+    }
+    const planStudentsBox = $('#plan-students');
+    if (planStudentsBox) {
+      planStudentsBox.addEventListener('change', (event) => {
+        const input = event.target.closest('input[type="checkbox"]');
+        if (!input) return;
+        if (!planStudentIds) planStudentIds = new Set();
+        if (input.checked) planStudentIds.add(input.value);
+        else planStudentIds.delete(input.value);
+        updatePlanSelectedCount();
+      });
+      planStudentsBox.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-plan-level]');
+        if (!button) return;
+        const row = button.closest('[data-plan-student]');
+        if (!row) return;
+        const student = getStudent(row.dataset.planStudent);
+        if (!student) return;
+        const next = clamp((Number(student.planLevel) || 5) + Number(button.dataset.planLevel || 0), 1, 10);
+        if (next === student.planLevel) return;
+        student.planLevel = next;
+        student.levelHistory = student.levelHistory || [];
+        student.levelHistory.unshift({ at: S.nowIso(), before: next - Number(button.dataset.planLevel), after: next, avgScore: null, reason: '老师手动调整' });
+        student.levelHistory = student.levelHistory.slice(0, 30);
+        save();
+        renderPlanStudents();
+        S.toast(`${student.name} 的难度调到 Lv.${next}（${planLevelLabel(next)}）。`, 'ok', 2400);
+      });
+    }
+    const planListBox = $('#plan-list');
+    if (planListBox) {
+      planListBox.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-plan-action]');
+        if (!button) return;
+        const card = button.closest('[data-plan-id]');
+        if (!card) return;
+        const planId = card.dataset.planId;
+        if (button.dataset.planAction === 'codes') openPlanCodes(planId);
+        else if (button.dataset.planAction === 'delete') {
+          if (!window.confirm('删除这份周计划记录？已经发给学生的周计划码仍然可用。')) return;
+          data.plans = (data.plans || []).filter((plan) => plan.id !== planId);
+          save();
+          renderPlanList();
+          S.toast('周计划记录已删除。');
+        }
+      });
+    }
+
+    const trialParse = $('#trial-parse-request');
+    if (trialParse) trialParse.addEventListener('click', parseTrialRequest);
+    const trialGrant = $('#trial-grant-btn');
+    if (trialGrant) {
+      trialGrant.addEventListener('click', () => {
+        if (!trialRequestPayload) return;
+        const days = Number(($('#trial-grant-days') || {}).value) || 7;
+        grantTrial(trialRequestPayload.studentId, days);
+      });
+    }
+    const trialCopyGrant = $('#trial-copy-grant');
+    if (trialCopyGrant) {
+      trialCopyGrant.addEventListener('click', async () => {
+        const code = ($('#trial-grant-output') || {}).value.trim();
+        if (!code) return;
+        try { await S.copyText(code); S.toast('延长码已复制。', 'ok'); } catch (error) { S.toast('复制失败，请手动复制。', 'error'); }
+      });
+    }
+    const trialStudentsBox = $('#trial-students');
+    if (trialStudentsBox) {
+      trialStudentsBox.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-trial-action]');
+        if (!button) return;
+        const row = button.closest('[data-trial-student]');
+        if (!row) return;
+        const studentId = row.dataset.trialStudent;
+        if (button.dataset.trialAction === 'extend') grantTrial(studentId, Number(button.dataset.days) || 7);
+        else if (button.dataset.trialAction === 'upgrade') upgradeTrialStudent(studentId);
+      });
+    }
 
     $('#assign-papers').addEventListener('change', (event) => {
       if (event.target.name === 'assign-paper') {

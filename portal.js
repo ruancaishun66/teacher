@@ -390,6 +390,134 @@
 
   function attrMeta(key) { return ATTRS.find((item) => item.key === key) || ATTRS[0]; }
 
+  /* ------------------------------------------------------------------
+     AI 共用设置（学生端不调用；教师端与组卷工作台共享同一份本机配置）
+     Key 只存 localStorage，不进入备份码、源码或任何导出文件。
+     费用按 DeepSeek Flash 高峰价保守估算：输入 ¥2.2 / 百万 tokens，
+     输出 ¥8.6 / 百万 tokens。实际以 DeepSeek 账单为准。
+     ------------------------------------------------------------------ */
+  const AI_STORAGE_KEY = 'shunshi.ai.v1';
+  const AI_ENDPOINT = 'https://api.deepseek.com/chat/completions';
+  const AI_MODEL = 'deepseek-flash';
+  const AI_PRICE = { input: 2.2, output: 8.6 };
+
+  function normalizeAiConfig(raw) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    const log = Array.isArray(source.log) ? source.log.filter((item) => item && item.at).slice(0, 30) : [];
+    return {
+      key: String(source.key || '').trim(),
+      model: String(source.model || AI_MODEL),
+      inputTokens: Math.max(0, Number(source.inputTokens) || 0),
+      outputTokens: Math.max(0, Number(source.outputTokens) || 0),
+      totalTokens: Math.max(0, Number(source.totalTokens) || 0),
+      calls: Math.max(0, Number(source.calls) || 0),
+      cost: Math.max(0, Number(source.cost) || 0),
+      log
+    };
+  }
+
+  function aiConfig() {
+    return normalizeAiConfig(getJSON(AI_STORAGE_KEY, null));
+  }
+
+  function saveAiConfigObject(cfg) {
+    setJSON(AI_STORAGE_KEY, normalizeAiConfig(cfg));
+  }
+
+  function aiCostFor(usage) {
+    const input = Math.max(0, Number(usage && usage.prompt_tokens) || 0);
+    const output = Math.max(0, Number(usage && usage.completion_tokens) || 0);
+    return (input * AI_PRICE.input + output * AI_PRICE.output) / 1000000;
+  }
+
+  function aiCostText(value) {
+    const yuan = Math.max(0, Number(value) || 0);
+    if (yuan <= 0) return '¥0';
+    if (yuan < 0.0001) return '<¥0.0001';
+    return `¥${yuan.toFixed(4)}`;
+  }
+
+  function aiRecordCall(source, usage) {
+    const cfg = aiConfig();
+    const input = Math.max(0, Number(usage && usage.prompt_tokens) || 0);
+    const output = Math.max(0, Number(usage && usage.completion_tokens) || 0);
+    const total = Math.max(0, Number(usage && usage.total_tokens) || (input + output));
+    const cost = aiCostFor({ prompt_tokens: input, completion_tokens: output });
+    cfg.inputTokens += input;
+    cfg.outputTokens += output;
+    cfg.totalTokens += total;
+    cfg.calls += 1;
+    cfg.cost = Math.round((cfg.cost + cost) * 1000000) / 1000000;
+    cfg.log.unshift({
+      at: nowIso(),
+      source: String(source || 'AI 调用').slice(0, 40),
+      tokens: total,
+      input,
+      output,
+      cost: Math.round(cost * 1000000) / 1000000
+    });
+    cfg.log = cfg.log.slice(0, 30);
+    saveAiConfigObject(cfg);
+    return { total, input, output, cost };
+  }
+
+  async function aiCall(messages, maxTokens, source) {
+    const cfg = aiConfig();
+    if (!cfg.key) throw new Error('还没有配置 API Key，请到“设置 → AI 直连”粘贴并保存。');
+    const response = await fetch(AI_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cfg.key}`
+      },
+      body: JSON.stringify({
+        model: cfg.model,
+        messages,
+        temperature: 0.3,
+        max_tokens: Math.max(160, Math.min(4000, Number(maxTokens) || 700)),
+        stream: false,
+        thinking: { type: 'disabled' }
+      })
+    });
+    if (!response.ok) {
+      let detail = '';
+      try {
+        const error = await response.json();
+        detail = (error.error && error.error.message) || '';
+      } catch (error) { /* ignore */ }
+      const hints = {
+        401: 'Key 无效或已失效',
+        402: '账户余额不足',
+        429: '调用太频繁，等一会儿再试',
+        500: 'DeepSeek 服务暂时不可用'
+      };
+      throw new Error(`${hints[response.status] || '调用失败'}（HTTP ${response.status}）${detail ? `：${detail}` : ''}`);
+    }
+    const json = await response.json();
+    const choice = (json.choices || [])[0] || {};
+    const text = String((choice.message && choice.message.content) || '').trim();
+    if (!text) throw new Error('这次没有返回内容，请再试一次。');
+    const usage = json.usage || {};
+    const record = aiRecordCall(source, usage);
+    return {
+      text,
+      usage,
+      finishReason: choice.finish_reason || '',
+      cost: record.cost,
+      tokens: record.total
+    };
+  }
+
+  function aiEstimateCost(chars, maxOutput) {
+    const input = Math.ceil(Math.max(0, Number(chars) || 0) / 1.6);
+    const output = Math.max(0, Number(maxOutput) || 0);
+    return {
+      inputTokens: input,
+      maxOutputTokens: output,
+      cost: (input * AI_PRICE.input + output * AI_PRICE.output) / 1000000
+    };
+  }
+
   function greeting() {
     const hour = new Date().getHours();
     if (hour < 6) return '夜深了';
@@ -434,6 +562,18 @@
     bindDialogClose,
     blockLabel,
     attrMeta,
-    greeting
+    greeting,
+    ai: {
+      config: aiConfig,
+      save: saveAiConfigObject,
+      call: aiCall,
+      costFor: aiCostFor,
+      costText: aiCostText,
+      estimate: aiEstimateCost,
+      price: AI_PRICE,
+      storageKey: AI_STORAGE_KEY,
+      endpoint: AI_ENDPOINT,
+      model: AI_MODEL
+    }
   };
 })();

@@ -16,6 +16,7 @@
   let taskStartedAt = 0;
   let timerId = null;
   let saveTimer = null;
+  let pendingEnroll = null;
 
   function loadData() {
     const raw = S.getJSON(STORAGE_KEY, null);
@@ -25,6 +26,9 @@
     raw.profile.checkins = Array.isArray(raw.profile.checkins) ? raw.profile.checkins.map((x) => String(x).slice(0, 10)) : [];
     raw.profile.badges = Array.isArray(raw.profile.badges) ? raw.profile.badges : [];
     raw.profile.xp = Math.max(0, Number(raw.profile.xp) || 0);
+    raw.profile.accountType = raw.profile.accountType === 'trial' ? 'trial' : 'regular';
+    raw.profile.trialDays = Math.max(1, Number(raw.profile.trialDays) || 3);
+    raw.profile.trialExpiresAt = String(raw.profile.trialExpiresAt || '');
     raw.tasks = Array.isArray(raw.tasks) ? raw.tasks.filter((task) => task && task.id) : [];
     return raw;
   }
@@ -35,6 +39,30 @@
   }
 
   function profile() { return data && data.profile; }
+
+  function trialExpiryIso(days) {
+    return S.addDays(S.todayIso(), Math.max(1, Number(days) || 3));
+  }
+
+  function trialState(p) {
+    const who = p || profile();
+    if (!who || who.accountType !== 'trial') return { trial: false, expired: false, daysLeft: Infinity, expiresAt: '' };
+    const expiresAt = who.trialExpiresAt || trialExpiryIso(who.trialDays);
+    const left = Math.round((new Date(`${expiresAt}T23:59:59`).getTime() - Date.now()) / 86400000);
+    return { trial: true, expired: left < 0, daysLeft: Math.max(0, left), expiresAt };
+  }
+
+  function trialLocked() {
+    const state = trialState();
+    return state.trial && state.expired;
+  }
+
+  function requireTrial(message) {
+    if (!trialLocked()) return true;
+    S.toast(message || '体验卡已到期。点右上角“体验卡”申请延长后，就能继续学习。', 'error', 6500);
+    setTimeout(() => openTrialDialog(), 300);
+    return false;
+  }
 
   function findTask(id) { return data && data.tasks.find((task) => task.id === id) || null; }
 
@@ -151,6 +179,9 @@
     if (!/^[A-Z0-9_-]{3,24}$/.test(id)) { S.toast('学号只能包含字母、数字、横线，3–24 位。', 'error'); return; }
     if (!/^[A-Za-z0-9]{4,12}$/.test(pin)) { S.toast('密码用 4–12 位字母或数字。', 'error'); return; }
     const pinHash = await S.sha256Hex(`${id}|${pin}`);
+    const enrolled = pendingEnroll && pendingEnroll.studentId === id ? pendingEnroll : null;
+    const trial = enrolled && enrolled.accountType === 'trial';
+    const trialDays = trial ? Math.max(1, Math.min(30, Number(enrolled.trialDays) || 3)) : 0;
     data = {
       v: 1,
       profile: {
@@ -163,7 +194,11 @@
         xp: 0,
         attrs: S.emptyAttrs(),
         checkins: [],
-        badges: []
+        badges: [],
+        accountType: trial ? 'trial' : 'regular',
+        trialDays,
+        trialStartedAt: trial ? S.todayIso() : '',
+        trialExpiresAt: trial ? trialExpiryIso(trialDays) : ''
       },
       tasks: []
     };
@@ -192,6 +227,7 @@
       S.toast('开通码校验失败，请让老师重新生成。', 'error', 5000);
       return;
     }
+    pendingEnroll = payload;
     $('#setup-name').value = payload.name || '';
     $('#setup-id').value = payload.studentId || '';
     $('#setup-pin').value = payload.pin || '';
@@ -241,29 +277,105 @@
 
   /* ------------------------------- 学习伙伴：小潮獭 ------------------------------- */
 
-  const PET_STAGES = [
-    { stage: 1, name: '幼獭', min: 0, next: 300, body: '#8fc4bb', ear: '#6fa79f', belly: '#f7ecd6', accent: '#e8b56b', desc: '刚学会在水面打滚的小家伙。' },
-    { stage: 2, name: '潮獭', min: 300, next: 900, body: '#7fbbb3', ear: '#5f9d95', belly: '#f9efd9', accent: '#e0946c', desc: '会跟着潮水一起呼吸，眼睛亮亮的。' },
-    { stage: 3, name: '灵獭', min: 900, next: 2000, body: '#74c3b4', ear: '#58a596', belly: '#fbf2de', accent: '#e8b56b', desc: '身上浮着一层薄薄的潮光，能听懂更多单词。' },
-    { stage: 4, name: '海灵獭', min: 2000, next: null, body: '#8ed9c9', ear: '#64b8a6', belly: '#fff7e5', accent: '#f0c987', desc: '把整片海的知识都收进贝壳里的伙伴。' }
-  ];
+  const PET_SPECIES = {
+    otter: {
+      name: '小潮獭',
+      color: '#4fa8b3',
+      stages: [
+        { stage: 1, name: '幼獭', min: 0, next: 300, body: '#8fc4bb', ear: '#6fa79f', belly: '#f7ecd6', accent: '#e8b56b', desc: '刚学会在水面打滚的小家伙。' },
+        { stage: 2, name: '潮獭', min: 300, next: 900, body: '#7fbbb3', ear: '#5f9d95', belly: '#f9efd9', accent: '#e0946c', desc: '会跟着潮水一起呼吸，眼睛亮亮的。' },
+        { stage: 3, name: '灵獭', min: 900, next: 2000, body: '#74c3b4', ear: '#58a596', belly: '#fbf2de', accent: '#e8b56b', desc: '身上浮着一层薄薄的潮光，能听懂更多单词。' },
+        { stage: 4, name: '海灵獭', min: 2000, next: null, body: '#8ed9c9', ear: '#64b8a6', belly: '#fff7e5', accent: '#f0c987', desc: '把整片海的知识都收进贝壳里的伙伴。' }
+      ]
+    },
+    fox: {
+      name: '星尾狐',
+      color: '#c58a5a',
+      stages: [
+        { stage: 1, name: '幼狐', min: 0, next: 300, body: '#e3b68c', ear: '#c58a5a', belly: '#fff0dc', accent: '#e8b56b', desc: '尾巴还短短的小狐狸，喜欢追着光点跑。' },
+        { stage: 2, name: '星尾狐', min: 300, next: 900, body: '#dda878', ear: '#b97845', belly: '#fff1dd', accent: '#c9784e', desc: '尾巴尖会亮起一颗小星星的伙伴。' },
+        { stage: 3, name: '月影狐', min: 900, next: 2000, body: '#c99a7a', ear: '#9d6547', belly: '#ffeedb', accent: '#8b79c9', desc: '能在月光下把错题悄悄叼回来。' },
+        { stage: 4, name: '九尾星狐', min: 2000, next: null, body: '#e7bd8f', ear: '#b47a4e', belly: '#fff6e6', accent: '#f0c987', desc: '九条星尾一起点亮时，整片夜空都像在给它让路。' }
+      ]
+    },
+    whale: {
+      name: '云海鲸',
+      color: '#5d86c9',
+      stages: [
+        { stage: 1, name: '幼鲸', min: 0, next: 300, body: '#9dbbe3', ear: '#7fa2d4', belly: '#eaf2ff', accent: '#7fc7d9', desc: '会喷出小小水花的云朵鲸。' },
+        { stage: 2, name: '云鲸', min: 300, next: 900, body: '#88aede', ear: '#6c93ca', belly: '#eef5ff', accent: '#71bfd0', desc: '游过的地方会留下软软的云。' },
+        { stage: 3, name: '潮汐鲸', min: 900, next: 2000, body: '#729ecf', ear: '#5883b9', belly: '#e9f2ff', accent: '#8c7fd1', desc: '能听见远处潮汐里藏着的单词。' },
+        { stage: 4, name: '苍穹鲸', min: 2000, next: null, body: '#8fb9e8', ear: '#6a94c9', belly: '#f2f8ff', accent: '#f0c987', desc: '背上驮着一小片星空，游过整片知识海。' }
+      ]
+    },
+    bird: {
+      name: '焰羽雀',
+      color: '#d06a4e',
+      stages: [
+        { stage: 1, name: '雏雀', min: 0, next: 300, body: '#e8a07f', ear: '#c9684a', belly: '#fff0e2', accent: '#e8b56b', desc: '刚会扑腾翅膀的小雀，嗓门倒不小。' },
+        { stage: 2, name: '焰羽雀', min: 300, next: 900, body: '#df8a62', ear: '#b9573c', belly: '#fff0e4', accent: '#e2a24e', desc: '尾羽像一小簇不灭的火苗。' },
+        { stage: 3, name: '赤羽雀', min: 900, next: 2000, body: '#d4784f', ear: '#a84b35', belly: '#ffefe2', accent: '#d6a74b', desc: '飞过的地方会落下一两句背熟的课文。' },
+        { stage: 4, name: '凤凰雏', min: 2000, next: null, body: '#e9a06d', ear: '#b85a3c', belly: '#fff5e8', accent: '#f0c987', desc: '每一次重新起飞，都比上一次更亮。' }
+      ]
+    }
+  };
 
-  function petStageOf(xp) {
-    const value = Math.max(0, Number(xp) || 0);
-    let info = PET_STAGES[0];
-    PET_STAGES.forEach((item) => { if (value >= item.min) info = item; });
-    return info;
+  const FUSION_NAMES = {
+    'fox|otter': '潮焰星狐',
+    'otter|whale': '深海灵獭',
+    'bird|otter': '潮羽圣獭',
+    'fox|whale': '星云幻狐',
+    'bird|fox': '星焰天狐',
+    'bird|whale': '云焰鲲鹏'
+  };
+
+  function activePetId(p) {
+    const who = p || profile();
+    const id = String(who && who.activePet || 'otter');
+    if (PET_SPECIES[id]) return id;
+    return who && who.fusion ? 'fusion' : 'otter';
   }
 
-  function ensurePet(profileObj) {
+  function petSpeciesInfo(id) {
+    return PET_SPECIES[id] || PET_SPECIES.otter;
+  }
+
+  function petStageOf(xp, speciesId) {
+    const species = petSpeciesInfo(speciesId || 'otter');
+    const value = Math.max(0, Number(xp) || 0);
+    let info = species.stages[0];
+    species.stages.forEach((item) => { if (value >= item.min) info = item; });
+    return { ...info, speciesId: speciesId || 'otter' };
+  }
+
+  function ensurePet(profileObj, speciesId) {
     const p = profileObj;
-    if (!p.pet || typeof p.pet !== 'object') {
-      const doneWords = (data && Array.isArray(data.tasks) ? data.tasks : [])
-        .filter((task) => task.mode === 'words' && task.status === 'done');
-      const seed = Math.round(doneWords.reduce((sum, task) => sum + (Number(task.xpEarned) || 0), 0) * 0.6);
-      p.pet = { xp: seed, snacks: 0, fed: 0, lastFed: '', lastEvolvedStage: petStageOf(seed).stage };
+    const id = speciesId || activePetId(p);
+    p.pets = p.pets && typeof p.pets === 'object' ? p.pets : {};
+    if (id === 'fusion') {
+      if (!p.fusion) p.fusion = { id: 'fusion', name: '融合精灵', xp: 0, snacks: 0, fed: 0, lastFed: '', lastEvolvedStage: 1, pair: [] };
+      const fused = p.fusion;
+      fused.xp = Math.max(0, Math.round(Number(fused.xp) || 0));
+      fused.snacks = Math.max(0, Math.round(Number(fused.snacks) || 0));
+      fused.fed = Math.max(0, Math.round(Number(fused.fed) || 0));
+      fused.lastFed = String(fused.lastFed || '');
+      fused.lastEvolvedStage = Math.max(1, Math.round(Number(fused.lastEvolvedStage) || 1));
+      return fused;
     }
-    const pet = p.pet;
+    if (!p.pets[id]) {
+      let seed = 0;
+      if (id === 'otter') {
+        if (p.pet && typeof p.pet === 'object') {
+          seed = Math.max(0, Math.round(Number(p.pet.xp) || 0));
+        } else {
+          const doneWords = (data && Array.isArray(data.tasks) ? data.tasks : [])
+            .filter((task) => task.mode === 'words' && task.status === 'done');
+          seed = Math.round(doneWords.reduce((sum, task) => sum + (Number(task.xpEarned) || 0), 0) * 0.6);
+        }
+      }
+      p.pets[id] = { xp: seed, snacks: 0, fed: 0, lastFed: '', lastEvolvedStage: petStageOf(seed, id).stage };
+    }
+    const pet = p.pets[id];
     pet.xp = Math.max(0, Math.round(Number(pet.xp) || 0));
     pet.snacks = Math.max(0, Math.round(Number(pet.snacks) || 0));
     pet.fed = Math.max(0, Math.round(Number(pet.fed) || 0));
@@ -272,9 +384,208 @@
     return pet;
   }
 
-  function petSVG(stage) {
-    const s = Math.max(1, Math.min(PET_STAGES.length, Number(stage) || 1));
-    const p = PET_STAGES[s - 1];
+  function fusionPairFor(p) {
+    const finals = Object.keys(PET_SPECIES).filter((id) => ensurePet(p, id).xp >= 2000);
+    if (finals.length < 2) return null;
+    const a = finals[0];
+    const b = finals[1];
+    const key = [a, b].sort().join('|');
+    return { a, b, key, name: FUSION_NAMES[key] || `${petSpeciesInfo(a).name}·${petSpeciesInfo(b).name}` };
+  }
+
+  /* ------------------------- 连续学习 / 满月转盘 ------------------------- */
+
+  function activityDates(p) {
+    const who = p || profile();
+    const set = new Set();
+    ((who && who.checkins) || []).forEach((date) => set.add(String(date).slice(0, 10)));
+    ((data && data.tasks) || []).forEach((task) => {
+      if (task && task.status === 'done' && task.submittedAt) set.add(String(task.submittedAt).slice(0, 10));
+    });
+    return set;
+  }
+
+  function activityStreak(p) {
+    const set = activityDates(p);
+    if (!set.size) return 0;
+    const today = S.todayIso();
+    let cursor = set.has(today) ? today : S.addDays(today, -1);
+    if (!set.has(cursor)) return 0;
+    let days = 0;
+    while (set.has(cursor)) {
+      days += 1;
+      cursor = S.addDays(cursor, -1);
+    }
+    return days;
+  }
+
+  const WHEEL_SEGMENTS = [
+    { key: 'snack5', icon: '🐟', label: '小鱼干 ×5', note: '给精灵加餐', weight: 24, color: '#8fd3cf', kind: 'snacks', value: 5 },
+    { key: 'pet120', icon: '✨', label: '成长 +120', note: '当前出战精灵', weight: 24, color: '#f0c987', kind: 'petxp', value: 120 },
+    { key: 'pet260', icon: '🌟', label: '成长 +260', note: '当前出战精灵', weight: 18, color: '#e8a07f', kind: 'petxp', value: 260 },
+    { key: 'snack12', icon: '🐟', label: '小鱼干 ×12', note: '够吃一阵子', weight: 12, color: '#9dbbe3', kind: 'snacks', value: 12 },
+    { key: 'chest', icon: '🎁', label: '满月宝箱', note: '+50 EXP · 成长 +200', weight: 12, color: '#c9a7e8', kind: 'chest', value: 0 },
+    { key: 'star', icon: '💫', label: '星辉大奖', note: '成长 +500', weight: 10, color: '#f6d99a', kind: 'petxp', value: 500 }
+  ];
+
+  function wheelInfo(p) {
+    const who = p || profile();
+    if (!who.wheel || typeof who.wheel !== 'object') who.wheel = { lastSpinAt: '', spins: [] };
+    if (!Array.isArray(who.wheel.spins)) who.wheel.spins = [];
+    return who.wheel;
+  }
+
+  function wheelReady(p) {
+    const streak = activityStreak(p);
+    const wheel = wheelInfo(p);
+    const canSpin = streak >= 30 && (!wheel.lastSpinAt || S.daysBetween(wheel.lastSpinAt, S.todayIso()) >= 30);
+    return { streak, wheel, canSpin };
+  }
+
+  function pickWheelSegment() {
+    const total = WHEEL_SEGMENTS.reduce((sum, segment) => sum + segment.weight, 0);
+    let roll = Math.random() * total;
+    for (let i = 0; i < WHEEL_SEGMENTS.length; i += 1) {
+      roll -= WHEEL_SEGMENTS[i].weight;
+      if (roll < 0) return i;
+    }
+    return WHEEL_SEGMENTS.length - 1;
+  }
+
+  function openWheelDialog() {
+    if (!requireTrial()) return;
+    const state = wheelReady();
+    const dialog = $('#wheel-dialog');
+    if (!dialog) return;
+    const disc = $('#wheel-disc');
+    const legend = $('#wheel-legend');
+    const result = $('#wheel-result');
+    const button = $('#wheel-spin-btn');
+    if (result) { result.hidden = true; result.textContent = ''; }
+    if (disc) {
+      disc.style.transition = 'none';
+      disc.style.transform = 'rotate(0deg)';
+      const stops = WHEEL_SEGMENTS.map((segment, index) => {
+        const start = index * (360 / WHEEL_SEGMENTS.length);
+        const end = (index + 1) * (360 / WHEEL_SEGMENTS.length);
+        return `${segment.color} ${start}deg ${end}deg`;
+      }).join(', ');
+      disc.style.background = `conic-gradient(from 0deg, ${stops})`;
+      disc.innerHTML = WHEEL_SEGMENTS.map((segment, index) =>
+        `<span class="wheel-label" style="--angle:${index * 60 + 30}deg"><i>${segment.icon}</i></span>`
+      ).join('');
+      void disc.offsetWidth;
+      disc.style.transition = '';
+    }
+    if (legend) {
+      legend.innerHTML = WHEEL_SEGMENTS.map((segment) =>
+        `<span><i style="background:${segment.color}">${segment.icon}</i><b>${segment.label}</b><small>${segment.note}</small></span>`
+      ).join('');
+    }
+    if (button) {
+      button.disabled = !state.canSpin;
+      button.textContent = state.canSpin ? '转动转盘' : '还差一点';
+    }
+    S.openDialog(dialog);
+  }
+
+  function spinWheel() {
+    const state = wheelReady();
+    if (!state.canSpin) { S.toast('连续学习满 30 天，并且距上次领奖满 30 天，才能再转一次。', 'error', 6000); return; }
+    const disc = $('#wheel-disc');
+    const button = $('#wheel-spin-btn');
+    const result = $('#wheel-result');
+    if (!disc || !button || button.disabled) return;
+    button.disabled = true;
+    button.textContent = '转盘转动中…';
+    const index = pickWheelSegment();
+    const segment = WHEEL_SEGMENTS[index];
+    const center = index * 60 + 30;
+    const rotation = 360 * 5 + (360 - center);
+    disc.style.transform = `rotate(${rotation}deg)`;
+    setTimeout(() => {
+      const p = profile();
+      const pet = ensurePet(p);
+      let rewardText = '';
+      if (segment.kind === 'snacks') {
+        pet.snacks += segment.value;
+        rewardText = `${segment.label}，已经放进精灵的小鱼干口袋。`;
+      } else if (segment.kind === 'petxp') {
+        addPetXp(segment.value);
+        rewardText = `${segment.label}，直接加到当前出战的精灵身上。`;
+      } else {
+        addXp(50);
+        pet.xp += 200;
+        rewardText = `${segment.label}：账号 +50 EXP，精灵成长 +200。`;
+      }
+      const wheel = wheelInfo(p);
+      wheel.lastSpinAt = S.todayIso();
+      wheel.spins.unshift({
+        at: S.nowIso(),
+        label: segment.label,
+        note: segment.note,
+        streak: state.streak
+      });
+      wheel.spins = wheel.spins.slice(0, 24);
+      save();
+      renderAll();
+      if (result) {
+        result.hidden = false;
+        result.innerHTML = `<b>${segment.icon} ${segment.label}</b><span>${rewardText}</span>` +
+          `<small>这是连续学习 ${state.streak} 天的满月奖励。下一次转盘将在 30 天后再次亮起。</small>`;
+      }
+      button.textContent = '本月奖励已领取';
+      S.toast(`转盘奖励：${segment.label}`, 'ok', 6000);
+    }, 4300);
+  }
+
+  function switchPet(speciesId) {
+    const p = profile();
+    if (!p) return;
+    if (speciesId === 'fusion' && !p.fusion) { S.toast('还没有融合精灵。两只精灵都到终极形态后可以融合。', 'error'); return; }
+    if (speciesId !== 'fusion' && !PET_SPECIES[speciesId]) return;
+    p.activePet = speciesId;
+    save();
+    renderPet();
+    S.toast(`已切换为「${petDisplayInfo(p).name}」。`, 'ok');
+  }
+
+  function fusePets() {
+    const p = profile();
+    const pair = fusionPairFor(p);
+    if (!pair) { S.toast('需要两只精灵都成长到终极形态（2000）才能融合。', 'error', 6000); return; }
+    if (p.fusion) { S.toast(`已经融合出「${p.fusion.name}」了。`, 'error'); return; }
+    if (!window.confirm(`把「${petSpeciesInfo(pair.a).name}」和「${petSpeciesInfo(pair.b).name}」融合成「${pair.name}」？融合后两只精灵都会保留，随时可以切回来。`)) return;
+    const a = ensurePet(p, pair.a);
+    const b = ensurePet(p, pair.b);
+    p.fusion = {
+      id: 'fusion',
+      name: pair.name,
+      xp: Math.max(a.xp, b.xp) + 500,
+      snacks: 0,
+      fed: 0,
+      lastFed: '',
+      lastEvolvedStage: 4,
+      pair: [pair.a, pair.b],
+      createdAt: S.nowIso()
+    };
+    p.activePet = 'fusion';
+    save();
+    renderAll();
+    S.toast(`融合成功！「${pair.name}」加入了你的图鉴。`, 'ok', 7000);
+  }
+
+  function petSVG(stage, speciesId, fused) {
+    const speciesKey = PET_SPECIES[speciesId] ? speciesId : 'otter';
+    const species = petSpeciesInfo(speciesKey);
+    const s = Math.max(1, Math.min(species.stages.length, Number(stage) || 1));
+    const p = { ...species.stages[s - 1] };
+    if (fused) {
+      p.body = '#8fd6c9';
+      p.ear = '#b47a4e';
+      p.accent = '#f0c987';
+      p.belly = '#fff6e6';
+    }
     const aura = s >= 4
       ? `<g class="pet-aura"><circle cx="130" cy="118" r="96" fill="none" stroke="${p.accent}" stroke-opacity=".22" stroke-width="8"/><circle cx="130" cy="118" r="78" fill="none" stroke="${p.accent}" stroke-opacity=".14" stroke-width="2"/></g>`
       : '';
@@ -290,39 +601,90 @@
     const crown = s >= 4
       ? `<g class="pet-crown"><path d="M104 64c9-5 43-5 52 0" fill="none" stroke="#f0c987" stroke-width="3" stroke-linecap="round"/><path d="M130 54l4 7-4 7-4-7Z" fill="#f6d99a" stroke="#d5a75b" stroke-width="1"/><path d="M106 62l-2-6m50 6 2-6" stroke="#f0c987" stroke-width="2" stroke-linecap="round"/></g>`
       : '';
-    return `<svg class="pet-svg pet-stage-${s}" viewBox="0 0 260 210" role="img" aria-label="小潮獭 · ${p.name}">` +
-      aura +
+    const isFox = speciesKey === 'fox';
+    const isWhale = speciesKey === 'whale';
+    const isBird = speciesKey === 'bird';
+    const ears = isWhale
+      ? `<path d="M108 58c-2-12 2-20 9-25 3 10 5 18 5 25Z" fill="${p.ear}" opacity=".9"/><path d="M152 58c2-12-2-20-9-25-3 10-5 18-5 25Z" fill="${p.ear}" opacity=".9"/>`
+      : isBird
+        ? `<path d="M96 66c-7-10-9-18-6-25 9 4 15 10 18 19Z" fill="${p.ear}"/><path d="M164 66c7-10 9-18 6-25-9 4-15 10-18 19Z" fill="${p.ear}"/>`
+        : isFox
+          ? `<path d="M92 66 86 34l27 15Z" fill="${p.ear}"/><path d="M168 66l6-32-27 15Z" fill="${p.ear}"/>` +
+            `<path d="M95 60 92 43l14 9Z" fill="#e8b39a" opacity=".75"/><path d="M165 60l3-17-14 9Z" fill="#e8b39a" opacity=".75"/>`
+          : `<circle cx="100" cy="56" r="11" fill="${p.ear}"/><circle cx="160" cy="56" r="11" fill="${p.ear}"/>` +
+            `<circle cx="100" cy="56" r="5" fill="#e8b39a" opacity=".8"/><circle cx="160" cy="56" r="5" fill="#e8b39a" opacity=".8"/>`;
+    const tail = isFox
+      ? `<path class="pet-tail" d="M80 150c-30 10-54-2-60-24 20 5 33 30 58 5 8-8 12-5 14 1Z" fill="${p.ear}"/><path d="M26 128c12 8 20 14 29 14" stroke="#fff4e4" stroke-width="4" stroke-linecap="round" opacity=".8"/>`
+      : isWhale
+        ? `<path class="pet-tail" d="M74 148c-18 2-32 12-38 26 14-2 26-8 36-18Z" fill="${p.ear}"/><path d="M188 148c18 2 32 12 38 26-14-2-26-8-36-18Z" fill="${p.ear}"/>`
+        : isBird
+          ? `<path class="pet-tail" d="M112 168c-12 12-17 22-16 30 10-2 18-8 24-18Zm36 0c12 12 17 22 16 30-10-2-18-8-24-18Z" fill="${p.ear}"/>`
+          : `<path class="pet-tail" d="M78 150c-22 5-41-3-52-19 17 6 33 6 47 2Z" fill="${p.ear}"/>`;
+    const face = isBird
+      ? `<path d="M124 96h12l-6 10Z" fill="#e2a24e"/>`
+      : `<path d="M126 95h8l-4 4Z" fill="#3c5b5e"/>` +
+        `<path d="M130 99v3m0 0c-2.5 2.5-6 2.5-8 0m8 0c2.5 2.5 6 2.5 8 0" fill="none" stroke="#3c5b5e" stroke-width="1.4" stroke-linecap="round"/>`;
+    const whiskers = isWhale || isBird
+      ? ''
+      : `<path d="M108 96 94 94m14 7-14 4m58-9 14-2m-14 7 14 4" stroke="#5b7d7c" stroke-width="1" stroke-linecap="round" opacity=".65"/>`;
+    const speciesExtras = isWhale
+      ? `<g class="pet-spout"><path d="M130 48c-2-12 3-20 8-25m-8 25c-3-9-8-13-14-15" fill="none" stroke="#8fd3cf" stroke-width="2.4" stroke-linecap="round" opacity=".75"/></g>` +
+        `<ellipse cx="94" cy="145" rx="17" ry="8" fill="${p.ear}" transform="rotate(-24 94 145)"/><ellipse cx="166" cy="145" rx="17" ry="8" fill="${p.ear}" transform="rotate(24 166 145)"/>`
+      : isBird
+        ? `<path d="M92 136c-18-8-28-20-30-36 13 2 24 10 33 23Z" fill="${p.ear}"/><path d="M168 136c18-8 28-20 30-36-13 2-24 10-33 23Z" fill="${p.ear}"/>`
+        : '';
+    const fusionAura = fused
+      ? `<g class="pet-fusion-aura"><circle cx="130" cy="112" r="104" fill="none" stroke="#f0c987" stroke-opacity=".35" stroke-width="3" stroke-dasharray="4 8"/><circle cx="130" cy="112" r="88" fill="none" stroke="#8ed9c9" stroke-opacity=".3" stroke-width="5"/></g>`
+      : '';
+    return `<svg class="pet-svg pet-stage-${s}${fused ? ' is-fused' : ''}" viewBox="0 0 260 210" role="img" aria-label="${fused ? '融合精灵' : species.name} · ${p.name}">` +
+      fusionAura + aura +
       `<g class="pet-water"><ellipse cx="130" cy="184" rx="94" ry="12" fill="#7fd0c7" opacity=".16"/><path d="M36 184c15-6 30-6 45 0s30 6 45 0 30-6 45 0 30 6 45 0" fill="none" stroke="#4fa8b3" stroke-opacity=".3" stroke-width="1.8" stroke-linecap="round"/></g>` +
       `<g class="pet-bubbles"><circle class="pet-bubble b1" cx="54" cy="100" r="3.4" fill="#8fd3cf" opacity=".55"/><circle class="pet-bubble b2" cx="194" cy="76" r="4.4" fill="#8fd3cf" opacity=".45"/><circle class="pet-bubble b3" cx="206" cy="124" r="2.6" fill="#8fd3cf" opacity=".5"/></g>` +
       `<g class="pet-body-group">` +
-        `<path class="pet-tail" d="M78 150c-22 5-41-3-52-19 17 6 33 6 47 2Z" fill="${p.ear}"/>` +
+        tail +
         `<ellipse cx="130" cy="140" rx="60" ry="38" fill="${p.body}"/>` +
         `<ellipse cx="130" cy="146" rx="42" ry="27" fill="${p.belly}"/>` +
-        `<circle cx="100" cy="56" r="11" fill="${p.ear}"/><circle cx="160" cy="56" r="11" fill="${p.ear}"/>` +
-        `<circle cx="100" cy="56" r="5" fill="#e8b39a" opacity=".8"/><circle cx="160" cy="56" r="5" fill="#e8b39a" opacity=".8"/>` +
+        ears +
         `<circle cx="130" cy="88" r="40" fill="${p.body}"/>` +
         `<ellipse cx="130" cy="101" rx="23" ry="17" fill="${p.belly}"/>` +
         blush +
         `<ellipse class="pet-eye left" cx="116" cy="85" rx="4.4" ry="5.4" fill="#23484f"/>` +
         `<ellipse class="pet-eye right" cx="144" cy="85" rx="4.4" ry="5.4" fill="#23484f"/>` +
         `<circle cx="117.5" cy="83" r="1.5" fill="#fff" opacity=".9"/><circle cx="145.5" cy="83" r="1.5" fill="#fff" opacity=".9"/>` +
-        `<path d="M126 95h8l-4 4Z" fill="#3c5b5e"/>` +
-        `<path d="M130 99v3m0 0c-2.5 2.5-6 2.5-8 0m8 0c2.5 2.5 6 2.5 8 0" fill="none" stroke="#3c5b5e" stroke-width="1.4" stroke-linecap="round"/>` +
-        `<path d="M108 96 94 94m14 7-14 4m58-9 14-2m-14 7 14 4" stroke="#5b7d7c" stroke-width="1" stroke-linecap="round" opacity=".65"/>` +
+        face + whiskers +
         `<ellipse cx="106" cy="140" rx="10" ry="7.4" fill="${p.ear}" transform="rotate(-14 106 140)"/>` +
         `<ellipse cx="154" cy="140" rx="10" ry="7.4" fill="${p.ear}" transform="rotate(14 154 140)"/>` +
         `<path d="M130 124c-11 0-19 7-19 14 0 6 9 10 19 10s19-4 19-10c0-7-8-14-19-14Z" fill="${p.accent}"/>` +
         `<path d="M130 126v20m0-20-8 7m8-7 8 7m-8-7-4 9m4-9 4 9" fill="none" stroke="#b98345" stroke-width="1" opacity=".65"/>` +
-        leaf + scarf + crown +
+        speciesExtras + leaf + scarf + crown +
       `</g>` +
     `</svg>`;
   }
 
-  function addPetXp(amount) {
-    const pet = ensurePet(profile());
-    const before = petStageOf(pet.xp).stage;
+  function petDisplayInfo(p) {
+    const id = activePetId(p);
+    if (id === 'fusion') {
+      const fused = ensurePet(p, 'fusion');
+      const info = petStageOf(fused.xp, 'otter');
+      return {
+        id: 'fusion',
+        name: (p.fusion && p.fusion.name) || '融合精灵',
+        info: { ...info, name: `终极形态 · ${(p.fusion && p.fusion.name) || '融合精灵'}` },
+        pet: fused,
+        fused: true
+      };
+    }
+    const species = petSpeciesInfo(id);
+    const pet = ensurePet(p, id);
+    return { id, name: species.name, info: petStageOf(pet.xp, id), pet, fused: false };
+  }
+
+  function addPetXp(amount, speciesId) {
+    const id = speciesId || activePetId(profile());
+    const pet = ensurePet(profile(), id);
+    const before = petStageOf(pet.xp, id === 'fusion' ? 'otter' : id).stage;
     pet.xp = Math.max(0, Math.round(pet.xp + Number(amount || 0)));
-    const info = petStageOf(pet.xp);
+    const info = petStageOf(pet.xp, id === 'fusion' ? 'otter' : id);
     const evolved = info.stage > before;
     if (evolved) {
       pet.lastEvolvedStage = info.stage;
@@ -331,7 +693,8 @@
         scene.classList.add('is-evolve');
         setTimeout(() => scene.classList.remove('is-evolve'), 1800);
       }
-      S.toast(`小潮獭进化成「${info.name}」了！`, 'ok', 6000);
+      const displayName = id === 'fusion' ? (profile().fusion && profile().fusion.name) || '融合精灵' : petSpeciesInfo(id).name;
+      S.toast(`${displayName}进化成「${info.name}」了！`, 'ok', 6000);
     }
     save();
     return evolved;
@@ -341,12 +704,12 @@
     const p = profile();
     const scene = $('#pet-scene');
     if (!p || !scene) return;
-    const pet = ensurePet(p);
-    const info = petStageOf(pet.xp);
-    scene.innerHTML = petSVG(info.stage);
-    $('#pet-name').textContent = '小潮獭';
+    const display = petDisplayInfo(p);
+    const { pet, info } = display;
+    scene.innerHTML = petSVG(info.stage, display.id, display.fused);
+    $('#pet-name').textContent = display.name;
     $('#pet-stage-name').textContent = info.name;
-    $('#pet-desc').textContent = info.desc;
+    $('#pet-desc').textContent = display.fused ? '两种终极精灵合为一体，成长没有终点。' : info.desc;
     const span = info.next ? info.next - info.min : 0;
     const ratio = info.next ? Math.min(1, Math.max(0, (pet.xp - info.min) / span)) : 1;
     $('#pet-growth-fill').style.width = `${Math.round(ratio * 100)}%`;
@@ -367,22 +730,62 @@
     const wordTasks = data.tasks.filter((task) => task.mode === 'words' && task.status === 'done');
     const words = wordTasks.reduce((sum, task) => sum + (task.wordStats || []).length, 0);
     $('#pet-stats').innerHTML =
-      `<span><b>${pet.xp}</b>累计成长</span>` +
+      `<span><b>${pet.xp}</b>${display.fused ? '融合成长' : '累计成长'}</span>` +
       `<span><b>${words}</b>学过的词</span>` +
       `<span><b>${p.checkins.length}</b>打卡天数</span>` +
       `<span><b>${pet.fed}</b>喂食次数</span>`;
+
+    renderPetRoster(p);
+    renderWheelEntry(p);
 
     if (info.stage > (pet.lastEvolvedStage || 1)) {
       pet.lastEvolvedStage = info.stage;
       save();
       scene.classList.add('is-evolve');
       setTimeout(() => scene.classList.remove('is-evolve'), 1800);
-      S.toast(`小潮獭进化成「${info.name}」了！`, 'ok', 6000);
+      S.toast(`${display.name}进化成「${info.name}」了！`, 'ok', 6000);
     }
   }
 
+  function renderPetRoster(p) {
+    const box = $('#pet-roster');
+    if (!box) return;
+    const active = activePetId(p);
+    const cards = Object.keys(PET_SPECIES).map((id) => {
+      const species = PET_SPECIES[id];
+      const pet = ensurePet(p, id);
+      const info = petStageOf(pet.xp, id);
+      return `<button class="pet-chip ${active === id ? 'is-active' : ''}" type="button" data-pet-switch="${id}" title="切换为 ${species.name}">` +
+        `<span class="pet-chip-art">${petSVG(info.stage, id)}</span>` +
+        `<span><b>${species.name}</b><small>${info.name} · ${pet.xp}</small></span>` +
+      `</button>`;
+    }).join('');
+    const fusion = p.fusion
+      ? `<button class="pet-chip fusion ${active === 'fusion' ? 'is-active' : ''}" type="button" data-pet-switch="fusion" title="切换融合精灵">` +
+          `<span class="pet-chip-mark">✦</span><span><b>${S.escapeHtml(p.fusion.name || '融合精灵')}</b><small>终极形态</small></span></button>`
+      : '';
+    const pair = fusionPairFor(p);
+    const fuseButton = pair && !p.fusion
+      ? `<div class="pet-fusion-offer"><b>可融合：${S.escapeHtml(petSpeciesInfo(pair.a).name)} + ${S.escapeHtml(petSpeciesInfo(pair.b).name)}</b>` +
+        `<button class="p-btn small" type="button" id="pet-fuse-btn" data-fuse="${S.escapeHtml(`${pair.a}|${pair.b}`)}">融合成 ${S.escapeHtml(pair.name)}</button></div>`
+      : '';
+    box.innerHTML = `<div class="pet-roster-head"><b>精灵图鉴</b><span>每一只单独成长，喂食和打卡都会加到当前出战精灵。</span></div>` +
+      `<div class="pet-chips">${cards}${fusion}</div>${fuseButton}`;
+  }
+
+  function renderWheelEntry(p) {
+    const box = $('#pet-wheel-entry');
+    if (!box) return;
+    const streak = activityStreak(p);
+    const wheel = p.wheel || {};
+    const canSpin = streak >= 30 && (!wheel.lastSpinAt || S.daysBetween(wheel.lastSpinAt, S.todayIso()) >= 30);
+    box.innerHTML = `<div class="wheel-entry-copy"><b>满月转盘</b><span>连续学习 ${streak} 天${streak < 30 ? `，再坚持 ${30 - streak} 天就能转一次` : canSpin ? '，转盘已经亮起' : '，这次奖励已经领过，下个月再来'}</span></div>` +
+      `<button class="p-btn small ${canSpin ? '' : 'ghost'}" type="button" id="pet-wheel-btn" ${canSpin ? '' : 'disabled'}>${canSpin ? '转动转盘' : streak >= 30 ? '本月已领取' : '未满 30 天'}</button>`;
+  }
+
   function feedPet() {
-    const pet = ensurePet(profile());
+    const p = profile();
+    const pet = ensurePet(p);
     if (pet.snacks <= 0) {
       S.toast('还没有小鱼干。完成一次单词打卡就能获得。', 'error');
       return;
@@ -398,7 +801,7 @@
       scene.classList.add('is-happy');
       setTimeout(() => scene.classList.remove('is-happy'), 900);
     }
-    S.toast('小潮獭吃得很开心，成长 +8。', 'ok');
+    S.toast('当前精灵吃得很开心，成长 +8。', 'ok');
   }
 
   /* ------------------------------- 首页渲染 ------------------------------- */
@@ -406,6 +809,7 @@
   function renderAll() {
     if (!data) return;
     renderHeader();
+    renderTrial();
     renderLevel();
     renderCheckin();
     renderPet();
@@ -419,6 +823,25 @@
     $('#user-avatar').textContent = p.avatar || '🦊';
     $('#user-name').textContent = p.name || '学习者';
     $('#user-lv').textContent = `Lv.${S.levelInfo(p.xp).level}`;
+  }
+
+  function renderTrial() {
+    const banner = $('#trial-banner');
+    if (!banner) return;
+    const state = trialState();
+    banner.hidden = !state.trial;
+    document.body.classList.toggle('trial-expired', state.expired);
+    if (!state.trial) return;
+    const title = $('#trial-banner-title');
+    const text = $('#trial-banner-text');
+    const button = $('#trial-apply-btn');
+    if (title) title.textContent = state.expired ? '体验卡已到期' : `体验卡 · 还剩 ${state.daysLeft} 天`;
+    if (text) {
+      text.textContent = state.expired
+        ? `学习记录都还在。到期日 ${state.expiresAt}，点右侧申请延长，老师发回延长码后立刻恢复。`
+        : `到期日 ${state.expiresAt}。到期后记录不丢，可以申请延长。`;
+    }
+    if (button) button.textContent = state.expired ? '申请延长' : '体验卡详情';
   }
 
   function renderLevel() {
@@ -437,10 +860,13 @@
     const streak = S.streakFromCheckins(p.checkins);
     const gain = 8 + Math.min(streak, 7) * 2;
     const btn = $('#checkin-btn');
-    btn.disabled = checked;
-    btn.innerHTML = checked
-      ? '今日已打卡 <span>✓</span>'
-      : `今日打卡 <span id="checkin-xp">+${gain} EXP</span>`;
+    const locked = trialLocked();
+    btn.disabled = checked || locked;
+    btn.innerHTML = locked
+      ? '体验卡到期 · 申请延长 <span>🎟️</span>'
+      : checked
+        ? '今日已打卡 <span>✓</span>'
+        : `今日打卡 <span id="checkin-xp">+${gain} EXP</span>`;
     $('#streak-num').textContent = streak;
     $('#hero-greet').textContent = `${S.greeting()}，${p.name}`;
     const pending = data.tasks.filter((task) => task.status !== 'done').length;
@@ -498,40 +924,96 @@
     $('#radar').innerHTML = svg;
   }
 
+  function planSiblings(task) {
+    if (!task.planId) return [];
+    return data.tasks.filter((item) => item.planId === task.planId).sort((a, b) => Number(a.planDay) - Number(b.planDay));
+  }
+
+  function taskLocked(task) {
+    if (!task.planId || task.status === 'done' || task.extraUnlocked) return false;
+    const day = Number(task.planDay) || 1;
+    if (day <= 1) return false;
+    const siblings = planSiblings(task).filter((item) => Number(item.planDay) < day);
+    if (!siblings.length) return false;
+    const previous = siblings[siblings.length - 1];
+    return previous.status !== 'done';
+  }
+
+  function unlockPlanDay(task) {
+    if (!task.planId) return;
+    const locked = planSiblings(task).filter((item) => item.status !== 'done' && taskLocked(item));
+    const target = locked[0];
+    if (!target) { S.toast('这一天已经解锁了。'); return; }
+    target.extraUnlocked = true;
+    save();
+    renderAll();
+    S.toast(`已解锁第 ${target.planDay} 天。完成后再回来接着学。`, 'ok', 4000);
+  }
+
+  function planChips(task) {
+    if (!task.planId) return '';
+    const siblings = planSiblings(task);
+    return `<div class="plan-mini">${siblings.map((item) => {
+      const current = item.id === task.id;
+      const state = item.status === 'done' ? 'done' : taskLocked(item) ? 'locked' : 'open';
+      return `<span class="plan-mini-day ${state}${current ? ' current' : ''}" title="${S.escapeHtml(item.title || '')}">D${item.planDay}</span>`;
+    }).join('')}</div>`;
+  }
+
   function renderTasks() {
     if (!data.tasks.length) {
       $('#task-list').innerHTML = `<div class="empty-state"><strong>还没有任务</strong>把老师发来的任务码粘贴进来，就能开始第一次试炼。</div>`;
       return;
     }
     const tasks = data.tasks.slice().sort((a, b) => {
+      if (a.planId && a.planId === b.planId) return Number(a.planDay) - Number(b.planDay);
       if (a.status === b.status) {
         return String(b.submittedAt || b.createdAt || '').localeCompare(String(a.submittedAt || a.createdAt || ''));
       }
       return a.status === 'done' ? 1 : -1;
     });
     const today = S.todayIso();
+    const firstLocked = tasks.find((task) => taskLocked(task));
     $('#task-list').innerHTML = tasks.map((task) => {
       const done = task.status === 'done';
-      const overdue = !done && task.due && task.due < today;
-      const status = done ? 'done' : overdue ? 'overdue' : 'new';
-      const statusText = done ? '已完成' : overdue ? '已过期' : '待完成';
+      const locked = taskLocked(task);
+      const overdue = !done && !locked && task.due && task.due < today;
+      const status = done ? 'done' : locked ? 'locked' : overdue ? 'overdue' : 'new';
+      const statusText = done ? '已完成' : locked ? `未解锁` : overdue ? '已过期' : '待完成';
       const scoreText = done && task.score != null ? `得分 <b>${task.score}</b>` : `经验 <b>+${task.xp || 100}</b>`;
-      return `<article class="task-card ${done ? 'done' : ''}" data-task-id="${S.escapeHtml(task.id)}" tabindex="0" role="button">` +
+      return `<article class="task-card ${done ? 'done' : ''} ${locked ? 'locked' : ''}" data-task-id="${S.escapeHtml(task.id)}" tabindex="0" role="button">` +
         `<div>` +
           `<h3 class="task-title">${S.escapeHtml(task.title || '未命名任务')}</h3>` +
           `<div class="task-meta">` +
+            (task.planId ? `<span class="plan-tag">周计划 · D${task.planDay}/${task.planTotal || 7}</span>` : '') +
             `<span>${S.escapeHtml(task.grade || '未标注')}</span>` +
             `<span>${task.mode === 'words' ? `单词闯关 · ${taskQuestionCount(task)} 词` : `${taskQuestionCount(task)} 题`}</span>` +
             `<span>${scoreText}</span>` +
             (task.due ? `<span>截止 ${S.escapeHtml(S.fmtDate(task.due))}</span>` : '') +
           `</div>` +
+          planChips(task) +
         `</div>` +
-        `<span class="status-chip ${status}">${statusText}</span>` +
+        `<div class="task-card-side">` +
+          `<span class="status-chip ${status}">${statusText}</span>` +
+          (locked && firstLocked && task.id === firstLocked.id ? `<button class="p-btn small ghost task-unlock" type="button" data-unlock-task="${S.escapeHtml(task.id)}">多学一天</button>` : '') +
+        `</div>` +
       `</article>`;
     }).join('');
     $$('#task-list .task-card').forEach((card) => {
       const open = () => openTask(card.dataset.taskId);
-      card.addEventListener('click', open);
+      card.addEventListener('click', (event) => {
+        if (event.target.closest('[data-unlock-task]')) {
+          event.stopPropagation();
+          const task = findTask(event.target.closest('[data-unlock-task]').dataset.unlockTask);
+          if (task) unlockPlanDay(task);
+          return;
+        }
+        if (taskLocked(findTask(card.dataset.taskId) || {})) {
+          S.toast('先完成前一天的任务，或点“多学一天”提前解锁。', 'error', 4500);
+          return;
+        }
+        open();
+      });
       card.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); }
       });
@@ -578,6 +1060,7 @@
   /* ------------------------------- 打卡与经验 ------------------------------- */
 
   function doCheckin() {
+    if (!requireTrial('体验卡已到期，打卡先暂停。申请延长后，连击天数会接着算。')) return;
     const p = profile();
     const today = S.todayIso();
     if (p.checkins.includes(today)) {
@@ -615,13 +1098,119 @@
     }, 2400);
   }
 
+  /* ------------------------------- 答题行为与乱选检测 ------------------------------- */
+
+  function ensureBehavior(task) {
+    if (!task.behavior || typeof task.behavior !== 'object') {
+      task.behavior = {
+        firstOpenedAt: Date.now(),
+        activeSeconds: 0,
+        sessionStart: 0,
+        changes: {},
+        values: {},
+        focusLost: 0,
+        wordTimes: []
+      };
+    }
+    const b = task.behavior;
+    b.changes = b.changes && typeof b.changes === 'object' ? b.changes : {};
+    b.values = b.values && typeof b.values === 'object' ? b.values : {};
+    b.wordTimes = Array.isArray(b.wordTimes) ? b.wordTimes : [];
+    b.focusLost = Math.max(0, Number(b.focusLost) || 0);
+    b.activeSeconds = Math.max(0, Number(b.activeSeconds) || 0);
+    return b;
+  }
+
+  function startBehaviorSession(task) {
+    if (!task || task.status === 'done') return;
+    const b = ensureBehavior(task);
+    if (!b.sessionStart) b.sessionStart = Date.now();
+  }
+
+  function pauseBehaviorSession(task) {
+    if (!task) return;
+    const b = ensureBehavior(task);
+    if (b.sessionStart) {
+      b.activeSeconds += Math.max(0, (Date.now() - b.sessionStart) / 1000);
+      b.sessionStart = 0;
+    }
+  }
+
+  function behaviorElapsed(task) {
+    const b = ensureBehavior(task);
+    return b.activeSeconds + (b.sessionStart ? Math.max(0, (Date.now() - b.sessionStart) / 1000) : 0);
+  }
+
+  function noteBehaviorAnswer(task, qid, value) {
+    if (!task || task.status === 'done') return;
+    const b = ensureBehavior(task);
+    if (Object.prototype.hasOwnProperty.call(b.values, qid) && b.values[qid] !== value) {
+      b.changes[qid] = (Number(b.changes[qid]) || 0) + 1;
+    }
+    b.values[qid] = String(value == null ? '' : value);
+  }
+
+  function computeIntegrity(task) {
+    const b = ensureBehavior(task);
+    const total = Math.max(1, taskQuestionCount(task));
+    const elapsed = Math.max(1, behaviorElapsed(task));
+    const per = elapsed / total;
+    const flags = [];
+    let score = 100;
+    if (task.mode === 'words') {
+      const times = b.wordTimes.filter((n) => Number.isFinite(n) && n > 0);
+      const avgWord = times.length ? times.reduce((sum, n) => sum + n, 0) / times.length : per;
+      const firstOk = (task.wordStats || []).filter((word) => word.ok).length;
+      const accuracy = total ? firstOk / total : 0;
+      if (avgWord < 1.2) { score -= 32; flags.push('单词点击速度异常快'); }
+      else if (avgWord < 2.2) { score -= 14; flags.push('单词作答偏快'); }
+      if (accuracy <= 0.4 && avgWord < 2.5) { score -= 18; flags.push('速度偏快且正确率接近随机'); }
+      if (b.focusLost >= 3) { score -= 8; flags.push(`答题中离开页面 ${b.focusLost} 次`); }
+      return {
+        score: Math.max(0, Math.min(100, score)),
+        flags,
+        secondsPerItem: Math.round((avgWord || per) * 10) / 10,
+        changedRatio: 0,
+        focusLost: b.focusLost,
+        sameOptionRatio: 0,
+        elapsed: Math.round(elapsed)
+      };
+    }
+    const values = Object.values(b.values).map((value) => String(value || '').trim()).filter(Boolean);
+    const letters = values.filter((value) => /^[A-Ga-g]$/.test(value)).map((value) => value.toUpperCase());
+    const sameCount = letters.length ? Math.max(...Object.values(letters.reduce((acc, letter) => {
+      acc[letter] = (acc[letter] || 0) + 1;
+      return acc;
+    }, {}))) : 0;
+    const sameRatio = letters.length ? sameCount / letters.length : 0;
+    const changed = Object.values(b.changes).reduce((sum, n) => sum + Number(n || 0), 0);
+    const changedRatio = total ? changed / total : 0;
+    if (per < 3) { score -= 34; flags.push('整体答题速度异常快'); }
+    else if (per < 6) { score -= 15; flags.push('答题速度偏快'); }
+    if (changedRatio > 0.8) { score -= 12; flags.push('大量题目反复改答案'); }
+    if (letters.length >= 5 && sameRatio >= 0.85) { score -= 24; flags.push('绝大多数题选同一个选项'); }
+    if (task.score != null && task.score <= 30 && total >= 8) { score -= 12; flags.push('正确率接近随机猜测'); }
+    if (b.focusLost >= 3) { score -= 10; flags.push(`答题中离开页面 ${b.focusLost} 次`); }
+    return {
+      score: Math.max(0, Math.min(100, score)),
+      flags,
+      secondsPerItem: Math.round(per * 10) / 10,
+      changedRatio: Math.round(changedRatio * 100) / 100,
+      focusLost: b.focusLost,
+      sameOptionRatio: Math.round(sameRatio * 100) / 100,
+      elapsed: Math.round(elapsed)
+    };
+  }
+
   /* ------------------------------- 任务答题 ------------------------------- */
 
   function openTask(id) {
     const task = findTask(id);
     if (!task) return;
+    if (task.status !== 'done' && !requireTrial()) return;
     activeTaskId = id;
     taskStartedAt = Date.now();
+    startBehaviorSession(task);
     S.openDialog($('#task-dialog'));
     renderRunner(task);
     if (task.status !== 'done') startTimer();
@@ -752,12 +1341,15 @@
         const qid = target.name.replace(/^q_/, '');
         task.answers = task.answers || {};
         task.answers[qid] = target.value;
+        noteBehaviorAnswer(task, qid, target.value);
       } else if (target.matches('.text-answer')) {
         task.answers = task.answers || {};
         task.answers[target.dataset.qid] = target.value;
+        noteBehaviorAnswer(task, `text:${target.dataset.qid}`, target.value);
       } else if (target.matches('[data-writing-block]')) {
         task.answers = task.answers || {};
         task.answers[`writing:${target.dataset.writingBlock}`] = target.value;
+        noteBehaviorAnswer(task, `writing:${target.dataset.writingBlock}`, target.value);
       } else {
         return;
       }
@@ -891,7 +1483,8 @@
     const words = task.words || [];
     const total = words.length;
     const done = task.status === 'done';
-    const petInfo = petStageOf(ensurePet(profile()).xp);
+    const petDisplay = petDisplayInfo(profile());
+    const petInfo = petDisplay.info;
     $('#runner-title').textContent = task.title || '单词打卡';
     $('#runner-sub').textContent = done
       ? `${task.title || '单词打卡'} · 已完成`
@@ -903,7 +1496,7 @@
       $('#runner-count').textContent = '已完成';
       $('#runner-fill').style.width = '100%';
       const petDone = task.petGain
-        ? `<div class="word-summary-pet"><div class="word-summary-pet-art">${petSVG(petInfo.stage)}</div><div><b>这一轮小潮獭也吃饱了</b><span>成长 +${task.petGain} · 小鱼干 +${task.petSnacks || 0}</span></div></div>`
+        ? `<div class="word-summary-pet"><div class="word-summary-pet-art">${petSVG(petInfo.stage, petDisplay.id, petDisplay.fused)}</div><div><b>这一轮${petDisplay.name}也吃饱了</b><span>成长 +${task.petGain} · 小鱼干 +${task.petSnacks || 0}</span></div></div>`
         : '';
       $('#runner-body').innerHTML = resultHero(task) + `<div class="word-run">${petDone}${wordResultTable(task, run)}</div>`;
       $('#runner-body').onclick = null;
@@ -934,8 +1527,8 @@
             `<div><b>+${xp}</b><span>预计 EXP</span></div>` +
           `</div>` +
           `<div class="word-summary-pet">` +
-            `<div class="word-summary-pet-art">${petSVG(petInfo.stage)}</div>` +
-            `<div><b>小潮獭陪你完成了这一轮</b><span>成长 +${task.petGain || 0} · 小鱼干 +${task.petSnacks || 0}</span></div>` +
+            `<div class="word-summary-pet-art">${petSVG(petInfo.stage, petDisplay.id, petDisplay.fused)}</div>` +
+            `<div><b>${petDisplay.name}陪你完成了这一轮</b><span>成长 +${task.petGain || 0} · 小鱼干 +${task.petSnacks || 0}</span></div>` +
           `</div>` +
           (wrong.length
             ? `<p class="word-summary-wrong">错词 ${wrong.length} 个，重练答对 ${reviewRight} 个：${wrong.map((word) => `<span class="word-wrong-chip">${S.escapeHtml(word.w)}</span>`).join('')}</p>`
@@ -1009,14 +1602,15 @@
         options.map((option) => `<button class="word-option" type="button" data-word-option="${S.escapeHtml(option)}">${S.escapeHtml(option)}</button>`).join('') +
       `</div>` +
       `<div class="word-pet-row" id="word-pet-row">` +
-        `<div class="word-pet" id="word-pet">${petSVG(petInfo.stage)}</div>` +
-        `<div class="word-pet-copy"><b>小潮獭 · ${petInfo.name}</b><span id="word-pet-say">答对一题，就喂我 2 点成长。</span></div>` +
+        `<div class="word-pet" id="word-pet">${petSVG(petInfo.stage, petDisplay.id, petDisplay.fused)}</div>` +
+        `<div class="word-pet-copy"><b>${petDisplay.name} · ${petInfo.name}</b><span id="word-pet-say">答对一题，就喂我 2 点成长。</span></div>` +
         `<span class="word-pet-gain" id="word-pet-gain" aria-live="polite"></span>` +
       `</div>` +
       `<div class="word-feedback" id="word-feedback" hidden></div>` +
       `<p class="word-review-note">${isReview ? '这次答对会记为“已订正”，但得分仍按第一次作答计算。' : '选错会自动进入最后的错词回炉，不影响你继续闯关。'}</p>` +
     `</div>`;
 
+    run.questionShownAt = Date.now();
     bindWordClicks(task, run, { index, word, correctText, isReview });
     if (!done) startTimer();
   }
@@ -1045,6 +1639,12 @@
   function answerWordOption(task, run, context, option) {
     const picked = option.dataset.wordOption;
     const ok = picked === context.correctText;
+    const behavior = ensureBehavior(task);
+    if (run.questionShownAt) {
+      const seconds = Math.max(0, (Date.now() - run.questionShownAt) / 1000);
+      if (!context.isReview) behavior.wordTimes.push(Math.round(seconds * 100) / 100);
+      run.questionShownAt = 0;
+    }
     run.locked = true;
     const optionButtons = $$('#word-options .word-option');
     optionButtons.forEach((button) => {
@@ -1160,6 +1760,7 @@
     task.petGain = petGain;
     task.petSnacks = petSnacks;
     task.wordStats = wordStats;
+    task.integrity = computeIntegrity(task);
     task.blockStats = [{ type: 'vocab', label: '单词打卡', total, correct: firstCorrect }];
     task.review = review;
     task.writing = '';
@@ -1275,6 +1876,7 @@
     task.ungraded = ungraded;
     task.xpEarned = xpEarned;
     task.blockStats = blockStats;
+    task.integrity = computeIntegrity(task);
     task.review = review;
     task.writing = writingText;
     task.result = { correct, total, ungraded, accuracy, blockStats };
@@ -1289,6 +1891,44 @@
 
   /* ------------------------------- 任务码 / 汇报码 ------------------------------- */
 
+  async function importPlanPayload(payload) {
+    const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
+    if (!tasks.length) { S.toast('这份周计划里没有任务，请让老师重新生成。', 'error'); return; }
+    if (tasks.length > 14) { S.toast('周计划任务过多，已拒绝导入。', 'error'); return; }
+    for (const task of tasks) {
+      if (!task || task.kind !== 'task' || !task.id) { S.toast('周计划里有损坏的任务，请让老师重新生成。', 'error'); return; }
+      const taskAuth = await S.sha256Hex(`${profile().id}|${sessionPin}|${task.id}`);
+      if (taskAuth !== task.auth) { S.toast('周计划校验失败，可能不是发给你的。', 'error', 7000); return; }
+      if (task.mode === 'words') {
+        if (!Array.isArray(task.words) || task.words.length < 4) { S.toast('周计划里的单词任务不完整。', 'error'); return; }
+      } else if (!Array.isArray(task.blocks) || !task.blocks.length) {
+        S.toast('周计划里的练习任务没有题目。', 'error'); return;
+      }
+    }
+    let added = 0;
+    let kept = 0;
+    tasks.forEach((payloadTask) => {
+      const existing = findTask(payloadTask.id);
+      if (existing && existing.status === 'done') { kept += 1; return; }
+      const task = {
+        ...payloadTask,
+        answers: existing ? existing.answers || {} : {},
+        wordRun: existing ? existing.wordRun || null : null,
+        status: 'new',
+        importedAt: existing ? existing.importedAt : S.nowIso(),
+        extraUnlocked: existing ? existing.extraUnlocked || false : false
+      };
+      data.tasks = data.tasks.filter((item) => item.id !== task.id);
+      data.tasks.push(task);
+      added += 1;
+    });
+    save();
+    renderAll();
+    S.closeDialog($('#import-dialog'));
+    $('#import-code').value = '';
+    S.toast(`周计划已导入：${added} 天待完成${kept ? `，${kept} 天已完成` : ''}。每天完成当天任务后，下一天自动解锁。`, 'ok', 7000);
+  }
+
   async function importTaskCode() {
     if (!profile() || !sessionPin) { S.toast('先解锁档案。', 'error'); return; }
     const raw = $('#import-code').value.trim();
@@ -1300,14 +1940,19 @@
       S.toast(error.message || '任务码无法识别。', 'error', 5000);
       return;
     }
-    if (!payload || payload.kind !== 'task') { S.toast('这不是任务码，别把汇报码贴进来。', 'error'); return; }
+    if (!payload || (payload.kind !== 'task' && payload.kind !== 'plan')) { S.toast('这不是任务码，别把汇报码贴进来。', 'error'); return; }
     if (payload.studentId !== profile().id) {
       S.toast(`这个任务是发给 ${payload.studentId} 的，不是当前学号 ${profile().id}。`, 'error', 6000);
       return;
     }
+    if (!requireTrial('体验卡已到期，先申请延长，再导入新的周计划。')) return;
     const auth = await S.sha256Hex(`${payload.studentId}|${sessionPin}|${payload.id}`);
     if (auth !== payload.auth) {
       S.toast('任务码和当前密码不匹配，可能不是发给你的。', 'error', 6000);
+      return;
+    }
+    if (payload.kind === 'plan') {
+      await importPlanPayload(payload);
       return;
     }
     const wordMode = payload.mode === 'words';
@@ -1363,7 +2008,15 @@
         xp: p.xp,
         attrs: p.attrs,
         checkins: p.checkins,
-        badges: p.badges
+        badges: p.badges,
+        accountType: p.accountType || 'regular',
+        trialDays: p.trialDays || 0,
+        trialExpiresAt: p.trialExpiresAt || '',
+        trialStartedAt: p.trialStartedAt || '',
+        pets: p.pets || null,
+        activePet: p.activePet || '',
+        fusion: p.fusion || null,
+        wheel: p.wheel || null
       },
       tasks: data.tasks.filter((task) => task.status === 'done').map((task) => ({
         id: task.id,
@@ -1387,7 +2040,11 @@
         blockStats: task.blockStats || [],
         review: task.review || [],
         writing: task.writing || '',
-        assignedAt: task.createdAt || task.importedAt || ''
+        assignedAt: task.createdAt || task.importedAt || '',
+        planId: task.planId || '',
+        planDay: task.planDay || 0,
+        integrityScore: task.integrity ? task.integrity.score : null,
+        integrityFlags: task.integrity ? task.integrity.flags : []
       }))
     };
   }
@@ -1457,6 +2114,97 @@
     S.toast('已清空本机档案。');
   }
 
+  /* ------------------------------- 体验卡 ------------------------------- */
+
+  function openTrialDialog() {
+    if (!profile()) return;
+    const state = trialState();
+    const status = $('#trial-status');
+    if (status) {
+      status.className = `trial-status${state.expired ? ' expired' : ''}`;
+      status.innerHTML = state.trial
+        ? `<b>${state.expired ? '体验已到期' : `体验中 · 还剩 ${state.daysLeft} 天`}</b>` +
+          `<span>到期日：${S.escapeHtml(state.expiresAt)} · 学习记录不会删除</span>`
+        : `<b>正式学生账户</b><span>不受体验期限制。</span>`;
+    }
+    const request = $('#trial-request-code');
+    if (request) request.value = '';
+    const extend = $('#trial-extend-code');
+    if (extend) extend.value = '';
+    S.openDialog($('#trial-dialog'));
+  }
+
+  async function buildTrialRequestCode() {
+    const p = profile();
+    if (!p || !sessionPin) { S.toast('先解锁档案。', 'error'); return; }
+    if (p.accountType !== 'trial') { S.toast('正式学生账户不需要申请延长。', 'ok'); return; }
+    const state = trialState(p);
+    const auth = await S.sha256Hex(`${p.id}|${sessionPin}|trial-request|${state.expiresAt}`);
+    const code = await S.packCode({
+      v: 1,
+      kind: 'trial-request',
+      studentId: p.id,
+      studentName: p.name,
+      grade: p.grade || '',
+      expiresAt: state.expiresAt,
+      requestedAt: S.nowIso(),
+      auth
+    });
+    $('#trial-request-code').value = code;
+    S.toast('申请码已生成，复制发给老师。', 'ok');
+  }
+
+  async function applyTrialExtendCode() {
+    const p = profile();
+    if (!p || !sessionPin) { S.toast('先解锁档案。', 'error'); return; }
+    const raw = $('#trial-extend-code').value.trim();
+    if (!raw) { S.toast('先粘贴老师发回的延长码。', 'error'); return; }
+    let payload;
+    try {
+      payload = await S.unpackCode(raw);
+    } catch (error) {
+      S.toast(error.message || '延长码无法识别。', 'error', 5000);
+      return;
+    }
+    if (!payload || !['extend', 'upgrade'].includes(payload.kind) || payload.studentId !== p.id) {
+      S.toast('这不是发给当前学号的延长码或转正码。', 'error', 6000);
+      return;
+    }
+    if (payload.kind === 'upgrade') {
+      const upgradeAuth = await S.sha256Hex(`${p.id}|${sessionPin}|upgrade`);
+      if (upgradeAuth !== payload.auth) {
+        S.toast('转正码和当前密码不匹配，请让老师重新生成。', 'error', 6000);
+        return;
+      }
+      p.accountType = 'regular';
+      p.trialExpiresAt = '';
+      p.upgradedAt = S.nowIso();
+      save();
+      $('#trial-extend-code').value = '';
+      renderAll();
+      S.closeDialog($('#trial-dialog'));
+      S.toast('转正成功！从现在起不再受体验期限制，学习记录全部保留。', 'ok', 6500);
+      return;
+    }
+    const days = Math.max(1, Math.min(60, Number(payload.days) || 3));
+    const auth = await S.sha256Hex(`${p.id}|${sessionPin}|extend|${days}`);
+    if (auth !== payload.auth) {
+      S.toast('延长码和当前密码不匹配，请让老师重新生成。', 'error', 6000);
+      return;
+    }
+    const today = S.todayIso();
+    const base = p.trialExpiresAt && p.trialExpiresAt > today ? p.trialExpiresAt : today;
+    p.accountType = 'trial';
+    p.trialDays = Math.max(Number(p.trialDays) || 0, days);
+    p.trialExpiresAt = S.addDays(base, days);
+    p.trialExtendedAt = S.nowIso();
+    save();
+    $('#trial-extend-code').value = '';
+    renderAll();
+    S.closeDialog($('#trial-dialog'));
+    S.toast(`延长成功，体验期到 ${p.trialExpiresAt}。记录和连击都保留着。`, 'ok', 6000);
+  }
+
   /* ------------------------------- 事件绑定 ------------------------------- */
 
   function bindEvents() {
@@ -1488,7 +2236,31 @@
       if (window.confirm('退出后需要密码才能再进入，确定吗？')) logout();
     });
     $('#checkin-btn').addEventListener('click', doCheckin);
+    const trialBtn = $('#trial-apply-btn');
+    if (trialBtn) trialBtn.addEventListener('click', openTrialDialog);
+    const trialBuild = $('#trial-build-request');
+    if (trialBuild) trialBuild.addEventListener('click', buildTrialRequestCode);
+    const trialCopy = $('#trial-copy-request');
+    if (trialCopy) trialCopy.addEventListener('click', async () => {
+      const code = $('#trial-request-code').value.trim();
+      if (!code) { S.toast('先生成申请码。', 'error'); return; }
+      try { await S.copyText(code); S.toast('申请码已复制。', 'ok'); } catch (error) { S.toast('复制失败，请手动复制。', 'error'); }
+    });
+    const trialApply = $('#trial-apply-code');
+    if (trialApply) trialApply.addEventListener('click', applyTrialExtendCode);
     $('#pet-feed-btn').addEventListener('click', feedPet);
+    const petCard = $('#pet-card');
+    if (petCard) {
+      petCard.addEventListener('click', (event) => {
+        const switchBtn = event.target.closest('[data-pet-switch]');
+        if (switchBtn) { switchPet(switchBtn.dataset.petSwitch); return; }
+        const fuseBtn = event.target.closest('[data-fuse]');
+        if (fuseBtn) { fusePets(); return; }
+        if (event.target.closest('#pet-wheel-btn')) openWheelDialog();
+      });
+    }
+    const wheelSpin = $('#wheel-spin-btn');
+    if (wheelSpin) wheelSpin.addEventListener('click', spinWheel);
     $('#import-task-btn').addEventListener('click', () => {
       $('#import-code').value = '';
       S.openDialog($('#import-dialog'));
@@ -1496,6 +2268,8 @@
     });
     $('#import-btn').addEventListener('click', importTaskCode);
     $('#runner-close').addEventListener('click', () => {
+      const task = activeTaskId ? findTask(activeTaskId) : null;
+      if (task) pauseBehaviorSession(task);
       stopTimer();
       activeTaskId = null;
       S.closeDialog($('#task-dialog'));
@@ -1528,7 +2302,18 @@
     $('#restore-btn').addEventListener('click', restoreProfile);
     $('#reset-link').addEventListener('click', () => S.openDialog($('#reset-dialog')));
     $('#reset-confirm').addEventListener('click', confirmReset);
+    window.addEventListener('blur', () => {
+      const dialog = $('#task-dialog');
+      const task = activeTaskId ? findTask(activeTaskId) : null;
+      if (!dialog || !dialog.open || !task || task.status === 'done') return;
+      const behavior = ensureBehavior(task);
+      behavior.focusLost += 1;
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(save, 500);
+    });
     $('#task-dialog').addEventListener('close', () => {
+      const task = activeTaskId ? findTask(activeTaskId) : null;
+      if (task) { pauseBehaviorSession(task); save(); }
       stopTimer();
       activeTaskId = null;
     });

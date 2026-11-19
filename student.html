@@ -124,6 +124,16 @@
 
   <!-- 已登录 -->
   <section id="app-view" hidden>
+    <div class="trial-banner" id="trial-banner" hidden>
+      <div class="trial-banner-main">
+        <span class="trial-banner-icon" aria-hidden="true">🎟️</span>
+        <div>
+          <strong id="trial-banner-title">体验卡</strong>
+          <span id="trial-banner-text">体验期内可以完整体验学习功能。</span>
+        </div>
+      </div>
+      <button class="p-btn small" type="button" id="trial-apply-btn">申请延长</button>
+    </div>
     <div class="student-hero">
       <div class="hero-copy">
         <p class="hero-greet" id="hero-greet">晚上好，学习者</p>
@@ -163,6 +173,8 @@
               <span class="pet-mood" id="pet-mood">去单词打卡里赚点小鱼干吧。</span>
             </div>
             <div class="pet-mini-stats" id="pet-stats"></div>
+            <div class="pet-roster" id="pet-roster"></div>
+            <div class="pet-wheel-entry" id="pet-wheel-entry"></div>
           </div>
         </div>
       </section>
@@ -293,6 +305,67 @@
   </div>
 </dialog>
 
+<!-- 体验卡 -->
+<dialog class="p-dialog" id="trial-dialog" style="width:min(620px,calc(100% - 20px));">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>体验卡</h2>
+        <p>体验期内可以完整使用学习功能。到期后记录不会丢，申请延长即可继续。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="trial-status" id="trial-status">—</div>
+      <h3 class="dialog-subtitle">第一步：把申请码发给老师</h3>
+      <div class="field">
+        <label for="trial-request-code">延长申请码</label>
+        <textarea class="textarea" id="trial-request-code" rows="5" readonly placeholder="点下面的按钮生成"></textarea>
+      </div>
+      <div class="trial-dialog-actions">
+        <button class="p-btn small" type="button" id="trial-build-request">生成延长申请码</button>
+        <button class="p-btn small ghost" type="button" id="trial-copy-request">复制申请码</button>
+      </div>
+      <h3 class="dialog-subtitle" style="margin-top:18px;">第二步：粘贴老师发回的延长码</h3>
+      <div class="field">
+        <label for="trial-extend-code">延长码</label>
+        <textarea class="textarea" id="trial-extend-code" rows="5" placeholder="粘贴老师发回的延长码"></textarea>
+      </div>
+      <p class="hint" id="trial-extend-note">延长码校验通过后立即生效，学习记录全部保留。</p>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" data-close>关闭</button>
+      <button class="p-btn" type="button" id="trial-apply-code">使用延长码</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 满月转盘 -->
+<dialog class="p-dialog wheel-dialog" id="wheel-dialog" style="width:min(560px,calc(100% - 20px));">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>满月转盘</h2>
+        <p>连续学习 30 天后解锁。每天打卡或完成任意任务都算一天，断一天就要重新累计。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="wheel-stage">
+        <span class="wheel-pointer" aria-hidden="true">▼</span>
+        <div class="wheel-disc" id="wheel-disc"></div>
+        <span class="wheel-hub">满月</span>
+      </div>
+      <div class="wheel-legend" id="wheel-legend"></div>
+      <div class="wheel-result" id="wheel-result" hidden></div>
+    </div>
+    <div class="p-dialog-foot">
+      <button class="p-btn ghost" type="button" data-close>先不转</button>
+      <button class="p-btn" type="button" id="wheel-spin-btn">转动转盘</button>
+    </div>
+  </div>
+</dialog>
+
 <!-- 恢复档案 -->
 <dialog class="p-dialog" id="restore-dialog">
   <div class="p-dialog-inner">
@@ -347,7 +420,7 @@
     <div class="p-dialog-head">
       <div>
         <h2>学生端怎么用</h2>
-        <p>照着下面 7 步做就行，不用背操作。</p>
+        <p>照着下面几步做就行，不用背操作。</p>
       </div>
       <button class="p-close" type="button" data-close aria-label="关闭">×</button>
     </div>
@@ -362,16 +435,20 @@
           <span>打开学生端，输入密码进入，点“今日打卡”。连续打卡会累积连击和 EXP。</span>
         </li>
         <li>
-          <b>老师发任务后：导入任务码</b>
-          <span>点“导入任务码”，把老师发来的一整段代码粘贴进去，点“导入任务”。任务只对你自己生效。</span>
+          <b>老师发任务或周计划后：导入任务码</b>
+          <span>点“导入任务码”，把老师发来的一整段代码粘贴进去，点“导入任务”。如果老师发的是一周计划，导入一次就有 7 天任务：做完前一天，第二天自动解锁；想提前学，点“多学一天”。中途关掉页面，填过的答案会保留。</span>
         </li>
         <li>
           <b>做完题：提交并生成汇报码</b>
           <span>在任务里作答，点“提交任务”。再点“生成汇报码”，复制后发给阮老师，老师才能看到你的完成情况。</span>
         </li>
         <li>
-          <b>单词打卡：顺便养小潮獭</b>
-          <span>单词任务答对一题，小潮獭 +2 成长；完成一轮会掉小鱼干。回首页点“喂一条小鱼干”，它会慢慢进化：幼獭 → 潮獭 → 灵獭 → 海灵獭。不排名、不抽卡，只陪你积累。</span>
+          <b>养精灵：四只可选，还有满月转盘</b>
+          <span>单词任务答对一题，当前精灵 +2 成长；完成一轮会掉小鱼干。图鉴里有小潮獭、星尾狐、云海鲸、焰羽雀，每只都能从幼体进化到终极形态，随时可以切换。任意两只都到 2000 成长后还能融合。连续学习 30 天，会解锁一次满月转盘。不排名、不付费抽卡。</span>
+        </li>
+        <li>
+          <b>体验卡到期：申请延长</b>
+          <span>如果老师给你的是体验账户，到期后学习功能会先锁住，但记录和精灵都还在。点“申请延长”，把申请码发给老师；老师发回延长码或转正码后，粘贴就能继续。</span>
         </li>
         <li>
           <b>换手机或换浏览器：恢复档案</b>

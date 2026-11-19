@@ -68,8 +68,9 @@
       <a href="#checkin"><b>04</b><span>打卡养宠物</span><small>学生的闯关界面</small></a>
       <a href="#reports"><b>05</b><span>收汇报</span><small>把学习痕迹收回来</small></a>
       <a href="#ai"><b>06</b><span>AI 分析</span><small>可选，按量计费</small></a>
-      <a href="#backup"><b>07</b><span>备份到 U 盘</span><small>换电脑也不怕</small></a>
-      <a href="#faq"><b>08</b><span>常见问题</span><small>先查这里</small></a>
+      <a href="#weekly"><b>07</b><span>周计划 / 体验卡</span><small>一周一发，自动拆</small></a>
+      <a href="#backup"><b>08</b><span>备份到 U 盘</span><small>换电脑也不怕</small></a>
+      <a href="#faq"><b>09</b><span>常见问题</span><small>先查这里</small></a>
     </nav>
 
     <!-- 01 -->
@@ -121,7 +122,7 @@
         </div>
 
         <div class="callout warn">
-          <p><b>先记住这条底线：</b>四个页面共用同一个浏览器的本地存储。换浏览器、清理浏览器数据、换电脑，都会看不到旧数据。所以每周做一次备份，备份文件放到 U 盘（见第 07 节）。</p>
+          <p><b>先记住这条底线：</b>四个页面共用同一个浏览器的本地存储。换浏览器、清理浏览器数据、换电脑，都会看不到旧数据。所以每周做一次备份，备份文件放到 U 盘（见第 08 节）。</p>
         </div>
       </div>
     </section>
@@ -222,15 +223,15 @@
         <span class="chapter-num">04</span>
         <div>
           <p class="chapter-kicker">STUDENT SIDE</p>
-          <h2>学生怎么打卡，小潮獭怎么长大</h2>
-          <p>学生端把单词做成四选一闯关。答对就喂宠物，答错自动回炉。学习行为变成看得见的成长值，不靠抽卡，也不排名。</p>
+          <h2>学生怎么打卡，精灵怎么长大</h2>
+          <p>学生端把单词做成四选一闯关。答对就喂精灵，答错自动回炉。学习行为变成看得见的成长值，不靠付费抽卡，也不排名。</p>
         </div>
       </header>
       <div class="chapter-body">
         <ol class="steps">
           <li><b>学生打开学生端，输入密码。</b>第一次用老师发的开通码建档；以后直接输密码进入。</li>
-          <li><b>首页先看到“小潮獭”宠物卡。</b>再往下是任务列表；点任务卡开始这一轮。</li>
-          <li><b>英译中四选一。</b>答对一题，小潮獭立刻 +2 成长；答错会显示正确意思，这个词会自动进入最后的“错词回炉”。</li>
+          <li><b>首页先看到当前出战的精灵。</b>默认是小潮獭，也可以在“精灵图鉴”里切换成星尾狐、云海鲸或焰羽雀。再往下是任务列表；点任务卡开始这一轮。</li>
+          <li><b>英译中四选一。</b>答对一题，当前精灵立刻 +2 成长；答错会显示正确意思，这个词会自动进入最后的“错词回炉”。</li>
           <li><b>做完点“提交任务”。</b>系统结算经验、成长值和小鱼干；正确率越高，小鱼干越多。</li>
           <li><b>回首页点“生成汇报码”。</b>复制发给老师。老师导入后，才能看到这次打卡的完成情况和错词。</li>
         </ol>
@@ -246,13 +247,15 @@
           </figure>
         </div>
 
-        <h3>四个成长阶段 <small>EVOLUTION</small></h3>
-        <div class="evo-line" aria-label="小潮獭的四个成长阶段">
+        <h3>四只精灵，每只四个阶段 <small>EVOLUTION</small></h3>
+        <p>精灵图鉴里有四只：小潮獭、星尾狐、云海鲸、焰羽雀。每只都从 0 成长开始，到 300、900、2000 各进化一次；点图鉴就能切换当前出战精灵，其他精灵的成长值不会清零。</p>
+        <div class="evo-line" aria-label="以小潮獭为例的四个成长阶段">
           <div class="evo"><span class="evo-dot" aria-hidden="true">🦦</span><b>幼獭</b><small>0 成长 · 初生</small></div>
           <div class="evo"><span class="evo-dot" aria-hidden="true">🦦</span><b>潮獭</b><small>300 成长 · 叶子</small></div>
           <div class="evo"><span class="evo-dot" aria-hidden="true">🦦</span><b>灵獭</b><small>900 成长 · 围巾</small></div>
           <div class="evo"><span class="evo-dot" aria-hidden="true">🦦</span><b>海灵獭</b><small>2000 成长 · 潮光</small></div>
         </div>
+        <p>任意两只都到终极形态（2000）后，图鉴会出现“融合”。融合精灵有独立的成长条和更华丽的形象，例如潮焰星狐、云焰鲲鹏；原来的两只都保留，随时可以切回去。</p>
 
         <h3>成长值和小鱼干从哪来 <small>REWARDS</small></h3>
         <table class="guide-table">
@@ -270,7 +273,13 @@
         </div>
 
         <div class="callout save">
-          <p><b>宠物不是抽卡游戏。</b>没有付费、没有随机、没有排行榜。它只奖励三件事：答对、坚持完成、把错词重新练会。老师端不需要管理宠物，也不用发宠物奖励。</p>
+          <p><b>精灵不是付费抽卡。</b>没有充值、没有排行榜。它只奖励三件事：答对、坚持完成、把错词重新练会。老师端不需要管理精灵，也不用发精灵奖励。</p>
+        </div>
+
+        <h3>满月转盘：连续 30 天的额外奖励 <small>MONTHLY WHEEL</small></h3>
+        <p>每天打卡，或完成任意一个任务，都算一个“学习日”。连续 30 天后，学生端的精灵卡会出现“满月转盘”。转盘有 6 格加权奖励：小鱼干、成长值、满月宝箱和星辉大奖；转完后重新累计 30 天，才能再转一次。断一天会重新计数，但已经获得的成长值不会清零。</p>
+        <div class="callout">
+          <p><b>为什么用转盘，而不是直接发奖励？</b>不确定的奖励更容易让人期待，但这里只把它放在“连续 30 天”之后，不搞付费抽卡，也不做公开排名。教师端「设置 → 正向反馈设计依据」里写了对应的研究和使用边界。</p>
         </div>
       </div>
     </section>
@@ -303,6 +312,10 @@
 
         <div class="callout">
           <p><b>汇报码也是学生的备份。</b>学生换手机时，用“恢复档案”粘贴最近的汇报码 + 原密码，就能把等级、徽章、错题找回来。所以每次做完任务，都建议生成一份。</p>
+        </div>
+
+        <div class="callout warn">
+          <p><b>顺手看一眼“答题信号”。</b>如果学生做得太快、反复改答案、频繁离开页面，或总是选同一个选项，学生端会算出一个低于 55 的信号分。教师端总览会出现“疑似乱选”待办，学生详情里也会标黄并写明原因。它只是提醒，不是自动判作弊；题太简单或网络卡顿也可能触发，请结合课堂表现判断。</p>
         </div>
 
         <div class="callout warn">
@@ -374,9 +387,50 @@
     </section>
 
     <!-- 07 -->
-    <section class="guide-chapter" id="backup">
+    <section class="guide-chapter" id="weekly">
       <header class="chapter-head">
         <span class="chapter-num">07</span>
+        <div>
+          <p class="chapter-kicker">WEEKLY RHYTHM</p>
+          <h2>一周只发一次：周计划与体验卡</h2>
+          <p>周计划把“每天想发什么”提前到周末一次做完。系统按每个学生的难度档，把题量拆成 7 天；学生按天解锁，老师不用天天惦记。</p>
+        </div>
+      </header>
+      <div class="chapter-body">
+        <h3>发一份周计划 <small>WEEKLY PLAN</small></h3>
+        <ol class="steps">
+          <li><b>教师端 →“周计划”。</b>先选这周从哪天开始，再勾选要用的练习卷，可以多选。系统会按总题量自动分到 7 天，不会把一天的题堆到十几道。</li>
+          <li><b>想加单词日，就选一份单词任务。</b>选中后，第 2 / 4 / 6 天会变成单词闯关，其余 4 天练题；不选就是 7 天都练题。</li>
+          <li><b>给每个学生调难度档。</b>点名字右边的 − / ＋，1 档最轻、10 档最重；每调一次都会立刻保存。也可以只勾选部分学生，给不同班分开生成。</li>
+          <li><b>点“生成本周任务码”。</b>每个学生一份独立的周计划码，复制后单独发。学生导入一次，7 天任务就都在他的任务列表里了。</li>
+          <li><b>学生按天做。</b>完成第 1 天，第 2 天自动解锁；想提前学，点“多学一天”。中途关掉页面，填过的答案和进度会保留。</li>
+        </ol>
+
+        <h3>难度会自动跟着成绩走 <small>AUTO LEVEL</small></h3>
+        <p>每次导入学生汇报后，系统会看最近的任务表现：平均分低于 62，或有一次低于 45，就把难度降一档；平均分 90 以上、每次都不低于 80，并且答题信号正常，就升一档。调整记录写在学生详情的“难度变化”里，下一次生成周计划时生效。</p>
+
+        <div class="callout save">
+          <p><b>这套拆分不花 AI 钱。</b>题量分配、难度匹配和自动调档都在本机计算；只有你主动点“AI 整理”或“AI 分析”并确认时，才会联网计费。</p>
+        </div>
+
+        <h3>体验学生：3 天试用，到期可延长 <small>TRIAL PASS</small></h3>
+        <ol class="steps">
+          <li><b>添加学生时选“体验学生”。</b>默认 3 天，也可以改成 1–30 天。正式学生不受期限影响。</li>
+          <li><b>到期后学生端会自动上锁。</b>学生还能看到自己的记录、宠物和进度，但不能继续答题或打卡；页面会出现“申请延长”。</li>
+          <li><b>学生点“申请延长”，生成申请码发给老师。</b>老师在“体验卡”页粘贴申请码，选延长天数，生成延长码发回；也可以在体验学生名单里直接生成。</li>
+          <li><b>想转正，就生成“转正码”。</b>学生导入后变成正式学生，之后不再到期；之前的任务、连击、宠物全部保留。</li>
+        </ol>
+
+        <div class="callout warn">
+          <p><b>体验卡也是本机身份，不是服务器锁。</b>它适合给自己班以外的试听学生一个清晰的试用边界，但不要把它当成防破解的付费系统。收费仍按方案 A：先手动收款，再手动发码。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 08 -->
+    <section class="guide-chapter" id="backup">
+      <header class="chapter-head">
+        <span class="chapter-num">08</span>
         <div>
           <p class="chapter-kicker">BACKUP &amp; USB</p>
           <h2>备份到“顺势ENGLISH”U 盘</h2>
@@ -418,10 +472,10 @@
       </div>
     </section>
 
-    <!-- 08 -->
+    <!-- 09 -->
     <section class="guide-chapter" id="faq">
       <header class="chapter-head">
-        <span class="chapter-num">08</span>
+        <span class="chapter-num">09</span>
         <div>
           <p class="chapter-kicker">TROUBLESHOOTING</p>
           <h2>常见问题</h2>

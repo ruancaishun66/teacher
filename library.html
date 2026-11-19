@@ -2059,6 +2059,230 @@
         padding: 18px;
       }
     }
+
+    /* AI 消耗记录 */
+    .ai-cost-log {
+      display: grid;
+      gap: 4px;
+      max-height: 170px;
+      margin: 8px 0 0;
+      padding: 0;
+      overflow: auto;
+      list-style: none;
+    }
+
+    .ai-cost-log li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 6px 9px;
+      border-radius: 8px;
+      color: var(--ink-soft);
+      background: rgba(49, 95, 140, 0.05);
+      font-size: 0.63rem;
+      line-height: 1.5;
+    }
+
+    .ai-cost-log b {
+      flex: none;
+      color: var(--blue-deep);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    /* 逐题编辑 */
+    .q-editor-dialog {
+      width: min(1000px, calc(100% - 20px));
+    }
+
+    .q-editor-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      background: var(--blue-pale);
+    }
+
+    .q-editor-toolbar .form-note {
+      margin: 0;
+      padding: 0;
+      color: var(--ink-soft);
+      background: transparent;
+    }
+
+    .q-editor-count {
+      flex: none;
+      color: var(--blue-deep);
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+
+    .q-editor-body {
+      max-height: min(62vh, 640px);
+      padding-right: 4px;
+      overflow: auto;
+    }
+
+    .q-editor-section h3 {
+      margin: 12px 0 8px;
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 0.82rem;
+    }
+
+    .q-editor-item {
+      margin-bottom: 10px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fffdf8;
+      overflow: hidden;
+    }
+
+    .q-editor-item > summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 12px;
+      color: var(--blue-deep);
+      background: rgba(49, 95, 140, 0.06);
+      font-size: 0.7rem;
+      cursor: pointer;
+    }
+
+    .q-editor-item > summary span {
+      color: var(--ink-soft);
+      font-size: 0.62rem;
+    }
+
+    .q-editor-item-body {
+      display: grid;
+      gap: 10px;
+      padding: 10px 12px 12px;
+    }
+
+    .q-editor-row {
+      padding: 10px;
+      border: 1px dashed rgba(49, 95, 140, 0.22);
+      border-radius: 10px;
+      background: var(--paper);
+    }
+
+    .q-editor-row.is-busy {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .q-editor-row-head {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 0.66rem;
+    }
+
+    .q-editor-row-head b {
+      color: var(--blue-deep);
+    }
+
+    .q-editor-row-head > span {
+      color: var(--ink-soft);
+    }
+
+    .q-diff-chip {
+      padding: 2px 7px;
+      border-radius: 999px;
+      color: #7a5b1b !important;
+      background: var(--gold-soft);
+    }
+
+    .q-row-actions {
+      display: flex;
+      gap: 4px;
+      margin-left: auto;
+    }
+
+    .btn-tiny {
+      padding: 3px 8px;
+      font-size: 0.6rem;
+    }
+
+    .btn-tiny.q-danger {
+      color: var(--red-deep);
+    }
+
+    .q-editor-fields {
+      display: grid;
+      gap: 8px;
+    }
+
+    .q-editor-fields label {
+      display: grid;
+      gap: 3px;
+      color: var(--ink-soft);
+      font-size: 0.62rem;
+    }
+
+    .q-editor-fields input,
+    .q-editor-fields textarea {
+      width: 100%;
+      padding: 7px 9px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--ink);
+      background: #fff;
+      font-family: inherit;
+      font-size: 0.7rem;
+      line-height: 1.6;
+      resize: vertical;
+    }
+
+    .q-editor-fields textarea:focus,
+    .q-editor-fields input:focus {
+      border-color: var(--blue);
+      outline: 2px solid rgba(49, 95, 140, 0.16);
+    }
+
+    .q-field-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 8px;
+    }
+
+    .q-editor-empty {
+      padding: 26px 16px;
+      border-radius: 12px;
+      color: var(--ink-soft);
+      background: var(--blue-pale);
+      text-align: center;
+      font-size: 0.7rem;
+      line-height: 1.8;
+    }
+
+    .q-editor-dialog .dialog-actions {
+      position: sticky;
+      bottom: 0;
+      margin-top: 10px;
+      padding-top: 10px;
+      background: var(--paper);
+    }
+
+    @media (max-width: 560px) {
+      .q-field-row {
+        grid-template-columns: 1fr;
+      }
+
+      .q-editor-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
+      }
+    }
   </style>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -2419,6 +2643,23 @@
             <div class="settings-actions">
               <button class="btn btn-outline" type="button" data-action="persist">申请长期保存</button>
             </div>
+          </article>
+
+          <article class="settings-card">
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-flash"/></svg>AI 整理与消耗</h2>
+            <p>用 DeepSeek 清理页眉页码、无关杂物，重新判断题型和年级，并把题目排版整理干净。Key 只保存在这台电脑的浏览器里，和教师端共用；只有点按钮并确认后才会调用，按量计费。</p>
+            <div class="field">
+              <label for="lib-ai-key">DeepSeek API Key</label>
+              <input class="input" id="lib-ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-... 只存本机">
+            </div>
+            <div class="settings-actions">
+              <button class="btn btn-primary" type="button" data-action="ai-key-save">保存 Key</button>
+              <button class="btn btn-outline" type="button" data-action="ai-key-test">测试连接（不消耗）</button>
+              <button class="btn btn-ghost" type="button" data-action="ai-key-clear">清除 Key</button>
+            </div>
+            <p class="form-note" id="lib-ai-usage">累计 0 tokens · 0 次 · 约 ¥0</p>
+            <ul class="ai-cost-log" id="lib-ai-log"><li><span>还没有调用记录。每次 AI 整理都会记在这里。</span></li></ul>
+            <p class="form-note">费用按 DeepSeek Flash 高峰价估算（输入 ¥2.2 / 百万 tokens，输出 ¥8.6 / 百万 tokens），实际以 DeepSeek 账单为准。</p>
           </article>
 
           <article class="settings-card">
@@ -2797,6 +3038,27 @@
     </form>
   </dialog>
 
+  <dialog class="app-dialog q-editor-dialog" id="question-editor-dialog" style="width:min(1000px,calc(100% - 20px));">
+    <div class="dialog-form">
+      <div class="dialog-head">
+        <div>
+          <h2 id="question-editor-title">逐题编辑</h2>
+          <p class="form-note" id="question-editor-sub">核对每道题的题干、选项、答案和解析。修改后会保存到本机资料库。</p>
+        </div>
+        <button class="dialog-close" type="button" data-q-close aria-label="关闭">×</button>
+      </div>
+      <div class="q-editor-toolbar">
+        <span class="q-editor-count" id="question-editor-count">—</span>
+        <span class="form-note">AI 整理单题只发送这一道题，消耗很低；每题单独确认。</span>
+      </div>
+      <div class="q-editor-body" id="question-editor-body"></div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" type="button" data-q-close>关闭</button>
+        <button class="btn btn-primary" type="button" data-action="save-question-edits">保存全部修改</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog class="app-dialog" id="confirm-dialog">
     <form class="dialog-form" method="dialog">
       <div class="dialog-head">
@@ -2814,6 +3076,7 @@
   <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
 
   <script src="vendor/jszip.min.js"></script>
+  <script src="portal.js"></script>
   <script src="library.js"></script>
 <script src="pwa.js" defer></script>
 </body>

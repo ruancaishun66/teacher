@@ -205,6 +205,16 @@
   font-size: 0.58rem;
 }
 
+.student-card .account-badge {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #8a5a1f;
+  background: rgba(230, 184, 110, 0.22);
+  font-size: 0.58rem;
+  font-weight: 700;
+}
+
 .student-card-foot .risk-dot { display: inline-flex; align-items: center; gap: 5px; }
 .student-card-foot .risk-dot::before {
   content: "";
@@ -866,3 +876,339 @@
 .profile-text h4 { color: var(--gold); }
 
 #student-detail .p-col-5 { align-self: start; }
+
+/* AI 消耗记录 */
+.ai-cost-log {
+  display: grid;
+  gap: 4px;
+  max-height: 170px;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+.ai-cost-log li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(49, 95, 140, 0.05);
+  font-size: 0.63rem;
+  line-height: 1.5;
+}
+.ai-cost-log b {
+  flex: none;
+  color: var(--blue-deep);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   周计划 / 体验卡 / 答题可信度（教师端）
+   ========================================================================== */
+
+.plan-check-list {
+  display: grid;
+  gap: 6px;
+  max-height: 280px;
+  padding: 2px;
+  overflow: auto;
+}
+
+.plan-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: 0.18s var(--ease);
+}
+
+.plan-check:hover { border-color: rgba(76, 154, 166, 0.44); background: rgba(76, 154, 166, 0.06); }
+.plan-check:has(input:checked) { border-color: rgba(76, 154, 166, 0.62); background: rgba(76, 154, 166, 0.09); }
+.plan-check input { flex: none; margin-top: 3px; accent-color: var(--red); }
+.plan-check span { min-width: 0; }
+
+.plan-check strong {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+.plan-check small {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.64rem;
+  color: var(--dim);
+}
+
+.plan-student {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px 12px;
+  align-items: center;
+  padding: 10px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.44);
+}
+
+.plan-student + .plan-student { margin-top: 7px; }
+.plan-student.is-trial { border-color: rgba(230, 184, 110, 0.42); background: rgba(255, 248, 232, 0.6); }
+
+.plan-student-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.plan-student-check input { flex: none; accent-color: var(--red); }
+.plan-student-check strong { display: block; font-size: 0.78rem; color: var(--ink); line-height: 1.35; }
+.plan-student-check small { display: block; font-size: 0.64rem; color: var(--dim); line-height: 1.4; }
+
+.plan-level-control {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.plan-level-control .p-btn {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  justify-content: center;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.plan-level-value {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 66px;
+  padding: 2px 7px;
+  border-radius: 9px;
+  background: rgba(76, 154, 166, 0.1);
+  color: var(--blue-deep);
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.plan-level-value small {
+  font-size: 0.55rem;
+  font-weight: 600;
+  color: var(--dim);
+  letter-spacing: 0.02em;
+}
+
+.plan-level-note {
+  grid-column: 1 / -1;
+  padding-left: 2px;
+  font-size: 0.6rem;
+  color: var(--dim);
+}
+
+.plan-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 13px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.plan-card + .plan-card { margin-top: 8px; }
+.plan-card-main { min-width: 0; flex: 1; }
+.plan-card-main h4 { margin: 0 0 3px; font-size: 0.82rem; color: var(--ink); }
+.plan-card-main p { margin: 0 0 7px; font-size: 0.66rem; color: var(--muted); }
+
+.plan-day-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.plan-day-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 7px;
+  background: rgba(76, 154, 166, 0.1);
+  color: var(--blue-deep);
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+.plan-day-chip b { font-weight: 600; opacity: 0.75; }
+.plan-day-chip.is-words { color: #8a6a2f; background: rgba(230, 184, 110, 0.2); }
+.plan-card-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* 体验卡 */
+.trial-grant-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 8px 0;
+}
+
+.trial-request-result {
+  padding: 10px 12px;
+  border: 1px dashed rgba(76, 154, 166, 0.36);
+  border-radius: 10px;
+  background: rgba(76, 154, 166, 0.06);
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.trial-request-result b { display: block; color: var(--ink); margin-bottom: 2px; }
+.trial-request-result span { display: block; }
+
+.trial-student {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 11px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.46);
+}
+
+.trial-student + .trial-student { margin-top: 8px; }
+
+.trial-student-main {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.trial-student-main strong { display: block; font-size: 0.78rem; color: var(--ink); }
+.trial-student-main small { display: block; font-size: 0.63rem; color: var(--dim); line-height: 1.45; }
+
+.trial-state {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(63, 143, 116, 0.12);
+  color: var(--green);
+  font-size: 0.62rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.trial-state.expired { color: var(--red-deep); background: var(--red-soft); }
+
+.trial-student-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* 账户类型选择 */
+.account-type-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.account-type-picker label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.46);
+  cursor: pointer;
+  transition: 0.18s var(--ease);
+}
+
+.account-type-picker label:has(input:checked) {
+  border-color: rgba(76, 154, 166, 0.62);
+  background: rgba(76, 154, 166, 0.09);
+}
+
+.account-type-picker input { flex: none; margin-top: 3px; accent-color: var(--red); }
+.account-type-picker span { display: block; font-size: 0.76rem; font-weight: 700; color: var(--ink); }
+.account-type-picker small { display: block; margin-top: 2px; font-size: 0.62rem; color: var(--dim); line-height: 1.45; }
+
+/* 答题可信度 */
+.integrity-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.integrity-chip.good { color: var(--green); background: rgba(63, 143, 116, 0.12); }
+.integrity-chip.warn { color: #9a6a1f; background: rgba(230, 184, 110, 0.22); }
+.integrity-chip.bad { color: var(--red-deep); background: var(--red-soft); }
+.integrity-chip.none { color: var(--dim); background: rgba(49, 95, 140, 0.07); font-weight: 600; }
+
+.integrity-flag {
+  display: block;
+  max-width: 120px;
+  margin-top: 3px;
+  color: var(--red-deep);
+  font-size: 0.56rem;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.integrity-alert {
+  margin-bottom: 12px;
+  padding: 11px 13px;
+  border: 1px solid rgba(217, 110, 81, 0.34);
+  border-radius: 11px;
+  background: linear-gradient(120deg, rgba(255, 243, 236, 0.92), rgba(255, 232, 224, 0.7));
+}
+
+.integrity-alert b { display: block; font-size: 0.76rem; color: var(--red-deep); }
+.integrity-alert span { display: block; margin-top: 3px; font-size: 0.68rem; color: var(--muted); line-height: 1.55; }
+.integrity-alert small { display: block; margin-top: 5px; font-size: 0.6rem; color: var(--dim); line-height: 1.5; }
+
+.research-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 9px;
+}
+
+.research-grid > div {
+  padding: 11px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.research-grid b { display: block; font-size: 0.76rem; color: var(--ink); }
+.research-grid span { display: block; margin-top: 1px; font-size: 0.6rem; color: var(--blue-deep); letter-spacing: 0.03em; }
+.research-grid p { margin: 5px 0 0; font-size: 0.67rem; color: var(--muted); line-height: 1.55; }
+
+@media (max-width: 720px) {
+  .plan-student { grid-template-columns: 1fr; }
+  .plan-level-control { justify-content: flex-start; }
+  .account-type-picker { grid-template-columns: 1fr; }
+  .trial-student { grid-template-columns: 1fr; }
+  .trial-state { justify-self: flex-start; }
+}
