@@ -1088,7 +1088,9 @@
   .guide-hero { grid-template-columns: 1fr; padding: 0 0 18px; gap: 16px; }
   .route-card, .entry, .flow-step, .callout, .shot-frame, .route-option, .faq details { box-shadow: none; }
   .guide-chapter { padding: 18px 0; }
-  .chapter-head, .steps > li, .callout, .flow-step, .entry, .route-option, .faq details { break-inside: avoid; }
+  .chapter-head, .steps > li, .callout, .flow-step, .entry, .route-option, .faq details,
+  .unit-strip, .unit-block, .evidence-grid, .shot, .shot-pair, .entry-grid, .route-card,
+  .evo-line, .phone-row, .guide-table { break-inside: avoid; }
   .chapter-head { break-after: avoid; }
   h2, h3, h4 { break-after: avoid; }
   .faq details > p { display: block !important; }
