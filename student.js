@@ -353,8 +353,93 @@
         { stage: 3, name: '赤羽雀', min: 900, next: 2000, body: '#d4784f', ear: '#a84b35', belly: '#ffefe2', accent: '#d6a74b', desc: '飞过的地方会落下一两句背熟的课文。' },
         { stage: 4, name: '凤凰雏', min: 2000, next: null, body: '#e9a06d', ear: '#b85a3c', belly: '#fff5e8', accent: '#f0c987', desc: '每一次重新起飞，都比上一次更亮。' }
       ]
+    },
+    baize: {
+      name: '白泽',
+      color: '#c9b98f',
+      unlock: { type: 'checkins', value: 7, label: '累计打卡 7 天解锁' },
+      stages: [
+        { stage: 1, name: '云泽兽', min: 0, next: 300, body: '#ece5d5', ear: '#c7baa0', belly: '#fffbf2', accent: '#d9b66f', desc: '从云里探出头的小瑞兽，额上有一只还没睁开的竖眼。' },
+        { stage: 2, name: '白泽', min: 300, next: 900, body: '#f3eee2', ear: '#cec2a9', belly: '#fffdf8', accent: '#e2c37c', desc: '能叫出山里每一种精怪的名字，也能记住你背过的词。' },
+        { stage: 3, name: '灵泽', min: 900, next: 2000, body: '#e6f1ee', ear: '#aacac4', belly: '#fcffff', accent: '#8fd3cf', desc: '走过的地方会留下淡淡的云纹，竖眼能看见错误藏在哪里。' },
+        { stage: 4, name: '天泽', min: 2000, next: null, body: '#f7f2e2', ear: '#d6c39b', belly: '#fffdf5', accent: '#f0c987', desc: '通晓万物名字的上古瑞兽，额眼一开，整片云海都安静下来。' }
+      ]
+    },
+    qilin: {
+      name: '麒麟',
+      color: '#6fae8d',
+      unlock: { type: 'pool', value: 1200, label: '总经验池累计获得 1200 解锁' },
+      stages: [
+        { stage: 1, name: '幼麟', min: 0, next: 300, body: '#a9d4bb', ear: '#6da98b', belly: '#f3fbf4', accent: '#d9b66f', desc: '角还没长齐的小麒麟，走路会踩出一小片草芽。' },
+        { stage: 2, name: '青麟', min: 300, next: 900, body: '#8fc9a8', ear: '#559477', belly: '#f1fbf3', accent: '#cfae66', desc: '鳞片开始泛起青光，蹄下生风，专挑难题踩。' },
+        { stage: 3, name: '火麟', min: 900, next: 2000, body: '#d9a273', ear: '#a36a45', belly: '#fff3e3', accent: '#e08a52', desc: '鬃毛像火一样立起来，越难的单词它越兴奋。' },
+        { stage: 4, name: '圣麟', min: 2000, next: null, body: '#efc98e', ear: '#bd8350', belly: '#fff8e9', accent: '#f6d99a', desc: '踏云而行的仁兽，据说它出现的地方，考试都会变简单一点。' }
+      ]
+    },
+    zhulong: {
+      name: '烛龙',
+      color: '#c9563f',
+      unlock: { type: 'checkins', value: 30, label: '累计打卡 30 天解锁' },
+      stages: [
+        { stage: 1, name: '烛崽', min: 0, next: 300, body: '#db7a5f', ear: '#a84731', belly: '#ffe8d4', accent: '#f0c987', desc: '衔着一小簇火苗的龙崽，睁眼就是白天，闭眼就是夜晚。' },
+        { stage: 2, name: '烛龙', min: 300, next: 900, body: '#d2684e', ear: '#963b29', belly: '#ffe6d1', accent: '#e8b56b', desc: '身下的影子会自己游动，像一条还没醒的河。' },
+        { stage: 3, name: '幽都烛龙', min: 900, next: 2000, body: '#b95643', ear: '#7f2f22', belly: '#ffdcc4', accent: '#f0a45c', desc: '从幽都衔来一束不灭的光，照亮你最怕的那一页。' },
+        { stage: 4, name: '衔日烛龙', min: 2000, next: null, body: '#e88a5e', ear: '#a94830', belly: '#fff0dc', accent: '#f6d99a', desc: '口衔烈日、身绕长风的钟山之神，睁眼便是一整个白昼。' }
+      ]
     }
   };
+
+  function mixHex(hex, target, ratio) {
+    const parse = (value, fallback) => {
+      const raw = String(value || '').replace('#', '');
+      const full = raw.length === 3 ? raw.split('').map((char) => char + char).join('') : raw.padEnd(6, '0').slice(0, 6);
+      const num = parseInt(full, 16);
+      return Number.isNaN(num) ? fallback : [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+    };
+    const a = parse(hex, [136, 136, 136]);
+    const b = parse(target, [255, 255, 255]);
+    const t = Math.max(0, Math.min(1, Number(ratio) || 0));
+    const out = a.map((value, index) => Math.round(value + (b[index] - value) * t));
+    return `#${((1 << 24) + (out[0] << 16) + (out[1] << 8) + out[2]).toString(16).slice(1)}`;
+  }
+
+  function petPoolOf(p) {
+    const who = p || profile();
+    if (!who) return { earned: 0, spent: 0, log: [] };
+    if (!who.petPool || typeof who.petPool !== 'object') who.petPool = { earned: 0, spent: 0, log: [] };
+    who.petPool.earned = Math.max(0, Math.round(Number(who.petPool.earned) || 0));
+    who.petPool.spent = Math.max(0, Math.round(Number(who.petPool.spent) || 0));
+    if (who.petPool.spent > who.petPool.earned) who.petPool.spent = who.petPool.earned;
+    who.petPool.log = Array.isArray(who.petPool.log) ? who.petPool.log.filter((item) => item && item.at).slice(0, 30) : [];
+    return who.petPool;
+  }
+
+  function poolAvailable(p) {
+    const pool = petPoolOf(p);
+    return Math.max(0, pool.earned - pool.spent);
+  }
+
+  function petUnlockState(p, id) {
+    const species = PET_SPECIES[id];
+    if (!species || !species.unlock) return { unlocked: true, progress: 1, text: '已解锁' };
+    const need = Math.max(1, Number(species.unlock.value) || 1);
+    const have = species.unlock.type === 'pool'
+      ? petPoolOf(p).earned
+      : ((p && p.checkins) || []).length;
+    return {
+      unlocked: have >= need,
+      progress: Math.min(1, have / need),
+      have,
+      need,
+      text: species.unlock.label,
+      unit: species.unlock.type === 'pool' ? '经验池 EXP' : '天'
+    };
+  }
+
+  function petDisplaySpeciesName(p, id) {
+    if (id === 'fusion') return (p && p.fusion && p.fusion.name) || '融合精灵';
+    return petSpeciesInfo(id).name;
+  }
 
   const FUSION_NAMES = {
     'fox|otter': '潮焰星狐',
@@ -580,6 +665,13 @@
     if (!p) return;
     if (speciesId === 'fusion' && !p.fusion) { S.toast('还没有融合精灵。两只精灵都到终极形态后可以融合。', 'error'); return; }
     if (speciesId !== 'fusion' && !PET_SPECIES[speciesId]) return;
+    if (speciesId !== 'fusion') {
+      const lock = petUnlockState(p, speciesId);
+      if (!lock.unlocked) {
+        S.toast(`${PET_SPECIES[speciesId].name}还没解锁：${lock.text}（当前 ${lock.have}/${lock.need} ${lock.unit}）。`, 'error', 5200);
+        return;
+      }
+    }
     p.activePet = speciesId;
     save();
     renderPet();
@@ -611,22 +703,57 @@
     S.toast(`融合成功！「${pair.name}」加入了你的图鉴。`, 'ok', 7000);
   }
 
+  let petSvgSeq = 0;
+
   function petSVG(stage, speciesId, fused) {
+    if (window.ShunshiPetArt) {
+      const artSpecies = PET_SPECIES[speciesId] ? speciesId : 'otter';
+      const artStages = petSpeciesInfo(artSpecies).stages;
+      const artStage = Math.max(1, Math.min(artStages.length, Number(stage) || 1));
+      const artColors = artStages[artStage - 1];
+      return window.ShunshiPetArt.render({
+        stage: artStage,
+        species: artSpecies,
+        colors: { body: artColors.body, ear: artColors.ear, belly: artColors.belly, accent: artColors.accent },
+        fused: Boolean(fused),
+        label: `${fused ? '融合精灵' : petSpeciesInfo(artSpecies).name} · ${artColors.name}`
+      });
+    }
     const speciesKey = PET_SPECIES[speciesId] ? speciesId : 'otter';
     const species = petSpeciesInfo(speciesKey);
     const s = Math.max(1, Math.min(species.stages.length, Number(stage) || 1));
     const p = { ...species.stages[s - 1] };
     if (fused) {
-      p.body = '#8fd6c9';
-      p.ear = '#b47a4e';
+      p.body = '#9fdfd2';
+      p.ear = '#4f8f8b';
       p.accent = '#f0c987';
-      p.belly = '#fff6e6';
+      p.belly = '#fff8e9';
     }
+    const uid = `petdefs${++petSvgSeq}`;
+    const gid = (name) => `${uid}-${name}`;
+    const bodyLight = mixHex(p.body, '#ffffff', 0.48);
+    const bodyDark = mixHex(p.ear, '#142d33', 0.18);
+    const earLight = mixHex(p.ear, '#ffffff', 0.28);
+    const bellyLight = mixHex(p.belly, '#ffffff', 0.4);
+    const bellyShade = mixHex(p.belly, p.ear, 0.22);
+    const accentLight = mixHex(p.accent, '#ffffff', 0.42);
+    const accentDark = mixHex(p.accent, '#7a4b16', 0.28);
+    const defs = `<defs>` +
+      `<radialGradient id="${gid('body')}" cx="32%" cy="22%" r="88%"><stop offset="0" stop-color="${bodyLight}"/><stop offset=".52" stop-color="${p.body}"/><stop offset="1" stop-color="${bodyDark}"/></radialGradient>` +
+      `<radialGradient id="${gid('head')}" cx="34%" cy="24%" r="82%"><stop offset="0" stop-color="${mixHex(p.body, '#ffffff', 0.58)}"/><stop offset=".6" stop-color="${p.body}"/><stop offset="1" stop-color="${mixHex(p.body, p.ear, 0.64)}"/></radialGradient>` +
+      `<linearGradient id="${gid('belly')}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${bellyLight}"/><stop offset="1" stop-color="${bellyShade}"/></linearGradient>` +
+      `<linearGradient id="${gid('accent')}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${accentLight}"/><stop offset=".5" stop-color="${p.accent}"/><stop offset="1" stop-color="${accentDark}"/></linearGradient>` +
+      `<radialGradient id="${gid('glow')}" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="${accentLight}" stop-opacity=".52"/><stop offset="1" stop-color="${accentLight}" stop-opacity="0"/></radialGradient>` +
+      `<filter id="${gid('blur')}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5"/></filter>` +
+      `<filter id="${gid('soft')}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2.2"/></filter>` +
+    `</defs>`;
     const aura = s >= 4
-      ? `<g class="pet-aura"><circle cx="130" cy="118" r="96" fill="none" stroke="${p.accent}" stroke-opacity=".22" stroke-width="8"/><circle cx="130" cy="118" r="78" fill="none" stroke="${p.accent}" stroke-opacity=".14" stroke-width="2"/></g>`
-      : '';
+      ? `<g class="pet-aura"><circle cx="130" cy="116" r="98" fill="url(#${gid('glow')})"/><circle cx="130" cy="116" r="92" fill="none" stroke="${p.accent}" stroke-opacity=".26" stroke-width="7"/><circle cx="130" cy="116" r="76" fill="none" stroke="${p.accent}" stroke-opacity=".18" stroke-width="1.6" stroke-dasharray="3 7"/></g>`
+      : s >= 3
+        ? `<g class="pet-aura is-soft"><circle cx="130" cy="116" r="84" fill="url(#${gid('glow')})" opacity=".6"/></g>`
+        : '';
     const blush = s >= 2
-      ? `<ellipse cx="104" cy="102" rx="5" ry="2.6" fill="#e98f78" opacity=".38"/><ellipse cx="156" cy="102" rx="5" ry="2.6" fill="#e98f78" opacity=".38"/>`
+      ? `<ellipse cx="104" cy="102" rx="5" ry="2.6" fill="#e98f78" opacity=".32"/><ellipse cx="156" cy="102" rx="5" ry="2.6" fill="#e98f78" opacity=".32"/>`
       : '';
     const leaf = s === 2
       ? `<g class="pet-leaf"><path d="M130 50c0-9 3-16 8-21" fill="none" stroke="#6fa77a" stroke-width="2.4" stroke-linecap="round"/><path d="M136 38c8-8 15-8 20-4-4 8-12 11-20 8Z" fill="#83b97f"/><path d="M133 44c-7-6-13-5-17-1 4 7 10 9 17 6Z" fill="#9ccb8f"/></g>`
@@ -640,60 +767,150 @@
     const isFox = speciesKey === 'fox';
     const isWhale = speciesKey === 'whale';
     const isBird = speciesKey === 'bird';
-    const ears = isWhale
-      ? `<path d="M108 58c-2-12 2-20 9-25 3 10 5 18 5 25Z" fill="${p.ear}" opacity=".9"/><path d="M152 58c2-12-2-20-9-25-3 10-5 18-5 25Z" fill="${p.ear}" opacity=".9"/>`
-      : isBird
-        ? `<path d="M96 66c-7-10-9-18-6-25 9 4 15 10 18 19Z" fill="${p.ear}"/><path d="M164 66c7-10 9-18 6-25-9 4-15 10-18 19Z" fill="${p.ear}"/>`
-        : isFox
-          ? `<path d="M92 66 86 34l27 15Z" fill="${p.ear}"/><path d="M168 66l6-32-27 15Z" fill="${p.ear}"/>` +
-            `<path d="M95 60 92 43l14 9Z" fill="#e8b39a" opacity=".75"/><path d="M165 60l3-17-14 9Z" fill="#e8b39a" opacity=".75"/>`
-          : `<circle cx="100" cy="56" r="11" fill="${p.ear}"/><circle cx="160" cy="56" r="11" fill="${p.ear}"/>` +
-            `<circle cx="100" cy="56" r="5" fill="#e8b39a" opacity=".8"/><circle cx="160" cy="56" r="5" fill="#e8b39a" opacity=".8"/>`;
-    const tail = isFox
-      ? `<path class="pet-tail" d="M80 150c-30 10-54-2-60-24 20 5 33 30 58 5 8-8 12-5 14 1Z" fill="${p.ear}"/><path d="M26 128c12 8 20 14 29 14" stroke="#fff4e4" stroke-width="4" stroke-linecap="round" opacity=".8"/>`
-      : isWhale
-        ? `<path class="pet-tail" d="M74 148c-18 2-32 12-38 26 14-2 26-8 36-18Z" fill="${p.ear}"/><path d="M188 148c18 2 32 12 38 26-14-2-26-8-36-18Z" fill="${p.ear}"/>`
-        : isBird
-          ? `<path class="pet-tail" d="M112 168c-12 12-17 22-16 30 10-2 18-8 24-18Zm36 0c12 12 17 22 16 30-10-2-18-8-24-18Z" fill="${p.ear}"/>`
-          : `<path class="pet-tail" d="M78 150c-22 5-41-3-52-19 17 6 33 6 47 2Z" fill="${p.ear}"/>`;
-    const face = isBird
-      ? `<path d="M124 96h12l-6 10Z" fill="#e2a24e"/>`
-      : `<path d="M126 95h8l-4 4Z" fill="#3c5b5e"/>` +
-        `<path d="M130 99v3m0 0c-2.5 2.5-6 2.5-8 0m8 0c2.5 2.5 6 2.5 8 0" fill="none" stroke="#3c5b5e" stroke-width="1.4" stroke-linecap="round"/>`;
-    const whiskers = isWhale || isBird
-      ? ''
-      : `<path d="M108 96 94 94m14 7-14 4m58-9 14-2m-14 7 14 4" stroke="#5b7d7c" stroke-width="1" stroke-linecap="round" opacity=".65"/>`;
-    const speciesExtras = isWhale
-      ? `<g class="pet-spout"><path d="M130 48c-2-12 3-20 8-25m-8 25c-3-9-8-13-14-15" fill="none" stroke="#8fd3cf" stroke-width="2.4" stroke-linecap="round" opacity=".75"/></g>` +
-        `<ellipse cx="94" cy="145" rx="17" ry="8" fill="${p.ear}" transform="rotate(-24 94 145)"/><ellipse cx="166" cy="145" rx="17" ry="8" fill="${p.ear}" transform="rotate(24 166 145)"/>`
-      : isBird
-        ? `<path d="M92 136c-18-8-28-20-30-36 13 2 24 10 33 23Z" fill="${p.ear}"/><path d="M168 136c18-8 28-20 30-36-13 2-24 10-33 23Z" fill="${p.ear}"/>`
-        : '';
+    const isBaize = speciesKey === 'baize';
+    const isQilin = speciesKey === 'qilin';
+    const isZhulong = speciesKey === 'zhulong';
+    const isMythic = isBaize || isQilin || isZhulong;
+    const eye = (x, y, rx, ry) =>
+      `<ellipse class="pet-eye" cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="#213f46"/>` +
+      `<circle cx="${x + 1.3}" cy="${y - 1.9}" r="1.4" fill="#fff" opacity=".92"/>` +
+      `<ellipse cx="${x}" cy="${y + ry * 0.55}" rx="${rx * 0.55}" ry="${ry * 0.35}" fill="${p.accent}" opacity=".22"/>`;
+    const shadow = `<ellipse cx="130" cy="190" rx="62" ry="10" fill="#17343b" opacity=".16" filter="url(#${gid('blur')})"/>`;
+    const bubbles = `<g class="pet-bubbles"><circle class="pet-bubble b1" cx="52" cy="98" r="3.4" fill="${p.accent}" opacity=".45"/><circle class="pet-bubble b2" cx="196" cy="74" r="4.4" fill="${p.accent}" opacity=".36"/><circle class="pet-bubble b3" cx="208" cy="124" r="2.6" fill="${p.accent}" opacity=".4"/></g>`;
+    const water = `<g class="pet-water"><ellipse cx="130" cy="184" rx="94" ry="12" fill="${p.accent}" opacity=".1"/><path d="M36 184c15-6 30-6 45 0s30 6 45 0 30-6 45 0 30 6 45 0" fill="none" stroke="${p.accent}" stroke-opacity=".32" stroke-width="1.8" stroke-linecap="round"/></g>`;
     const fusionAura = fused
-      ? `<g class="pet-fusion-aura"><circle cx="130" cy="112" r="104" fill="none" stroke="#f0c987" stroke-opacity=".35" stroke-width="3" stroke-dasharray="4 8"/><circle cx="130" cy="112" r="88" fill="none" stroke="#8ed9c9" stroke-opacity=".3" stroke-width="5"/></g>`
+      ? `<g class="pet-fusion-aura"><circle cx="130" cy="112" r="104" fill="none" stroke="#f0c987" stroke-opacity=".38" stroke-width="3" stroke-dasharray="4 8"/><circle cx="130" cy="112" r="88" fill="none" stroke="#8ed9c9" stroke-opacity=".32" stroke-width="5"/></g>`
       : '';
-    return `<svg class="pet-svg pet-stage-${s}${fused ? ' is-fused' : ''}" viewBox="0 0 260 210" role="img" aria-label="${fused ? '融合精灵' : species.name} · ${p.name}">` +
-      fusionAura + aura +
-      `<g class="pet-water"><ellipse cx="130" cy="184" rx="94" ry="12" fill="#7fd0c7" opacity=".16"/><path d="M36 184c15-6 30-6 45 0s30 6 45 0 30-6 45 0 30 6 45 0" fill="none" stroke="#4fa8b3" stroke-opacity=".3" stroke-width="1.8" stroke-linecap="round"/></g>` +
-      `<g class="pet-bubbles"><circle class="pet-bubble b1" cx="54" cy="100" r="3.4" fill="#8fd3cf" opacity=".55"/><circle class="pet-bubble b2" cx="194" cy="76" r="4.4" fill="#8fd3cf" opacity=".45"/><circle class="pet-bubble b3" cx="206" cy="124" r="2.6" fill="#8fd3cf" opacity=".5"/></g>` +
-      `<g class="pet-body-group">` +
+    let art = '';
+
+    if (isBaize) {
+      const mane = Array.from({ length: 13 }, (_, i) => {
+        const angle = Math.PI * 0.92 + (i / 12) * Math.PI * 1.16;
+        const x = 130 + Math.cos(angle) * 44;
+        const y = 86 + Math.sin(angle) * 41;
+        const r = 13 + (i % 3) * 2;
+        return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="url(#${gid('head')})" opacity=".96"/>`;
+      }).join('');
+      art = `<g class="pet-body-group">` +
+        `<path class="pet-tail" d="M84 148c-26 8-44-2-48-24 15 7 27 10 40 5 7-3 11 2 10 8Z" fill="url(#${gid('body')})"/>` +
+        `<circle cx="34" cy="124" r="11" fill="${earLight}"/><circle cx="44" cy="138" r="11" fill="${p.body}"/>` +
+        mane +
+        `<ellipse cx="130" cy="146" rx="54" ry="36" fill="url(#${gid('body')})"/>` +
+        `<ellipse cx="130" cy="152" rx="37" ry="24" fill="url(#${gid('belly')})"/>` +
+        `<path d="M101 168l-2 16m60-16 2 16" stroke="${p.ear}" stroke-width="9" stroke-linecap="round"/>` +
+        `<ellipse cx="98" cy="185" rx="9" ry="4.4" fill="${p.accent}"/><ellipse cx="162" cy="185" rx="9" ry="4.4" fill="${p.accent}"/>` +
+        `<circle cx="130" cy="86" r="38" fill="url(#${gid('head')})"/>` +
+        `<path d="M99 66c-7-4-12-1-14 5 5 1 9 3 12 7Z" fill="${p.ear}"/><path d="M161 66c7-4 12-1 14 5-5 1-9 3-12 7Z" fill="${p.ear}"/>` +
+        `<path d="M126 53c-4-17 2-28 14-35-5 14-2 23 4 30Z" fill="url(#${gid('accent')})" stroke="${accentDark}" stroke-width="1"/>` +
+        `<ellipse cx="130" cy="66" rx="5.6" ry="8.2" fill="url(#${gid('accent')})"/><ellipse cx="130" cy="66" rx="1.8" ry="5" fill="#203f45"/>` +
+        eye(114, 86, 4.8, 5.8) + eye(146, 86, 4.8, 5.8) +
+        `<ellipse cx="130" cy="104" rx="19" ry="13" fill="url(#${gid('belly')})"/>` +
+        `<path d="M125 100h10l-5 4Z" fill="${p.ear}"/><path d="M130 104v2m0 0c-2.4 2.2-5.5 2.2-7.5 0m7.5 0c2.4 2.2 5.5 2.2 7.5 0" fill="none" stroke="#4b6668" stroke-width="1.3" stroke-linecap="round"/>` +
+        `<path d="M110 98 96 95m14 8-14 4m58-11 14-3m-14 8 14 4" stroke="#7d8b85" stroke-width="1" stroke-linecap="round" opacity=".6"/>` +
+        `<path d="M104 139c8-5 16-6 24-2m24 2c-8-5-16-6-24-2" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".5"/>` +
+        (s >= 3 ? `<circle cx="86" cy="104" r="2.3" fill="${p.accent}"/><circle cx="174" cy="104" r="2.3" fill="${p.accent}"/>` : '') +
+        (isMythic ? '' : scarf) + leaf + crown +
+      `</g>`;
+    } else if (isQilin) {
+      const scales = Array.from({ length: 3 }, (_, row) =>
+        Array.from({ length: 4 }, (_, col) =>
+          `<path d="M${101 + col * 15} ${139 + row * 9}c5 5 10 5 14 0" fill="none" stroke="${accentDark}" stroke-width="1" opacity=".33"/>`
+        ).join('')
+      ).join('');
+      art = `<g class="pet-body-group">` +
+        `<path class="pet-tail" d="M84 148C52 152 36 132 40 108c12 15 26 22 42 22 5 0 7 8 2 18Z" fill="url(#${gid('accent')})" opacity=".92"/>` +
+        `<path d="M44 112c-4-12 2-20 10-25-1 10 2 17 7 23Z" fill="${accentLight}"/>` +
+        `<ellipse cx="130" cy="146" rx="54" ry="35" fill="url(#${gid('body')})"/>` +
+        `<ellipse cx="130" cy="152" rx="36" ry="23" fill="url(#${gid('belly')})"/>` +
+        scales +
+        `<path d="M104 166v18m52-18v18" stroke="${p.ear}" stroke-width="9" stroke-linecap="round"/>` +
+        `<path d="M96 181h15m38 0h15" stroke="${p.accent}" stroke-width="5" stroke-linecap="round"/>` +
+        `<path d="M96 108c-10-14-11-28-6-42 10 9 16 20 18 33Zm68 0c10-14 11-28 6-42-10 9-16 20-18 33Z" fill="url(#${gid('accent')})" opacity=".9"/>` +
+        `<circle cx="130" cy="84" r="36" fill="url(#${gid('head')})"/>` +
+        `<path d="M112 56c-5-15-2-27 6-36 2 12 6 20 12 25m20 11c5-15 2-27-6-36-2 12-6 20-12 25" fill="none" stroke="url(#${gid('accent')})" stroke-width="5" stroke-linecap="round"/>` +
+        `<path d="M118 43l-8-10m9 2-6-9m37 17 8-10m-9 2 6-9" stroke="${accentLight}" stroke-width="3" stroke-linecap="round"/>` +
+        `<path d="M127 52c-2-10 1-17 7-22-1 9 1 15 5 19Z" fill="url(#${gid('accent')})"/>` +
+        eye(115, 80, 4.6, 5.6) + eye(145, 80, 4.6, 5.6) +
+        `<path d="M112 98c8 7 28 7 36 0 1 10-7 16-18 16s-19-6-18-16Z" fill="url(#${gid('belly')})"/>` +
+        `<circle cx="121" cy="102" r="1.8" fill="${p.ear}"/><circle cx="139" cy="102" r="1.8" fill="${p.ear}"/>` +
+        `<path d="M130 104v3m0 0c-2.5 2.4-5.8 2.4-8 0m8 0c2.5 2.4 5.8 2.4 8 0" fill="none" stroke="#4b6668" stroke-width="1.3" stroke-linecap="round"/>` +
+        `<path d="M110 92c-10 4-19 4-27 1m27 5c-9 5-17 7-24 6m61-12c10 4 19 4 27 1m-27 5c9 5 17 7 24 6" stroke="#6f8b79" stroke-width="1" stroke-linecap="round" opacity=".55"/>` +
+        (s >= 3 ? `<circle cx="130" cy="34" r="5" fill="none" stroke="${p.accent}" stroke-width="1.6" opacity=".7"/><circle cx="130" cy="34" r="1.8" fill="${p.accent}"/>` : '') +
+        leaf + crown +
+      `</g>`;
+    } else if (isZhulong) {
+      art = `<g class="pet-body-group">` +
+        `<path class="pet-tail" d="M92 158C62 176 26 162 24 132c-2-22-12-32-18-28 20-3 34 9 34 30 0 14 16 20 38 8Z" fill="url(#${gid('body')})" stroke="${p.ear}" stroke-width="2"/>` +
+        `<path d="M6 104c8-2 14 2 18 10-8 1-15-2-18-10Z" fill="url(#${gid('accent')})"/>` +
+        `<path d="M58 136l-10-8 12-2m-6 24-10-6 10-6" fill="${p.accent}" opacity=".85"/>` +
+        `<ellipse cx="130" cy="148" rx="52" ry="34" fill="url(#${gid('body')})"/>` +
+        `<ellipse cx="130" cy="154" rx="35" ry="22" fill="url(#${gid('belly')})"/>` +
+        `<path d="M104 168l-12 12m46-12 12 12" stroke="${p.ear}" stroke-width="8" stroke-linecap="round"/>` +
+        `<ellipse cx="90" cy="183" rx="7" ry="4" fill="${p.accent}"/><ellipse cx="170" cy="183" rx="7" ry="4" fill="${p.accent}"/>` +
+        `<circle cx="130" cy="84" r="37" fill="url(#${gid('head')})"/>` +
+        `<path d="M116 54c-8-12-18-19-30-21 7 9 10 17 10 25m34-4c8-12 18-19 30-21-7 9-10 17-10 25" fill="none" stroke="url(#${gid('accent')})" stroke-width="4.6" stroke-linecap="round"/>` +
+        `<path d="M108 94c10 10 34 10 44 0 0 12-9 20-22 20s-22-8-22-20Z" fill="url(#${gid('belly')})"/>` +
+        `<circle cx="121" cy="99" r="1.9" fill="${p.ear}"/><circle cx="139" cy="99" r="1.9" fill="${p.ear}"/>` +
+        eye(115, 80, 4.8, 5.9) + eye(145, 80, 4.8, 5.9) +
+        `<path d="M106 92c-12 2-20 8-24 16m24-10c-11 3-18 9-21 16m76-22c12 2 20 8 24 16m-24-10c11 3 18 9 21 16" fill="none" stroke="${p.accent}" stroke-width="1.4" stroke-linecap="round" opacity=".75"/>` +
+        `<path d="M108 70c-4-8-2-14 4-19 1 7 4 12 8 14m32 5c4-8 2-14-4-19-1 7-4 12-8 14" fill="${p.accent}" opacity=".55"/>` +
+        (s >= 2
+          ? `<g class="pet-orb"><circle cx="182" cy="52" r="17" fill="url(#${gid('glow')})"/><circle cx="182" cy="52" r="6.4" fill="url(#${gid('accent')})"/><circle cx="180" cy="50" r="2" fill="#fff" opacity=".8"/></g>`
+          : '') +
+        `<path d="M96 142c7-5 15-5 22 0m24 0c7-5 15-5 22 0" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".35"/>` +
+        crown +
+      `</g>`;
+    } else {
+      const ears = isWhale
+        ? `<path d="M108 58c-2-12 2-20 9-25 3 10 5 18 5 25Z" fill="${p.ear}" opacity=".9"/><path d="M152 58c2-12-2-20-9-25-3 10-5 18-5 25Z" fill="${p.ear}" opacity=".9"/>`
+        : isBird
+          ? `<path d="M96 66c-7-10-9-18-6-25 9 4 15 10 18 19Z" fill="${p.ear}"/><path d="M164 66c7-10 9-18 6-25-9 4-15 10-18 19Z" fill="${p.ear}"/>`
+          : isFox
+            ? `<path d="M92 66 86 34l27 15Z" fill="url(#${gid('head')})"/><path d="M168 66l6-32-27 15Z" fill="url(#${gid('head')})"/>` +
+              `<path d="M95 60 92 43l14 9Z" fill="#e8b39a" opacity=".7"/><path d="M165 60l3-17-14 9Z" fill="#e8b39a" opacity=".7"/>`
+            : `<circle cx="100" cy="56" r="11" fill="${p.ear}"/><circle cx="160" cy="56" r="11" fill="${p.ear}"/>` +
+              `<circle cx="100" cy="56" r="5" fill="#e8b39a" opacity=".8"/><circle cx="160" cy="56" r="5" fill="#e8b39a" opacity=".8"/>`;
+      const tail = isFox
+        ? `<path class="pet-tail" d="M80 150c-30 10-54-2-60-24 20 5 33 30 58 5 8-8 12-5 14 1Z" fill="${p.ear}"/><path d="M26 128c12 8 20 14 29 14" stroke="#fff4e4" stroke-width="4" stroke-linecap="round" opacity=".8"/>`
+        : isWhale
+          ? `<path class="pet-tail" d="M74 148c-18 2-32 12-38 26 14-2 26-8 36-18Z" fill="${p.ear}"/><path d="M188 148c18 2 32 12 38 26-14-2-26-8-36-18Z" fill="${p.ear}"/>`
+          : isBird
+            ? `<path class="pet-tail" d="M112 168c-12 12-17 22-16 30 10-2 18-8 24-18Zm36 0c12 12 17 22 16 30-10-2-18-8-24-18Z" fill="${p.ear}"/>`
+            : `<path class="pet-tail" d="M78 150c-22 5-41-3-52-19 17 6 33 6 47 2Z" fill="${p.ear}"/>`;
+      const face = isBird
+        ? `<path d="M124 96h12l-6 10Z" fill="url(#${gid('accent')})"/>`
+        : `<path d="M126 95h8l-4 4Z" fill="#3c5b5e"/>` +
+          `<path d="M130 99v3m0 0c-2.5 2.5-6 2.5-8 0m8 0c2.5 2.5 6 2.5 8 0" fill="none" stroke="#3c5b5e" stroke-width="1.4" stroke-linecap="round"/>`;
+      const whiskers = isWhale || isBird
+        ? ''
+        : `<path d="M108 96 94 94m14 7-14 4m58-9 14-2m-14 7 14 4" stroke="#5b7d7c" stroke-width="1" stroke-linecap="round" opacity=".65"/>`;
+      const speciesExtras = isWhale
+        ? `<g class="pet-spout"><path d="M130 48c-2-12 3-20 8-25m-8 25c-3-9-8-13-14-15" fill="none" stroke="${p.accent}" stroke-width="2.4" stroke-linecap="round" opacity=".8"/></g>` +
+          `<ellipse cx="94" cy="145" rx="17" ry="8" fill="${p.ear}" transform="rotate(-24 94 145)"/><ellipse cx="166" cy="145" rx="17" ry="8" fill="${p.ear}" transform="rotate(24 166 145)"/>`
+        : isBird
+          ? `<path d="M92 136c-18-8-28-20-30-36 13 2 24 10 33 23Z" fill="${p.ear}"/><path d="M168 136c18-8 28-20 30-36-13 2-24 10-33 23Z" fill="${p.ear}"/>`
+          : '';
+      art = `<g class="pet-body-group">` +
         tail +
-        `<ellipse cx="130" cy="140" rx="60" ry="38" fill="${p.body}"/>` +
-        `<ellipse cx="130" cy="146" rx="42" ry="27" fill="${p.belly}"/>` +
+        `<ellipse cx="130" cy="140" rx="60" ry="38" fill="url(#${gid('body')})"/>` +
+        `<ellipse cx="130" cy="146" rx="42" ry="27" fill="url(#${gid('belly')})"/>` +
         ears +
-        `<circle cx="130" cy="88" r="40" fill="${p.body}"/>` +
-        `<ellipse cx="130" cy="101" rx="23" ry="17" fill="${p.belly}"/>` +
+        `<circle cx="130" cy="88" r="40" fill="url(#${gid('head')})"/>` +
+        `<ellipse cx="130" cy="101" rx="23" ry="17" fill="url(#${gid('belly')})"/>` +
         blush +
-        `<ellipse class="pet-eye left" cx="116" cy="85" rx="4.4" ry="5.4" fill="#23484f"/>` +
-        `<ellipse class="pet-eye right" cx="144" cy="85" rx="4.4" ry="5.4" fill="#23484f"/>` +
-        `<circle cx="117.5" cy="83" r="1.5" fill="#fff" opacity=".9"/><circle cx="145.5" cy="83" r="1.5" fill="#fff" opacity=".9"/>` +
+        eye(116, 85, 4.4, 5.4) + eye(144, 85, 4.4, 5.4) +
         face + whiskers +
         `<ellipse cx="106" cy="140" rx="10" ry="7.4" fill="${p.ear}" transform="rotate(-14 106 140)"/>` +
         `<ellipse cx="154" cy="140" rx="10" ry="7.4" fill="${p.ear}" transform="rotate(14 154 140)"/>` +
-        `<path d="M130 124c-11 0-19 7-19 14 0 6 9 10 19 10s19-4 19-10c0-7-8-14-19-14Z" fill="${p.accent}"/>` +
+        `<path d="M130 124c-11 0-19 7-19 14 0 6 9 10 19 10s19-4 19-10c0-7-8-14-19-14Z" fill="url(#${gid('accent')})"/>` +
         `<path d="M130 126v20m0-20-8 7m8-7 8 7m-8-7-4 9m4-9 4 9" fill="none" stroke="#b98345" stroke-width="1" opacity=".65"/>` +
+        `<ellipse cx="111" cy="72" rx="13" ry="7" fill="#fff" opacity=".18" transform="rotate(-28 111 72)"/>` +
         speciesExtras + leaf + scarf + crown +
-      `</g>` +
+      `</g>`;
+    }
+
+    return `<svg class="pet-svg pet-stage-${s}${fused ? ' is-fused' : ''}" viewBox="0 0 260 210" role="img" aria-label="${fused ? '融合精灵' : species.name} · ${p.name}">` +
+      defs + fusionAura + aura + water + bubbles + shadow + art +
     `</svg>`;
   }
 
@@ -734,6 +951,85 @@
     }
     save();
     return evolved;
+  }
+
+  function ensurePetUnlocks(p) {
+    if (!p) return [];
+    p.unlockedPets = p.unlockedPets && typeof p.unlockedPets === 'object' ? p.unlockedPets : {};
+    const fresh = [];
+    Object.keys(PET_SPECIES).forEach((id) => {
+      if (!PET_SPECIES[id].unlock) return;
+      const state = petUnlockState(p, id);
+      if (state.unlocked && !p.unlockedPets[id]) {
+        p.unlockedPets[id] = S.nowIso();
+        fresh.push(id);
+      }
+    });
+    if (fresh.length) save();
+    return fresh;
+  }
+
+  function targetLabel(p, id) {
+    if (id === 'fusion') return (p.fusion && p.fusion.name) || '融合精灵';
+    return petSpeciesInfo(id).name;
+  }
+
+  function renderPetPool(p) {
+    const box = $('#pet-pool');
+    if (!box) return;
+    const pool = petPoolOf(p);
+    const available = Math.max(0, pool.earned - pool.spent);
+    const fill = $('#pet-pool-fill');
+    if (fill) fill.style.width = `${pool.earned ? Math.round((available / pool.earned) * 100) : 0}%`;
+    const text = $('#pet-pool-text');
+    if (text) text.textContent = `可用 ${available} · 累计获得 ${pool.earned}`;
+    const select = $('#pet-pool-target');
+    if (select) {
+      const previous = select.value;
+      const options = Object.keys(PET_SPECIES)
+        .filter((id) => petUnlockState(p, id).unlocked)
+        .map((id) => `<option value="${id}">${S.escapeHtml(petSpeciesInfo(id).name)} · ${S.escapeHtml(petStageOf(ensurePet(p, id).xp, id).name)}</option>`);
+      if (p.fusion) options.push(`<option value="fusion">${S.escapeHtml((p.fusion && p.fusion.name) || '融合精灵')} · 终极形态</option>`);
+      select.innerHTML = options.join('');
+      /* 切换神兽后，分配目标默认跟着当前出战神兽走；只有它不在可选列表时才保留旧选择。 */
+      const wanted = [activePetId(p), previous].find((id) => id && Array.from(select.options).some((option) => option.value === id));
+      if (wanted) select.value = wanted;
+    }
+    const amount = $('#pet-pool-amount');
+    if (amount) {
+      amount.max = String(available);
+      if (document.activeElement !== amount) amount.value = String(Math.min(50, available) || 0);
+      amount.disabled = available <= 0;
+    }
+    const button = $('#pet-pool-allocate');
+    if (button) button.disabled = available <= 0;
+    const hint = $('#pet-pool-hint');
+    if (hint) {
+      hint.textContent = available > 0
+        ? `把经验分给指定神兽，1 点经验池 = 1 点成长值。`
+        : `学习获得 EXP 的 60% 会进入经验池，继续做任务就能攒到。`;
+    }
+  }
+
+  function allocatePetPool() {
+    const p = profile();
+    if (!p) return;
+    const target = $('#pet-pool-target') ? $('#pet-pool-target').value : '';
+    const raw = $('#pet-pool-amount') ? Number($('#pet-pool-amount').value) : 0;
+    const amount = Math.floor(raw);
+    if (target !== 'fusion' && !PET_SPECIES[target]) { S.toast('先选择一只神兽。', 'error'); return; }
+    if (target !== 'fusion' && !petUnlockState(p, target).unlocked) { S.toast('这只神兽还没解锁。', 'error'); return; }
+    if (!Number.isFinite(amount) || amount <= 0) { S.toast('输入要分配的经验数量。', 'error'); return; }
+    const available = poolAvailable(p);
+    if (amount > available) { S.toast(`经验池只有 ${available} 点可用。`, 'error'); return; }
+    const pool = petPoolOf(p);
+    pool.spent += amount;
+    pool.log.unshift({ at: S.nowIso(), type: 'spend', amount, target, name: targetLabel(p, target) });
+    pool.log = pool.log.slice(0, 30);
+    addPetXp(amount, target);
+    save();
+    renderPet();
+    S.toast(`已把 ${amount} 点经验分给「${targetLabel(p, target)}」，成长 +${amount}。`, 'ok', 5000);
   }
 
   function petMotionOn() {
@@ -787,6 +1083,12 @@
     const p = profile();
     const scene = $('#pet-scene');
     if (!p || !scene) return;
+    const unlockedNow = ensurePetUnlocks(p);
+    if (unlockedNow.length) {
+      S.toast(`新神兽解锁：${unlockedNow.map((id) => petSpeciesInfo(id).name).join('、')}！去图鉴里切换看看吧。`, 'ok', 7000);
+    }
+    const activeId = activePetId(p);
+    if (activeId !== 'fusion' && !petUnlockState(p, activeId).unlocked) p.activePet = 'otter';
     scene.classList.toggle('is-motion', petMotionOn());
     const motionButton = $('#pet-motion-btn');
     if (motionButton) {
@@ -824,6 +1126,7 @@
       `<span><b>${p.checkins.length}</b>打卡天数</span>` +
       `<span><b>${pet.fed}</b>喂食次数</span>`;
 
+    renderPetPool(p);
     renderPetRoster(p);
     renderWheelEntry(p);
 
@@ -842,8 +1145,16 @@
     const active = activePetId(p);
     const cards = Object.keys(PET_SPECIES).map((id) => {
       const species = PET_SPECIES[id];
+      const lock = petUnlockState(p, id);
       const pet = ensurePet(p, id);
       const info = petStageOf(pet.xp, id);
+      if (!lock.unlocked) {
+        return `<button class="pet-chip is-locked" type="button" data-pet-switch="${id}" title="${S.escapeHtml(lock.text)}">` +
+          `<span class="pet-chip-art">${petSVG(1, id)}</span>` +
+          `<span><b>🔒 ${species.name}</b><small>${S.escapeHtml(lock.text)} · ${lock.have}/${lock.need} ${lock.unit}</small></span>` +
+          `<span class="pet-lock-progress"><i style="width:${Math.round(lock.progress * 100)}%"></i></span>` +
+        `</button>`;
+      }
       return `<button class="pet-chip ${active === id ? 'is-active' : ''}" type="button" data-pet-switch="${id}" title="切换为 ${species.name}">` +
         `<span class="pet-chip-art">${petSVG(info.stage, id)}</span>` +
         `<span><b>${species.name}</b><small>${info.name} · ${pet.xp}</small></span>` +
@@ -1099,10 +1410,10 @@
     if (!task.planId || task.status === 'done' || task.extraUnlocked) return false;
     const day = Number(task.planDay) || 1;
     if (day <= 1) return false;
-    const siblings = planSiblings(task).filter((item) => Number(item.planDay) < day);
-    if (!siblings.length) return false;
-    const previous = siblings[siblings.length - 1];
-    return previous.status !== 'done';
+    const previous = planSiblings(task).filter((item) => Number(item.planDay) < day);
+    if (!previous.length) return false;
+    /* 同一天可能有单词和语法两栏，前一天的所有任务都完成才解锁下一天。 */
+    return previous.some((item) => item.status !== 'done');
   }
 
   function unlockPlanDay(task) {
@@ -1119,22 +1430,58 @@
   function planChips(task) {
     if (!task.planId) return '';
     const siblings = planSiblings(task);
-    return `<div class="plan-mini">${siblings.map((item) => {
-      const current = item.id === task.id;
-      const state = item.status === 'done' ? 'done' : taskLocked(item) ? 'locked' : 'open';
-      return `<span class="plan-mini-day ${state}${current ? ' current' : ''}" title="${S.escapeHtml(item.title || '')}">D${item.planDay}</span>`;
+    const byDay = new Map();
+    siblings.forEach((item) => {
+      const day = Number(item.planDay) || 1;
+      if (!byDay.has(day)) byDay.set(day, []);
+      byDay.get(day).push(item);
+    });
+    return `<div class="plan-mini">${Array.from(byDay.entries()).map(([day, items]) => {
+      const current = items.some((item) => item.id === task.id);
+      const done = items.every((item) => item.status === 'done');
+      const locked = !done && items.some((item) => taskLocked(item));
+      const titles = items.map((item) => item.title || '').filter(Boolean).join(' / ');
+      return `<span class="plan-mini-day ${done ? 'done' : locked ? 'locked' : 'open'}${current ? ' current' : ''}" title="${S.escapeHtml(titles)}">D${day}${items.length > 1 ? ` ·${items.length}` : ''}</span>`;
     }).join('')}</div>`;
   }
 
+  function bookPlanSummary(task) {
+    if (!task || !task.planId) return '';
+    const siblings = planSiblings(task);
+    if (!siblings.some((item) => item.assignmentId)) return '';
+    const done = siblings.filter((item) => item.status === 'done').length;
+    const total = siblings.length;
+    const percent = total ? Math.round((done / total) * 100) : 0;
+    const scores = siblings.filter((item) => item.status === 'done' && Number.isFinite(Number(item.score))).map((item) => Number(item.score));
+    const avg = scores.length ? Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length) : null;
+    let stars = 1;
+    if (percent >= 95 && (avg == null || avg >= 90)) stars = 5;
+    else if (percent >= 85 && (avg == null || avg >= 80)) stars = 4;
+    else if (percent >= 65) stars = 3;
+    else if (percent >= 35) stars = 2;
+    return `<div class="book-plan-summary">` +
+      `<span class="book-plan-stars">${'★'.repeat(stars)}${'☆'.repeat(5 - stars)}</span>` +
+      `<span>本周任务完成 <b>${done} / ${total}</b></span>` +
+      `<span>完成度 <b>${percent}%</b></span>` +
+      (avg == null ? '' : `<span>平均正确率 <b>${avg}%</b></span>`) +
+    `</div>`;
+  }
+
   function renderTasks() {
+    renderReportStatus();
     if (!data.tasks.length) {
       $('#task-list').innerHTML = `<div class="empty-state"><strong>还没有任务</strong>把老师发来的任务码粘贴进来，就能开始第一次试炼。</div>`;
       return;
     }
     const tasks = data.tasks.slice().sort((a, b) => {
-      if (a.mode === 'words' && b.mode !== 'words') return -1;
-      if (b.mode === 'words' && a.mode !== 'words') return 1;
-      if (a.planId && a.planId === b.planId) return Number(a.planDay) - Number(b.planDay);
+      if (a.planId && a.planId === b.planId) {
+        const dayDiff = Number(a.planDay) - Number(b.planDay);
+        if (dayDiff) return dayDiff;
+        if (a.mode === 'words' && b.mode !== 'words') return -1;
+        if (b.mode === 'words' && a.mode !== 'words') return 1;
+      }
+      if (a.mode === 'words' && b.mode !== 'words' && !a.planId && !b.planId) return -1;
+      if (b.mode === 'words' && a.mode !== 'words' && !a.planId && !b.planId) return 1;
       if (a.status === b.status) {
         return String(b.submittedAt || b.createdAt || '').localeCompare(String(a.submittedAt || a.createdAt || ''));
       }
@@ -1142,7 +1489,13 @@
     });
     const today = S.todayIso();
     const firstLocked = tasks.find((task) => taskLocked(task));
-    $('#task-list').innerHTML = tasks.map((task) => {
+    const bookSeen = new Set();
+    const bookSummaries = tasks.filter((task) => {
+      if (!task.assignmentId || !task.planId || bookSeen.has(task.planId)) return false;
+      bookSeen.add(task.planId);
+      return true;
+    }).map(bookPlanSummary).join('');
+    $('#task-list').innerHTML = bookSummaries + tasks.map((task) => {
       const done = task.status === 'done';
       const locked = taskLocked(task);
       const overdue = !done && !locked && task.due && task.due < today;
@@ -1257,8 +1610,16 @@
 
   function addXp(amount) {
     const p = profile();
+    const gain = Math.max(0, Number(amount) || 0);
     const before = S.levelInfo(p.xp);
-    p.xp = Math.max(0, Number(p.xp) + Number(amount || 0));
+    p.xp = Math.max(0, Number(p.xp) + gain);
+    if (gain > 0) {
+      const pool = petPoolOf(p);
+      const poolGain = Math.max(1, Math.round(gain * 0.6));
+      pool.earned += poolGain;
+      pool.log.unshift({ at: S.nowIso(), type: 'earn', amount: poolGain, note: `学习获得 ${gain} EXP` });
+      pool.log = pool.log.slice(0, 30);
+    }
     const after = S.levelInfo(p.xp);
     if (after.level > before.level) showLevelUp(after);
     return after;
@@ -1388,6 +1749,7 @@
     if (!task) return;
     if (task.status !== 'done' && !requireTrial()) return;
     activeTaskId = id;
+    lastAutoSpeakKey = '';
     taskStartedAt = Date.now();
     startBehaviorSession(task);
     S.openDialog($('#task-dialog'));
@@ -1820,6 +2182,77 @@
     return seededShuffle([word.w].concat(distractors), hashString(`${word.w}|review-options`));
   }
 
+  function contextOptionsFor(task, word, index) {
+    const others = (task.words || []).map((item) => item.w).filter((w) => w && w !== word.w);
+    const pool = Array.from(new Set(others.concat(WORD_FALLBACK_EN))).filter((w) => w !== word.w);
+    const distractors = seededShuffle(pool, hashString(`${word.w}|${index}|context`)).slice(0, 3);
+    return seededShuffle([word.w].concat(distractors), hashString(`${word.w}|${index}|context-options`));
+  }
+
+  function contextSentenceFor(word) {
+    const sentence = String(word && word.ex || '').trim();
+    const target = String(word && word.w || '').trim();
+    if (!sentence || !target) return '';
+    const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`\\b${escaped}\\b`, 'i');
+    if (!pattern.test(sentence)) return '';
+    return sentence.replace(pattern, '______');
+  }
+
+  function wordQuestionKind(task, word, index) {
+    if (!contextSentenceFor(word)) return 'meaning';
+    /* 语境推词占四成左右；但按单词逐个抽签时，4 个词的小任务可能一个都抽不到。
+       这里先按任务整体算出“至少 1 个、约 40%”的语境题名额，再用稳定哈希挑题，
+       保证学生每次都能遇到语境题，同时顺序不会每次都变。 */
+    const words = task.words || [];
+    const eligible = words
+      .map((item, i) => ({ item, i }))
+      .filter((entry) => contextSentenceFor(entry.item));
+    if (!eligible.length) return 'meaning';
+    const quota = Math.max(1, Math.round(words.length * 0.4));
+    const chosen = eligible
+      .slice()
+      .sort((a, b) => (
+        hashString(`${task.id || ''}|${a.i}|${a.item.w}|context-pick`) -
+        hashString(`${task.id || ''}|${b.i}|${b.item.w}|context-pick`)
+      ))
+      .slice(0, quota)
+      .map((entry) => entry.i);
+    return chosen.includes(index) ? 'context' : 'meaning';
+  }
+
+  const AUTO_SPEAK_KEY = 'shunshi.word.autospeak.v1';
+  let lastAutoSpeakKey = '';
+
+  function autoSpeakEnabled() {
+    try {
+      return localStorage.getItem(AUTO_SPEAK_KEY) !== 'off';
+    } catch (error) {
+      return true;
+    }
+  }
+
+  function setAutoSpeak(on) {
+    try {
+      localStorage.setItem(AUTO_SPEAK_KEY, on ? 'on' : 'off');
+    } catch (error) { /* ignore */ }
+    S.toast(on ? '每出现一个新词，会先自动读一遍。' : '已关闭自动读音，需要时点“听读音”。', 'ok', 2600);
+  }
+
+  function autoSpeakQuestion(task, run, context, text) {
+    if (!autoSpeakEnabled() || !text) return;
+    const key = `${task.id}|${run.phase}|${context.isReview ? 'r' : 'm'}|${context.index}|${context.kind}`;
+    if (key === lastAutoSpeakKey) return;
+    lastAutoSpeakKey = key;
+    const label = context.kind === 'context'
+      ? $('#runner-body .word-context-sentence')
+      : $('#runner-body .word-big');
+    setTimeout(() => {
+      if (activeTaskId !== task.id) return;
+      speakWord(text, label, { quiet: true });
+    }, 360);
+  }
+
   let englishVoiceCache = null;
   let speechAudio = null;
   let speechTimer = 0;
@@ -1851,7 +2284,7 @@
     window.speechSynthesis.addEventListener?.('voiceschanged', loadEnglishVoices);
   }
 
-  function speechFallback(text, label, reason) {
+  function speechFallback(text, label, reason, quiet) {
     const clean = String(text || '').trim();
     if (!clean) return;
     if (label) label.classList.remove('speaking');
@@ -1861,37 +2294,38 @@
       speechAudio.preload = 'auto';
       speechAudio.onplaying = () => {
         if (label) label.classList.add('speaking');
-        S.toast(`正在播放 ${clean} 的读音。`, 'ok', 1800);
+        if (!quiet) S.toast(`正在播放 ${clean} 的读音。`, 'ok', 1800);
       };
       speechAudio.onended = () => { if (label) label.classList.remove('speaking'); };
       speechAudio.onerror = () => {
         if (label) label.classList.remove('speaking');
-        S.toast(reason || '这台设备没有英语朗读声音，可以先看音标，或换 Chrome / Edge 再试。', 'error', 6500);
+        if (!quiet) S.toast(reason || '这台设备没有英语朗读声音，可以先看音标，或换 Chrome / Edge 再试。', 'error', 6500);
       };
       const played = speechAudio.play();
       if (played && played.catch) {
         played.catch(() => {
           if (label) label.classList.remove('speaking');
-          S.toast(reason || '浏览器拦住了发音，请再点一次“听读音”。', 'error', 6000);
+          if (!quiet) S.toast(reason || '浏览器拦住了发音，请再点一次“听读音”。', 'error', 6000);
         });
       }
     } catch (error) {
       if (label) label.classList.remove('speaking');
-      S.toast(reason || '这台设备暂时不能发音，可以先看音标。', 'error', 6000);
+      if (!quiet) S.toast(reason || '这台设备暂时不能发音，可以先看音标。', 'error', 6000);
     }
   }
 
-  function speakWord(text, label) {
+  function speakWord(text, label, options) {
     const clean = String(text || '').trim();
+    const quiet = Boolean(options && options.quiet);
     if (!clean) return;
     if (!('speechSynthesis' in window)) {
-      speechFallback(clean, label, '这台设备不支持系统朗读，已尝试用在线发音。');
+      speechFallback(clean, label, '这台设备不支持系统朗读，已尝试用在线发音。', quiet);
       return;
     }
     loadEnglishVoices();
     const synth = window.speechSynthesis;
     if (!synth || typeof synth.speak !== 'function') {
-      speechFallback(clean, label, '这台设备没有可用的系统朗读，已尝试用在线发音。');
+      speechFallback(clean, label, '这台设备没有可用的系统朗读，已尝试用在线发音。', quiet);
       return;
     }
     if (label) label.classList.add('speaking');
@@ -1920,17 +2354,17 @@
           clearTimeout(speechTimer);
           if (label) label.classList.remove('speaking');
           if (event && /interrupted|canceled/i.test(event.error || '')) return;
-          speechFallback(clean, label, '系统朗读没有声音，已尝试在线发音。');
+          speechFallback(clean, label, '系统朗读没有声音，已尝试在线发音。', quiet);
         };
         synth.resume();
         synth.speak(utterance);
         speechTimer = setTimeout(() => {
           if (!started && !synth.speaking) {
-            speechFallback(clean, label, '系统朗读没有启动，已尝试在线发音。');
+            speechFallback(clean, label, '系统朗读没有启动，已尝试在线发音。', quiet);
           }
         }, 1500);
       } catch (error) {
-        speechFallback(clean, label, '系统朗读启动失败，已尝试在线发音。');
+        speechFallback(clean, label, '系统朗读启动失败，已尝试在线发音。', quiet);
       }
     };
 
@@ -1942,7 +2376,7 @@
         start();
       }
     } catch (error) {
-      speechFallback(clean, label, '系统朗读启动失败，已尝试在线发音。');
+      speechFallback(clean, label, '系统朗读启动失败，已尝试在线发音。', quiet);
     }
   }
 
@@ -1953,7 +2387,7 @@
         const result = run.results[index] || {};
         const review = run.reviewResults[index] || {};
         return `<tr>` +
-          `<td><strong>${S.escapeHtml(word.w)}</strong>${word.kk ? `<br><span class="hint">${S.escapeHtml(word.kk)}</span>` : ''}</td>` +
+          `<td><strong>${S.escapeHtml(word.w)}</strong>${result.kind === 'context' ? ' <span class="word-type-tag">语境</span>' : ''}${word.kk ? `<br><span class="hint">${S.escapeHtml(word.kk)}</span>` : ''}</td>` +
           `<td>${S.escapeHtml(word.zh || '—')}</td>` +
           `<td class="${result.firstOk ? 'ok' : 'no'}">${result.firstOk ? '答对' : '答错'}</td>` +
           `<td>${review.ok === true ? '<span class="ok">已订正</span>' : review.ok === false ? '<span class="no">仍错</span>' : '—'}</td>` +
@@ -1976,6 +2410,7 @@
     $('#runner-report').hidden = !done;
 
     if (done) {
+      lastAutoSpeakKey = '';
       $('#submit-task').hidden = true;
       $('#runner-count').textContent = '已完成';
       $('#runner-fill').style.width = '100%';
@@ -2047,12 +2482,21 @@
       return;
     }
     const isReview = reviewMode;
-    const options = isReview ? reviewOptionsFor(task, word) : wordOptionsFor(task, word, index);
-    const correctText = isReview ? word.w : word.zh;
+    const kind = isReview ? 'review' : wordQuestionKind(task, word, index);
+    const contextText = kind === 'context' ? contextSentenceFor(word) : '';
+    const options = kind === 'review'
+      ? reviewOptionsFor(task, word)
+      : kind === 'context'
+        ? contextOptionsFor(task, word, index)
+        : wordOptionsFor(task, word, index);
+    const correctText = kind === 'meaning' ? word.zh : word.w;
     const progress = isReview
       ? (run.reviewQueue.length ? run.reviewI / run.reviewQueue.length : 1)
       : (total ? index / total : 0);
     const combo = Number(run.combo) || 0;
+    const speechText = kind === 'context'
+      ? contextText.replace(/______/g, 'blank')
+      : word.w;
 
     $('#submit-task').hidden = true;
     $('#submit-task').textContent = '完成打卡';
@@ -2061,27 +2505,42 @@
       ? `错词重练 ${Math.min(run.reviewI + 1, run.reviewQueue.length)} / ${run.reviewQueue.length}`
       : `${Math.min(index + 1, total)} / ${total}`;
 
-    const stage = isReview
+    const autoLabel = autoSpeakEnabled() ? '🔊 自动读音：开' : '🔇 自动读音：关';
+    const autoButton = `<button class="word-auto-speak" type="button" data-word-autospeak="${autoSpeakEnabled() ? 'on' : 'off'}" title="新词出现时自动读一遍">${autoLabel}</button>`;
+    const stage = kind === 'review'
       ? `<div class="word-stage review">` +
           `<div class="word-stage-label"><span>错词回炉 · ${word.w}</span><span class="word-phase">中 → 英</span></div>` +
           `<div class="word-main"><p class="word-big cn">${S.escapeHtml(word.zh || '')}</p>` +
           `<p class="word-phon">选回对应的英文单词</p></div>` +
         `</div>`
-      : `<div class="word-stage">` +
-          `<div class="word-stage-label"><span>${task.title || '单词打卡'}</span><span class="word-phase">英 → 中</span></div>` +
-          `<div class="word-main"><p class="word-big" data-word-speak="${S.escapeHtml(word.w)}" role="button" tabindex="0" title="点单词听读音">${S.escapeHtml(word.w)}</p>` +
-          `<p class="word-phon">${S.escapeHtml(word.kk || '')}${word.pos ? `<span class="word-pos">${S.escapeHtml(word.pos)}</span>` : ''}</p>` +
-          `<button class="word-speak" type="button" data-word-speak="${S.escapeHtml(word.w)}">🔊 听读音</button></div>` +
-        `</div>`;
+      : kind === 'context'
+        ? `<div class="word-stage context">` +
+            `<div class="word-stage-label"><span>语境推词 · 第 ${index + 1} 题</span><span class="word-phase">读句选词</span></div>` +
+            `<p class="word-context-kicker">读句子，选出最符合语境的一个词</p>` +
+            `<p class="word-context-sentence" data-word-speak="${S.escapeHtml(speechText)}" role="button" tabindex="0" title="点句子听读音">${S.escapeHtml(contextText).replace(/______/g, '<span class="word-blank">______</span>')}</p>` +
+            `<button class="word-speak" type="button" data-word-speak="${S.escapeHtml(speechText)}">🔊 读句子</button>` +
+          `</div>`
+        : `<div class="word-stage">` +
+            `<div class="word-stage-label"><span>${task.title || '单词打卡'}</span><span class="word-phase">英 → 中</span></div>` +
+            `<div class="word-main"><p class="word-big" data-word-speak="${S.escapeHtml(word.w)}" role="button" tabindex="0" title="点单词听读音">${S.escapeHtml(word.w)}</p>` +
+            `<p class="word-phon">${S.escapeHtml(word.kk || '')}${word.pos ? `<span class="word-pos">${S.escapeHtml(word.pos)}</span>` : ''}</p>` +
+            `<button class="word-speak" type="button" data-word-speak="${S.escapeHtml(word.w)}">🔊 听读音</button></div>` +
+          `</div>`;
+
+    const questionText = kind === 'review'
+      ? '选出正确英文'
+      : kind === 'context'
+        ? '选出最符合句意的英文单词'
+        : '选出正确的中文意思';
 
     $('#runner-body').innerHTML = `<div class="word-run">` +
       `<div class="word-run-top">` +
-        `<span class="word-run-kicker">${isReview ? 'REVIEW' : 'WORD QUEST'} · ${run.phase === 'review' ? '错词重练' : '第一轮'}</span>` +
-        `<span class="word-combo ${combo >= 3 ? 'hot' : ''}" id="word-combo">${combo >= 3 ? '🔥' : '⚡'} 连击 x${combo}</span>` +
+        `<span class="word-run-kicker">${isReview ? 'REVIEW' : kind === 'context' ? 'CONTEXT QUEST' : 'WORD QUEST'} · ${run.phase === 'review' ? '错词重练' : kind === 'context' ? '语境推词' : '第一轮'}</span>` +
+        `<span class="word-run-tools">${autoButton}<span class="word-combo ${combo >= 3 ? 'hot' : ''}" id="word-combo">${combo >= 3 ? '🔥' : '⚡'} 连击 x${combo}</span></span>` +
       `</div>` +
       `<div class="word-progress-game"><i id="word-progress-fill" style="width:${Math.round(progress * 100)}%"></i></div>` +
       stage +
-      `<p class="word-question">${isReview ? '选出正确英文' : '选出正确的中文意思'}</p>` +
+      `<p class="word-question">${questionText}</p>` +
       `<div class="word-options" id="word-options">` +
         options.map((option) => `<button class="word-option" type="button" data-word-option="${S.escapeHtml(option)}">${S.escapeHtml(option)}</button>`).join('') +
       `</div>` +
@@ -2091,12 +2550,14 @@
         `<span class="word-pet-gain" id="word-pet-gain" aria-live="polite"></span>` +
       `</div>` +
       `<div class="word-feedback" id="word-feedback" hidden></div>` +
-      `<p class="word-review-note">${isReview ? '这次答对会记为“已订正”，但得分仍按第一次作答计算。' : '选错会自动进入最后的错词回炉，不影响你继续闯关。'}</p>` +
+      `<p class="word-review-note">${isReview ? '这次答对会记为“已订正”，但得分仍按第一次作答计算。' : kind === 'context' ? '先理解整句意思，再选词；选错会自动进入最后的错词回炉。' : '选错会自动进入最后的错词回炉，不影响你继续闯关。'}</p>` +
     `</div>`;
 
     run.questionShownAt = Date.now();
-    bindWordClicks(task, run, { index, word, correctText, isReview });
+    const context = { index, word, correctText, isReview, kind, contextText, speechText };
+    bindWordClicks(task, run, context);
     if (!done) startTimer();
+    if (!isReview) autoSpeakQuestion(task, run, context, speechText);
   }
 
   function bindWordClicks(task, run, context) {
@@ -2111,6 +2572,15 @@
       }
     };
     body.onclick = (event) => {
+      const autoBtn = event.target.closest('[data-word-autospeak]');
+      if (autoBtn) {
+        const on = autoBtn.dataset.wordAutospeak !== 'on';
+        setAutoSpeak(on);
+        autoBtn.dataset.wordAutospeak = on ? 'on' : 'off';
+        autoBtn.textContent = on ? '🔊 自动读音：开' : '🔇 自动读音：关';
+        if (on && context) speakWord(context.speechText, $('.word-big') || $('.word-context-sentence'), { quiet: true });
+        return;
+      }
       const speakBtn = event.target.closest('[data-word-speak]');
       if (speakBtn) {
         speakWord(speakBtn.dataset.wordSpeak, speakBtn);
@@ -2161,7 +2631,7 @@
       run.reviewResults[context.index] = { ok, answer: picked };
       run.reviewI = Number(run.reviewI) + 1;
     } else {
-      run.results[context.index] = { firstOk: ok, answer: picked };
+      run.results[context.index] = { firstOk: ok, answer: picked, kind: context.kind };
       if (ok) {
         run.combo = Number(run.combo) + 1;
         run.maxCombo = Math.max(Number(run.maxCombo) || 0, run.combo);
@@ -2176,11 +2646,17 @@
     if (feedback) {
       feedback.hidden = false;
       feedback.className = `word-feedback ${ok ? 'ok' : 'no'}`;
+      const contextAnswer = context.kind === 'context' && context.contextText
+        ? `<div class="word-answer-context">${S.escapeHtml(context.contextText).replace(/______/g, `<b>${S.escapeHtml(context.word.w)}</b>`)}` +
+          `${context.word.exZh ? `<small>${S.escapeHtml(context.word.exZh)}</small>` : ''}</div>`
+        : '';
       feedback.innerHTML = ok
         ? `<b>${context.isReview ? '订正成功' : '答对了'} · 连击 x${run.combo}</b>` +
-          `<div class="word-answer-line">${S.escapeHtml(context.word.w)} · ${S.escapeHtml(context.word.zh || '')}${context.isReview ? '' : '　已记入本轮成绩'}</div>`
+          `<div class="word-answer-line">${S.escapeHtml(context.word.w)} · ${S.escapeHtml(context.word.zh || '')}${context.isReview ? '' : '　已记入本轮成绩'}</div>` +
+          contextAnswer
         : `<b>${context.isReview ? '这次还没记住' : '先记一下'}</b>` +
           `<div class="word-answer-line"><strong>${S.escapeHtml(context.word.w)}</strong> · ${S.escapeHtml(context.word.zh || '')}${context.word.kk ? ` · ${S.escapeHtml(context.word.kk)}` : ''}</div>` +
+          contextAnswer +
           `<div class="word-answer-line">${context.isReview ? '下一轮再遇到它，试着先回想发音。' : '这个词会在最后再考一次。'}</div>`;
     }
     const comboEl = $('#word-combo');
@@ -2228,16 +2704,17 @@
       kk: word.kk || '',
       ok: !!(run.results[index] && run.results[index].firstOk),
       reviewOk: run.reviewResults[index] ? !!run.reviewResults[index].ok : null,
+      kind: (run.results[index] && run.results[index].kind) || 'meaning',
       attempts: 1 + (run.results[index] && run.results[index].firstOk ? 0 : 1)
     }));
     const review = wordStats.map((word, index) => ({
       n: index + 1,
-      stem: word.w,
+      stem: word.kind === 'context' && words[index] && words[index].ex ? words[index].ex : word.w,
       userAnswer: word.ok ? word.zh : '选错',
       correctAnswer: word.zh,
       ok: word.ok,
       type: 'vocab',
-      explanation: ''
+      explanation: word.kind === 'context' ? '语境推词题' : ''
     })).filter((item) => !item.ok);
     task.status = 'done';
     task.submittedAt = S.nowIso();
@@ -2398,7 +2875,7 @@
   async function importPlanPayload(payload) {
     const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
     if (!tasks.length) { S.toast('这份周计划里没有任务，请让老师重新生成。', 'error'); return; }
-    if (tasks.length > 14) { S.toast('周计划任务过多，已拒绝导入。', 'error'); return; }
+    if (tasks.length > 80) { S.toast('这份计划任务过多，已拒绝导入。', 'error'); return; }
     for (const task of tasks) {
       if (!task || task.kind !== 'task' || !task.id) { S.toast('周计划里有损坏的任务，请让老师重新生成。', 'error'); return; }
       const taskAuth = await S.sha256Hex(`${profile().id}|${sessionPin}|${task.id}`);
@@ -2434,7 +2911,8 @@
     renderAll();
     S.closeDialog($('#import-dialog'));
     $('#import-code').value = '';
-    S.toast(`周计划已导入：${added} 天待完成${kept ? `，${kept} 天已完成` : ''}。每天完成当天任务后，下一天自动解锁。`, 'ok', 7000);
+    const dayCount = new Set(tasks.map((task) => Number(task.planDay)).filter(Boolean)).size;
+    S.toast(`计划已导入：${added} 个任务${dayCount ? ` · ${dayCount} 天` : ''}${kept ? `，${kept} 个已完成` : ''}。完成当天全部任务后，下一天自动解锁。`, 'ok', 7000);
   }
 
   async function importTaskCode() {
@@ -2494,11 +2972,62 @@
     S.toast('任务已导入，开始吧。', 'ok');
   }
 
-  async function buildReport() {
+  function taskDay(task) {
+    return String(task && (task.submittedAt || task.due) || '').slice(0, 10);
+  }
+
+  function reportDayChoices() {
+    const days = new Set([S.todayIso()]);
+    (data.tasks || []).forEach((task) => {
+      if (task.status === 'done' && task.submittedAt) days.add(taskDay(task));
+    });
+    ((profile() && profile().checkins) || []).forEach((day) => {
+      if (String(day) >= S.addDays(S.todayIso(), -30)) days.add(String(day).slice(0, 10));
+    });
+    return Array.from(days).filter(Boolean).sort((a, b) => b.localeCompare(a)).slice(0, 30);
+  }
+
+  function renderReportDays(selected) {
+    const select = $('#report-day');
+    if (!select) return;
+    const days = reportDayChoices();
+    const choice = days.includes(selected) ? selected : days[0];
+    select.innerHTML = days.map((day) => {
+      const tasks = (data.tasks || []).filter((task) => task.status === 'done' && taskDay(task) === day);
+      const checkin = ((profile() && profile().checkins) || []).includes(day);
+      const bits = [];
+      if (tasks.length) bits.push(`${tasks.length} 个任务`);
+      if (checkin) bits.push('已打卡');
+      return `<option value="${S.escapeHtml(day)}" ${day === choice ? 'selected' : ''}>${S.escapeHtml(S.fmtDate(day))}${bits.length ? ` · ${bits.join(' · ')}` : ' · 还没有记录'}</option>`;
+    }).join('');
+  }
+
+  async function buildReport(scope, day) {
     if (!profile() || !sessionPin) throw new Error('档案还没有解锁。');
     const reportId = S.uid('R');
     const auth = await S.sha256Hex(`${profile().id}|${sessionPin}|${reportId}`);
     const p = profile();
+    const daily = scope === 'daily';
+    const reportDay = daily ? String(day || S.todayIso()).slice(0, 10) : '';
+    const doneTasks = data.tasks.filter((task) => task.status === 'done');
+    const tasks = daily ? doneTasks.filter((task) => taskDay(task) === reportDay) : doneTasks;
+    const scores = tasks.filter((task) => task.score != null && Number.isFinite(Number(task.score))).map((task) => Number(task.score));
+    const dayPlanDays = Array.from(new Set(tasks.filter((task) => task.planId && Number(task.planDay)).map((task) => Number(task.planDay))));
+    const dailySummary = daily
+      ? {
+          day: reportDay,
+          taskCount: tasks.length,
+          avgScore: scores.length ? Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length) : null,
+          checkin: Array.isArray(p.checkins) && p.checkins.includes(reportDay),
+          checkinStreak: S.streakFromCheckins(p.checkins || []),
+          planDays: dayPlanDays,
+          wordAccuracy: (() => {
+            const stats = [];
+            tasks.forEach((task) => (task.wordStats || []).forEach((word) => stats.push(word)));
+            return stats.length ? Math.round((stats.filter((word) => word.ok).length / stats.length) * 100) : null;
+          })()
+        }
+      : null;
     return {
       v: 1,
       kind: 'report',
@@ -2506,6 +3035,10 @@
       studentId: p.id,
       studentName: p.name,
       auth,
+      scope: daily ? 'daily' : 'full',
+      reportDay,
+      archive: !daily,
+      daily: dailySummary,
       generatedAt: S.nowIso(),
       profile: {
         id: p.id,
@@ -2522,11 +3055,14 @@
         trialExpiresAt: p.trialExpiresAt || '',
         trialStartedAt: p.trialStartedAt || '',
         pets: p.pets || null,
+        petPool: p.petPool || null,
+        unlockedPets: p.unlockedPets || null,
         activePet: p.activePet || '',
         fusion: p.fusion || null,
-        wheel: p.wheel || null
+        wheel: p.wheel || null,
+        lastDailyReport: p.lastDailyReport || null
       },
-      tasks: data.tasks.filter((task) => task.status === 'done').map((task) => ({
+      tasks: tasks.map((task) => ({
         id: task.id,
         title: task.title,
         grade: task.grade,
@@ -2551,20 +3087,79 @@
         assignedAt: task.createdAt || task.importedAt || '',
         planId: task.planId || '',
         planDay: task.planDay || 0,
+        assignmentId: task.assignmentId || '',
+        wordSlot: task.wordSlot || '',
         integrityScore: task.integrity ? task.integrity.score : null,
         integrityFlags: task.integrity ? task.integrity.flags : []
       }))
     };
   }
 
+  async function generateReportCode(scope, day) {
+    const report = await buildReport(scope, day);
+    const code = await S.packCode(report);
+    $('#report-code').value = code;
+    if (scope === 'daily') {
+      const p = profile();
+      p.lastDailyReport = { day: report.reportDay, at: report.generatedAt, reportId: report.reportId, taskCount: report.tasks.length };
+      save();
+      renderReportStatus();
+    }
+    return report;
+  }
+
   async function openReport() {
     try {
-      const report = await buildReport();
-      const code = await S.packCode(report);
-      $('#report-code').value = code;
+      const dailyRadio = $('input[name="report-scope"][value="daily"]');
+      if (dailyRadio) dailyRadio.checked = true;
+      renderReportDays(S.todayIso());
+      const code = await generateReportCode('daily', S.todayIso());
+      const note = $('#report-scope-note');
+      if (note) note.textContent = code ? '今日汇报已生成。复制发给老师，老师导入后就能看到今天的完成情况。' : '';
       S.openDialog($('#report-dialog'));
     } catch (error) {
       S.toast(error.message || '汇报码生成失败。', 'error');
+    }
+  }
+
+  async function refreshReportCode() {
+    const dialog = $('#report-dialog');
+    if (!dialog || !dialog.open) return;
+    const scopeInput = $('input[name="report-scope"]:checked');
+    const scope = scopeInput ? scopeInput.value : 'daily';
+    const day = $('#report-day') ? $('#report-day').value : S.todayIso();
+    const dayField = $('#report-day-field');
+    if (dayField) dayField.hidden = scope !== 'daily';
+    const note = $('#report-scope-note');
+    if (note) {
+      note.textContent = scope === 'daily'
+        ? '今日汇报只带当天完成的任务和当天打卡状态，老师看起来最清楚。'
+        : '完整档案包含全部历史任务，适合换手机时恢复；日常监督请用“今日汇报”。';
+    }
+    try {
+      await generateReportCode(scope, day);
+    } catch (error) {
+      S.toast(error.message || '汇报码生成失败。', 'error');
+    }
+  }
+
+  function renderReportStatus() {
+    const el = $('#report-status');
+    if (!el) return;
+    const p = profile();
+    if (!p) return;
+    const today = S.todayIso();
+    const tasksToday = (data.tasks || []).filter((task) => task.status === 'done' && taskDay(task) === today);
+    const checkin = (p.checkins || []).includes(today);
+    const last = p.lastDailyReport && p.lastDailyReport.day === today ? p.lastDailyReport : null;
+    if (last && tasksToday.length > (Number(last.taskCount) || 0)) {
+      el.innerHTML = `<b>今天又完成了新任务</b>（${tasksToday.length} 个），建议重新生成一次“今日汇报码”，老师才能看到最新进度。`;
+    } else if (last) {
+      el.innerHTML = `<b class="ok">今日汇报已生成</b> · 今天完成 ${tasksToday.length} 个任务${checkin ? '，已打卡' : ''}。再完成新任务后，重新生成一次即可。`;
+    } else if (tasksToday.length || checkin) {
+      el.innerHTML = `今天已完成 ${tasksToday.length} 个任务${checkin ? '并打卡' : ''}，记得生成“今日汇报码”发给老师。`;
+    } else {
+      el.textContent = '每天完成任务后生成一次“今日汇报”，老师导入后才能看到当天情况。';
     }
   }
 
@@ -2799,6 +3394,14 @@
     const trialApply = $('#trial-apply-code');
     if (trialApply) trialApply.addEventListener('click', applyTrialExtendCode);
     $('#pet-feed-btn').addEventListener('click', feedPet);
+    const poolAllocate = $('#pet-pool-allocate');
+    if (poolAllocate) poolAllocate.addEventListener('click', allocatePetPool);
+    const poolAmount = $('#pet-pool-amount');
+    if (poolAmount) {
+      poolAmount.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') { event.preventDefault(); allocatePetPool(); }
+      });
+    }
     const petCard = $('#pet-card');
     if (petCard) {
       petCard.addEventListener('click', (event) => {
@@ -2875,6 +3478,12 @@
       S.downloadText(`${profile().name || '学生'}-学习汇报.txt`, $('#report-code').value);
     });
     $('#report-dialog').addEventListener('close', () => { $('#report-code').value = ''; });
+    const scopeWrap = $('#report-scope');
+    if (scopeWrap) {
+      scopeWrap.addEventListener('change', () => { refreshReportCode(); });
+    }
+    const daySelect = $('#report-day');
+    if (daySelect) daySelect.addEventListener('change', () => { refreshReportCode(); });
     $('#restore-link').addEventListener('click', () => {
       $('#restore-code').value = '';
       $('#restore-pin').value = '';

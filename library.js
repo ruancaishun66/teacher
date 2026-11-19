@@ -6054,7 +6054,7 @@
           const result = await tool.call([
             { role: 'system', content: '你是严谨的英语试卷排版校对员。只做清理、分类和排版，不改题意，不编造答案。严格按用户要求的分段标记输出。' },
             { role: 'user', content: aiCleanPrompt(material, source) }
-          ], 1800, `整理资料：${material.title || '未命名'}`.slice(0, 40));
+          ], 1800, '资料库 · AI 整理');
           const parsed = parseTaggedText(result.text, ['标题', '题型', '年级', '正文']);
           if (!parsed['正文']) throw new Error('AI 没有返回可用的正文，请再试一次。');
           const typeKey = aiTypeKey(String(parsed['题型'] || '').trim());
@@ -6395,7 +6395,7 @@
       const result = await tool.call([
         { role: 'system', content: '你是英语试卷单题校对员。只整理这一道题：修复 OCR 断行和标点，规范选项排版，去掉页眉页码等杂物；不要改题意、不要换答案、不要编造解析。无法判断时保持原样。严格按标记输出。' },
         { role: 'user', content: `题型：${payload.type}\n题干：${payload.stem}\n选项：\n${payload.options}\n答案：${payload.answer}\n解析：${payload.explanation}\n\n只输出：\n【题干】…\n【选项】每行一个 A. …；没有选项就留空\n【答案】…\n【解析】…` }
-      ], 360, `单题精修：${(findMaterial(edit.id) || findPaper(edit.id) || {}).title || '题目'}`.slice(0, 40));
+      ], 360, '资料库 · 单题精修');
       const parsed = parseTaggedText(result.text, ['题干', '选项', '答案', '解析']);
       const apply = (name, value) => {
         const field = row.querySelector(`[data-q-field="${name}"]`);

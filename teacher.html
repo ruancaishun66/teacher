@@ -342,6 +342,7 @@
         </div>
         <div class="toolbar-actions">
           <a class="p-btn small ghost" href="library.html">组卷工作台 ↗</a>
+          <button class="p-btn small ghost" type="button" id="book-add">词汇书周编排</button>
           <button class="p-btn small" type="button" id="word-add">＋ 发布单词任务</button>
         </div>
       </div>
@@ -358,6 +359,21 @@
         </div>
         <button class="p-btn small" type="button" id="report-import">＋ 导入汇报</button>
       </div>
+      <section class="p-card daily-board-card">
+        <div class="p-card-head">
+          <div>
+            <h3 class="p-card-title">每日汇报看板 <small>DAILY BOARD</small></h3>
+            <p class="pane-sub" style="margin:2px 0 0;">绿色代表当天已收到“今日汇报”；黄色代表做了任务但还没交汇报，提醒一下学生。</p>
+          </div>
+          <div class="daily-board-nav">
+            <button class="p-btn small ghost" type="button" id="daily-board-prev" aria-label="上一周">← 上一周</button>
+            <b id="daily-board-range">本周</b>
+            <button class="p-btn small ghost" type="button" id="daily-board-this">本周</button>
+            <button class="p-btn small ghost" type="button" id="daily-board-next" aria-label="下一周">下一周 →</button>
+          </div>
+        </div>
+        <div id="daily-board"></div>
+      </section>
       <div class="report-feed wide" id="report-list"></div>
     </section>
 
@@ -524,7 +540,9 @@
             <button class="p-btn small ghost" type="button" id="ai-key-clear">清除 Key</button>
           </div>
           <p class="hint" style="text-align:left;margin-bottom:0;" id="ai-usage">累计 0 tokens · 0 次 · 约 ¥0</p>
+          <div class="ai-source-summary" id="ai-source-summary"></div>
           <ul class="ai-cost-log" id="ai-cost-log"><li><span>还没有调用记录。每次 AI 整理都会记在这里。</span></li></ul>
+          <p class="hint" style="text-align:left;">这里的统计汇总教师端、组卷工作台和单词例句补全的全部 AI 调用；按来源分栏显示。Key 和记录都只在这台电脑的浏览器里，不会上传。</p>
           <p class="hint" style="text-align:left;margin:8px 0 0;">费用按 DeepSeek Flash 高峰价估算（输入 ¥2.2 / 百万 tokens，输出 ¥8.6 / 百万 tokens），实际以 DeepSeek 账单为准。</p>
         </section>
         <section class="p-card p-col-12">
@@ -876,9 +894,10 @@
       </div>
 
       <div class="word-preview-head">
-        <h3 class="dialog-subtitle">2. 核对释义</h3>
+        <h3 class="dialog-subtitle">2. 核对释义与语境</h3>
         <div class="word-preview-tools">
           <span class="word-count-chip" id="word-build-count">0 个词</span>
+          <button class="p-btn small ghost" type="button" id="word-context-ai">AI 补例句（可选）</button>
           <button class="p-btn small ghost" type="button" id="word-build">生成预览</button>
         </div>
       </div>
@@ -886,6 +905,8 @@
         <p class="hint">粘贴单词后点“生成预览”，会从本机释义库补全音标和中文意思。</p>
       </div>
       <p class="hint" id="word-glossary-status"></p>
+      <p class="hint" id="word-context-status">本机例句库会先自动补常见词；没有例句的词可以展开手动填写，或点“AI 补例句”。只有带例句的词才会出现“语境推词”题。</p>
+      <p class="hint">自定义例句可写成：<code>benefit 好处 | Reading has many benefits. | 阅读有很多好处。</code></p>
 
       <div class="word-assign-grid">
         <div class="field">
@@ -911,6 +932,92 @@
       <span class="hint" style="margin-right:auto;" id="word-foot-hint">至少 4 个词，才能生成选项。</span>
       <button class="p-btn ghost" type="button" data-close>取消</button>
       <button class="p-btn" type="button" id="word-generate">生成任务码</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 词汇书周编排 -->
+<dialog class="p-dialog" id="book-dialog" style="width:min(1040px,calc(100% - 18px));">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>词汇书周编排</h2>
+        <p>导入整本词汇书，自行插入任务 1、2、3…；系统按每位学生上周的完成情况、正确率和当前水平，自动分好每天要打卡的词，并支持接着下周继续。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="form-row">
+        <div class="field">
+          <label for="book-title">本周主题</label>
+          <input class="input" id="book-title" maxlength="60" placeholder="例如：高考核心词 · 第 3 周">
+        </div>
+        <div class="field">
+          <label for="book-week-start">开始日期</label>
+          <input class="input" id="book-week-start" type="date">
+        </div>
+        <div class="field">
+          <label for="book-xp">每日经验</label>
+          <input class="input" id="book-xp" type="number" min="20" max="400" step="10" value="80">
+        </div>
+        <div class="field">
+          <label for="book-difficulty">难度 / 任务量</label>
+          <select class="select" id="book-difficulty" aria-label="全班难度与任务量">
+            <option value="auto">按学情自适应</option>
+            <option value="gentle">基础巩固（少 15%）</option>
+            <option value="standard">标准进度</option>
+            <option value="challenge">加难提升（多 15%）</option>
+            <option value="sprint">冲刺强化（多 30%）</option>
+          </select>
+          <span class="field-note">在学情基础上再统一加减；每个任务栏的词数仍可单独改。</span>
+        </div>
+      </div>
+
+      <div class="book-source">
+        <div class="word-preview-head">
+          <h3 class="dialog-subtitle">1. 导入词汇书</h3>
+          <div class="word-preview-tools">
+            <span class="word-count-chip" id="book-count">0 个词</span>
+            <button class="p-btn small ghost" type="button" id="book-parse">解析词汇书</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="book-input">单词表 <span class="field-note">每行一个；支持“benefit 好处 | Reading has many benefits. | 阅读有很多好处。”</span></label>
+          <textarea class="textarea" id="book-input" rows="7" placeholder="abandon 放弃&#10;benefit 益处，好处 | Reading has many benefits. | 阅读有很多好处。&#10;confident 自信的&#10;……"></textarea>
+        </div>
+        <p class="hint" id="book-status">本机释义库会自动补全中文释义和例句；导入后先点“解析词汇书”。</p>
+      </div>
+
+      <div class="book-slot-head">
+        <div>
+          <h3 class="dialog-subtitle">2. 插入任务栏</h3>
+          <p class="hint" style="margin:0;">一栏就是一天。可以插入任意数量的任务，把“单词日”和“语法日”混排。</p>
+        </div>
+        <div class="book-slot-tools">
+          <button class="p-btn small ghost" type="button" id="book-add-slot">＋ 插入任务栏</button>
+          <button class="p-btn small ghost" type="button" id="book-auto-slots">智能推荐 7 栏</button>
+        </div>
+      </div>
+      <div class="book-slots" id="book-slots"></div>
+
+      <div class="book-preview-head">
+        <h3 class="dialog-subtitle">3. 学情依据与分配预览</h3>
+        <button class="p-btn small ghost" type="button" id="book-preview-btn">刷新预览</button>
+      </div>
+      <div class="book-student-preview" id="book-student-preview">
+        <p class="hint">先选择学生，再刷新预览，就能看到系统按上周情况分好的每日词量。</p>
+      </div>
+
+      <div class="field" style="margin-top:12px;">
+        <label>发给谁</label>
+        <div class="check-list" id="book-students"></div>
+      </div>
+      <p class="hint">系统会跳过该生已做过的词，优先补上周错词；同一本书可以连续生成下周任务，直到整本过完。学生每天完成任务后发“今日汇报码”，你在“汇报 → 每日看板”里就能看到。</p>
+    </div>
+    <div class="p-dialog-foot">
+      <span class="hint" style="margin-right:auto;" id="book-foot-hint">至少导入 4 个词，并至少插入 1 个任务栏。</span>
+      <button class="p-btn ghost" type="button" data-close>取消</button>
+      <button class="p-btn" type="button" id="book-generate">生成一人一码</button>
     </div>
   </div>
 </dialog>

@@ -179,6 +179,16 @@
               <span class="pet-mood" id="pet-mood">去单词打卡里赚点小鱼干吧。</span>
             </div>
             <div class="pet-mini-stats" id="pet-stats"></div>
+            <div class="pet-pool" id="pet-pool">
+              <div class="pet-pool-head"><b>总经验池</b><span id="pet-pool-text">可用 0 · 累计获得 0</span></div>
+              <div class="pet-pool-track"><i id="pet-pool-fill"></i></div>
+              <p class="pet-pool-hint" id="pet-pool-hint">学习获得 EXP 的 60% 会进入经验池，可以自由分给已解锁的神兽。</p>
+              <div class="pet-pool-controls">
+                <select class="select" id="pet-pool-target" aria-label="选择要分配经验的神兽"></select>
+                <input class="input" id="pet-pool-amount" type="number" min="1" step="1" value="50" inputmode="numeric" aria-label="分配多少经验">
+                <button class="p-btn small" type="button" id="pet-pool-allocate">分配经验</button>
+              </div>
+            </div>
             <div class="pet-roster" id="pet-roster"></div>
             <div class="pet-wheel-entry" id="pet-wheel-entry"></div>
           </div>
@@ -201,8 +211,9 @@
       <section class="p-card p-col-7" id="tasks">
         <div class="p-card-head">
           <h2 class="p-card-title">任务列表 <small>QUESTS</small></h2>
-          <button class="p-btn small ghost" type="button" id="report-btn">生成汇报码</button>
+          <button class="p-btn small ghost" type="button" id="report-btn">生成今日汇报码</button>
         </div>
+        <p class="hint" id="report-status" style="text-align:left;margin:0 0 8px;">每天完成任务后生成一次“今日汇报”，老师导入后才能看到当天情况。</p>
         <div class="task-list" id="task-list"></div>
       </section>
 
@@ -276,11 +287,26 @@
       <button class="p-close" type="button" data-close aria-label="关闭">×</button>
     </div>
     <div class="p-dialog-body">
+      <div class="report-scope" id="report-scope">
+        <label class="report-scope-option">
+          <input type="radio" name="report-scope" value="daily" checked>
+          <span><b>今日汇报</b><small>推荐每天交一次，老师能看到当天完成了什么。</small></span>
+        </label>
+        <label class="report-scope-option">
+          <input type="radio" name="report-scope" value="full">
+          <span><b>完整档案</b><small>换设备或备份时用，包含全部历史任务。</small></span>
+        </label>
+      </div>
+      <div class="field" id="report-day-field">
+        <label for="report-day">汇报日期</label>
+        <select class="select" id="report-day"></select>
+      </div>
+      <p class="hint" id="report-scope-note">每天完成任务后生成一次“今日汇报”，老师才能看到当天的打卡情况。</p>
       <div class="field">
         <label for="report-code">复制后发给老师</label>
         <textarea class="textarea" id="report-code" rows="9" readonly></textarea>
       </div>
-      <p class="hint">这段代码也相当于你的档案备份。换手机时可以点“恢复档案”，粘贴它和密码找回进度。</p>
+      <p class="hint">今日汇报也能当作当天的进度备份；完整档案才适合换手机时恢复全部历史。</p>
     </div>
     <div class="p-dialog-foot">
       <button class="p-btn ghost" type="button" id="download-report">下载为文件</button>
@@ -518,6 +544,7 @@
 <script src="grammar-advanced.js"></script>
 <script src="grammar-data.js"></script>
 <script src="portal.js"></script>
+<script src="pet-art.js"></script>
 <script src="student.js"></script>
 <script src="pwa.js" defer></script>
 </body>

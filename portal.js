@@ -401,9 +401,46 @@
   const AI_MODEL = 'deepseek-flash';
   const AI_PRICE = { input: 2.2, output: 8.6 };
 
+  function aiAggregateLog(log) {
+    const map = new Map();
+    (Array.isArray(log) ? log : []).forEach((item) => {
+      if (!item || !item.at) return;
+      const key = String(item.source || '其他').slice(0, 40);
+      const row = map.get(key) || { source: key, tokens: 0, input: 0, output: 0, cost: 0, calls: 0, lastAt: '' };
+      row.tokens += Number(item.tokens) || 0;
+      row.input += Number(item.input) || 0;
+      row.output += Number(item.output) || 0;
+      row.cost += Number(item.cost) || 0;
+      row.calls += 1;
+      if (!row.lastAt || String(item.at) > row.lastAt) row.lastAt = String(item.at);
+      map.set(key, row);
+    });
+    return Array.from(map.values()).sort((a, b) => b.cost - a.cost || b.tokens - a.tokens);
+  }
+
+  function normalizeAiSources(raw, log) {
+    const rows = Array.isArray(raw)
+      ? raw
+        .filter((item) => item && item.source)
+        .map((item) => ({
+          source: String(item.source).slice(0, 40),
+          tokens: Math.max(0, Number(item.tokens) || 0),
+          input: Math.max(0, Number(item.input) || 0),
+          output: Math.max(0, Number(item.output) || 0),
+          cost: Math.max(0, Number(item.cost) || 0),
+          calls: Math.max(0, Number(item.calls) || 0),
+          lastAt: String(item.lastAt || '')
+        }))
+        .sort((a, b) => b.cost - a.cost || b.tokens - a.tokens)
+      : [];
+    /* 旧版本只存了最近 200 条 log：升级后先用这些明细补出来源汇总，
+       之后每次调用都会在 sources 里永久累加，不再受明细条数限制。 */
+    return rows.length ? rows : aiAggregateLog(log);
+  }
+
   function normalizeAiConfig(raw) {
     const source = raw && typeof raw === 'object' ? raw : {};
-    const log = Array.isArray(source.log) ? source.log.filter((item) => item && item.at).slice(0, 30) : [];
+    const log = Array.isArray(source.log) ? source.log.filter((item) => item && item.at).slice(0, 200) : [];
     return {
       key: String(source.key || '').trim(),
       model: String(source.model || AI_MODEL),
@@ -412,6 +449,7 @@
       totalTokens: Math.max(0, Number(source.totalTokens) || 0),
       calls: Math.max(0, Number(source.calls) || 0),
       cost: Math.max(0, Number(source.cost) || 0),
+      sources: normalizeAiSources(source.sources, log),
       log
     };
   }
@@ -443,22 +481,42 @@
     const output = Math.max(0, Number(usage && usage.completion_tokens) || 0);
     const total = Math.max(0, Number(usage && usage.total_tokens) || (input + output));
     const cost = aiCostFor({ prompt_tokens: input, completion_tokens: output });
+    const label = String(source || 'AI 调用').slice(0, 40);
+    const at = nowIso();
     cfg.inputTokens += input;
     cfg.outputTokens += output;
     cfg.totalTokens += total;
     cfg.calls += 1;
     cfg.cost = Math.round((cfg.cost + cost) * 1000000) / 1000000;
+    let row = cfg.sources.find((item) => item.source === label);
+    if (!row) {
+      row = { source: label, tokens: 0, input: 0, output: 0, cost: 0, calls: 0, lastAt: '' };
+      cfg.sources.push(row);
+    }
+    row.tokens += total;
+    row.input += input;
+    row.output += output;
+    row.cost = Math.round((row.cost + cost) * 1000000) / 1000000;
+    row.calls += 1;
+    row.lastAt = at;
+    cfg.sources.sort((a, b) => b.cost - a.cost || b.tokens - a.tokens);
     cfg.log.unshift({
-      at: nowIso(),
-      source: String(source || 'AI 调用').slice(0, 40),
+      at,
+      source: label,
       tokens: total,
       input,
       output,
       cost: Math.round(cost * 1000000) / 1000000
     });
-    cfg.log = cfg.log.slice(0, 30);
+    cfg.log = cfg.log.slice(0, 200);
     saveAiConfigObject(cfg);
     return { total, input, output, cost };
+  }
+
+  function aiUsageSummary() {
+    const cfg = aiConfig();
+    const sources = cfg.sources.length ? cfg.sources : aiAggregateLog(cfg.log);
+    return { config: cfg, sources };
   }
 
   async function aiCall(messages, maxTokens, source) {
@@ -567,6 +625,7 @@
       config: aiConfig,
       save: saveAiConfigObject,
       call: aiCall,
+      summary: aiUsageSummary,
       costFor: aiCostFor,
       costText: aiCostText,
       estimate: aiEstimateCost,

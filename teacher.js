@@ -60,6 +60,10 @@
   let wordSourceMode = 'paste';
   let wordAssignStudentId = null;
   let wordDetailId = null;
+  let bookWords = [];
+  let bookSlots = [];
+  let bookPreviewStudentId = '';
+  let bookStudentsCache = null;
   let planPapers = [];
   let planPaperIds = new Set();
   let planStudentIds = null;
@@ -109,7 +113,8 @@
       wordLevel: Math.max(1, Math.min(10, Number(raw.wordLevel) || Number(raw.planLevel) || 5)),
       wordLevelHistory: Array.isArray(raw.wordLevelHistory) ? raw.wordLevelHistory.slice(0, 24) : [],
       levelHistory: Array.isArray(raw.levelHistory) ? raw.levelHistory.slice(0, 30) : [],
-      trialRequestAt: String(raw.trialRequestAt || '')
+      trialRequestAt: String(raw.trialRequestAt || ''),
+      dayLog: raw.dayLog && typeof raw.dayLog === 'object' ? raw.dayLog : {}
     };
   }
 
@@ -276,6 +281,23 @@
     return glossaryPromise;
   }
 
+  let glossaryRankMap = null;
+
+  /* 释义库本身按常用度排序，用词条序号当“高频 / 中频 / 低频”的近似依据。
+     这不是考试大纲词频，但足以把一本词书从常用词到难词排开。 */
+  function ensureGlossaryRanks(glossary) {
+    if (glossaryRankMap) return glossaryRankMap;
+    glossaryRankMap = new Map();
+    Object.keys(glossary || {}).forEach((word, index) => glossaryRankMap.set(word, index));
+    return glossaryRankMap;
+  }
+
+  function wordFrequencyBand(rank) {
+    if (rank < 2200) return 'high';
+    if (rank < 9000) return 'mid';
+    return 'low';
+  }
+
   async function loadWordMaterials() {
     try {
       const db = await openLibrary();
@@ -300,6 +322,244 @@
     'is are was were be been being am do does did have has had will would can could shall should may might must not no yes of to in on at by for with from as than then there here ' +
     'what which who whom whose when where why how all any both each few more most other some such only own same too very just about into over after before between during through ' +
     'up down out off again once also however therefore while although though until unless since whether either neither nor per via etc').split(/\s+/));
+
+  /* 原创语境例句小库：不依赖网络或 AI，常见词也能直接出“语境推词”题。
+     只收录可以放心给中学生看的句子；没有收录的词可以在预览里手动补，或点“AI 补例句”。 */
+  const WORD_EXAMPLES = {
+    benefit: { ex: 'One benefit of reading every day is a larger vocabulary.', exZh: '每天阅读的一个好处是词汇量更大。' },
+    confident: { ex: 'She felt confident before the speech because she had practiced.', exZh: '因为练习过，她在演讲前感到很自信。' },
+    environment: { ex: 'We should protect the environment by using less plastic.', exZh: '我们应该少用塑料来保护环境。' },
+    opportunity: { ex: 'The exchange program is a good opportunity to practice English.', exZh: '这个交换项目是练习英语的好机会。' },
+    experience: { ex: 'Traveling alone was a new experience for him.', exZh: '独自旅行对他来说是一次新经历。' },
+    suggest: { ex: 'I suggest that we start the meeting at eight.', exZh: '我建议我们八点开始开会。' },
+    decide: { ex: 'They decided to walk home instead of taking the bus.', exZh: '他们决定不坐公交，走回家。' },
+    develop: { ex: 'Children develop language skills through daily conversation.', exZh: '孩子通过日常对话发展语言能力。' },
+    provide: { ex: 'The school provides free lunch for every student.', exZh: '学校为每位学生提供免费午餐。' },
+    reduce: { ex: 'Turning off the lights can reduce energy use.', exZh: '关灯可以减少能源消耗。' },
+    improve: { ex: 'Reading aloud every day will improve your pronunciation.', exZh: '每天大声朗读会改善你的发音。' },
+    protect: { ex: 'A helmet can protect your head when you ride a bike.', exZh: '骑车时头盔能保护你的头。' },
+    express: { ex: 'She used a picture to express her feelings.', exZh: '她用一幅画表达自己的感受。' },
+    support: { ex: 'My parents support my decision to study art.', exZh: '父母支持我学艺术的决定。' },
+    avoid: { ex: 'Try to avoid checking your phone during dinner.', exZh: '吃饭时尽量避免看手机。' },
+    admit: { ex: 'He admitted that he had forgotten the homework.', exZh: '他承认自己忘了作业。' },
+    achieve: { ex: 'She worked hard to achieve her goal.', exZh: '她努力实现自己的目标。' },
+    challenge: { ex: 'Learning to swim was a big challenge for him.', exZh: '学游泳对他来说是个大挑战。' },
+    communicate: { ex: 'Good listeners communicate more clearly.', exZh: '善于倾听的人表达得更清楚。' },
+    consider: { ex: 'Please consider other people before you speak.', exZh: '开口前请考虑别人的感受。' },
+    continue: { ex: 'The rain continued all through the night.', exZh: '雨下了一整夜。' },
+    contribute: { ex: 'Everyone can contribute an idea to the project.', exZh: '每个人都能为这个项目贡献一个想法。' },
+    create: { ex: 'The students created a poster about saving water.', exZh: '学生们制作了一张节约用水的海报。' },
+    discover: { ex: 'Scientists discovered a new kind of fish in the river.', exZh: '科学家在河里发现了一种新鱼。' },
+    encourage: { ex: 'Her teacher encouraged her to try again.', exZh: '老师鼓励她再试一次。' },
+    explain: { ex: 'Can you explain why the sky is blue?', exZh: '你能解释天空为什么是蓝色的吗？' },
+    explore: { ex: 'We explored the old streets on foot.', exZh: '我们步行探索了老街。' },
+    imagine: { ex: 'Imagine a city with no cars or noise.', exZh: '想象一座没有汽车和噪音的城市。' },
+    introduce: { ex: 'Let me introduce my new classmate to you.', exZh: '让我把我的新同学介绍给你。' },
+    manage: { ex: 'She manages her time well between study and sport.', exZh: '她在学习和运动之间安排时间很得当。' },
+    organize: { ex: 'The class organized a book sale for charity.', exZh: '班级为慈善组织了一次旧书义卖。' },
+    participate: { ex: 'All students are welcome to participate in the debate.', exZh: '欢迎所有学生参加辩论。' },
+    prefer: { ex: 'I prefer tea to coffee in the morning.', exZh: '早上我更喜欢茶而不是咖啡。' },
+    prepare: { ex: 'We prepared a short play for the school festival.', exZh: '我们为校庆准备了一个短剧。' },
+    prevent: { ex: 'Washing your hands can prevent many illnesses.', exZh: '洗手能预防许多疾病。' },
+    realize: { ex: 'I realized that I had left my keys at home.', exZh: '我意识到把钥匙忘在家里了。' },
+    recognize: { ex: 'I did not recognize him after so many years.', exZh: '这么多年后我没认出他。' },
+    recommend: { ex: 'Can you recommend a good book for beginners?', exZh: '你能推荐一本适合初学者的好书吗？' },
+    respect: { ex: 'We should respect different opinions in a discussion.', exZh: '讨论中我们应该尊重不同意见。' },
+    succeed: { ex: 'You will succeed if you keep practicing.', exZh: '只要坚持练习，你就会成功。' },
+    survive: { ex: 'These plants can survive with very little water.', exZh: '这些植物在极少的水下也能存活。' },
+    understand: { ex: 'I understand the rule now after your example.', exZh: '听了你的例子，我现在明白这条规则了。' },
+    volunteer: { ex: 'She volunteers at the animal shelter on Sundays.', exZh: '她周日在动物收容所做志愿者。' },
+    affect: { ex: 'Lack of sleep can affect your memory.', exZh: '睡眠不足会影响记忆力。' },
+    ancient: { ex: 'The museum shows tools from ancient China.', exZh: '博物馆展出了中国古代的工具。' },
+    anxious: { ex: 'He felt anxious before the exam results came out.', exZh: '考试成绩出来前他感到焦虑。' },
+    appropriate: { ex: 'Wear appropriate clothes for the job interview.', exZh: '参加工作面试要穿合适的衣服。' },
+    available: { ex: 'The library is available to every student after school.', exZh: '放学后图书馆对每位学生开放。' },
+    aware: { ex: 'Are you aware of the rules for the science lab?', exZh: '你知道科学实验室的规则吗？' },
+    balance: { ex: 'It is important to balance study and rest.', exZh: '平衡学习和休息很重要。' },
+    behavior: { ex: 'His behavior in class surprised everyone.', exZh: '他在课堂上的表现让所有人吃惊。' },
+    capable: { ex: 'She is capable of finishing the task alone.', exZh: '她有能力独自完成这项任务。' },
+    careful: { ex: 'Be careful when you cross the busy road.', exZh: '过繁忙的马路时要小心。' },
+    common: { ex: 'This is a common mistake among new learners.', exZh: '这是新学习者常犯的错误。' },
+    compare: { ex: 'Compare the two pictures and find three differences.', exZh: '比较两幅图，找出三处不同。' },
+    complete: { ex: 'Please complete the form before Friday.', exZh: '请在周五前填完表格。' },
+    concentrate: { ex: 'It is hard to concentrate in a noisy room.', exZh: '在吵闹的房间里很难集中注意力。' },
+    concern: { ex: 'Air pollution is a serious concern in many cities.', exZh: '空气污染在许多城市是严重的问题。' },
+    connect: { ex: 'This road connects the village to the town.', exZh: '这条路把村庄和城镇连接起来。' },
+    contain: { ex: 'This box contains old letters and photos.', exZh: '这个盒子装着旧信件和照片。' },
+    culture: { ex: 'Food is an important part of every culture.', exZh: '食物是每种文化的重要部分。' },
+    curious: { ex: 'The curious child asked question after question.', exZh: '好奇的孩子问了一个又一个问题。' },
+    damage: { ex: 'The storm caused damage to several houses.', exZh: '暴风雨损坏了几座房子。' },
+    dangerous: { ex: 'It is dangerous to swim in this river alone.', exZh: '独自在这条河里游泳很危险。' },
+    describe: { ex: 'Can you describe the man you saw?', exZh: '你能描述你看到的那个人吗？' },
+    difference: { ex: 'There is a big difference between the two plans.', exZh: '这两个计划之间有很大差别。' },
+    difficult: { ex: 'The last question was too difficult for most students.', exZh: '最后一题对大多数学生来说太难了。' },
+    direct: { ex: 'The teacher gave us direct instructions for the experiment.', exZh: '老师给了我们明确的实验指示。' },
+    discuss: { ex: 'We discussed the story in small groups.', exZh: '我们分小组讨论了这篇故事。' },
+    educate: { ex: 'The museum educates visitors about local history.', exZh: '博物馆向游客介绍当地历史。' },
+    effect: { ex: 'The medicine had a quick effect on his cough.', exZh: '这种药对他的咳嗽很快见效。' },
+    efficient: { ex: 'A clear plan makes the work more efficient.', exZh: '清晰的计划让工作更高效。' },
+    effort: { ex: 'She made a great effort to speak clearly.', exZh: '她非常努力地把话说清楚。' },
+    energy: { ex: 'Solar panels turn sunlight into energy.', exZh: '太阳能板把阳光转化为能量。' },
+    entire: { ex: 'The entire class joined the clean-up activity.', exZh: '全班都参加了清扫活动。' },
+    equal: { ex: 'Everyone should have an equal chance to speak.', exZh: '每个人都应该有平等的发言机会。' },
+    escape: { ex: 'The bird escaped from its cage this morning.', exZh: '鸟今天早上从笼子里逃走了。' },
+    especially: { ex: 'I like fruit, especially oranges and grapes.', exZh: '我喜欢水果，尤其是橙子和葡萄。' },
+    essential: { ex: 'Clean water is essential for good health.', exZh: '干净的水对健康至关重要。' },
+    event: { ex: 'The school sports event starts at nine.', exZh: '学校运动会九点开始。' },
+    examine: { ex: 'The doctor examined his throat carefully.', exZh: '医生仔细检查了他的喉咙。' },
+    excellent: { ex: 'She did an excellent job on the group project.', exZh: '她在小组项目中做得非常出色。' },
+    exchange: { ex: 'The two classes exchange letters every month.', exZh: '两个班每月交换信件。' },
+    expect: { ex: 'We expect the train to arrive at six.', exZh: '我们预计火车六点到。' },
+    familiar: { ex: 'The song sounds familiar, but I forget its name.', exZh: '这首歌听起来很熟悉，但我忘了名字。' },
+    famous: { ex: 'The town is famous for its old bridge.', exZh: '这个镇以古桥闻名。' },
+    fear: { ex: 'She has a fear of speaking in front of large groups.', exZh: '她害怕在很多人面前讲话。' },
+    feature: { ex: 'The best feature of this phone is its camera.', exZh: '这部手机最好的特点是它的相机。' },
+    focus: { ex: 'Please focus on the main idea of the passage.', exZh: '请把注意力集中在文章的主旨上。' },
+    foreign: { ex: 'Learning a foreign language takes patience.', exZh: '学习一门外语需要耐心。' },
+    forgive: { ex: 'He apologized, and she chose to forgive him.', exZh: '他道了歉，她选择原谅他。' },
+    fortunate: { ex: 'We were fortunate to have such kind neighbors.', exZh: '我们很幸运有这样善良的邻居。' },
+    gather: { ex: 'The family gathered around the table for dinner.', exZh: '一家人围坐在桌边吃晚饭。' },
+    general: { ex: 'In general, the students did well on the test.', exZh: '总的来说，学生们考得不错。' },
+    generous: { ex: 'It was generous of her to share her notes.', exZh: '她愿意分享笔记，真是慷慨。' },
+    gentle: { ex: 'The nurse spoke in a gentle voice to the child.', exZh: '护士用温柔的声音对孩子说话。' },
+    goal: { ex: 'My goal is to read one English story each week.', exZh: '我的目标是每周读一篇英语故事。' },
+    government: { ex: 'The government is building a new public library.', exZh: '政府正在建一座新的公共图书馆。' },
+    grateful: { ex: 'I am grateful for your help with my homework.', exZh: '我很感激你帮我做作业。' },
+    habit: { ex: 'Making a plan is a good study habit.', exZh: '做计划是一个好的学习习惯。' },
+    handle: { ex: 'She knows how to handle difficult questions calmly.', exZh: '她知道如何冷静处理难题。' },
+    harm: { ex: 'Too much screen time can harm your eyes.', exZh: '看屏幕太久会伤害眼睛。' },
+    health: { ex: 'Regular exercise is good for your health.', exZh: '规律运动有益健康。' },
+    helpful: { ex: 'Your advice was very helpful to me.', exZh: '你的建议对我很有帮助。' },
+    honest: { ex: 'An honest answer is better than a perfect excuse.', exZh: '诚实的回答胜过完美的借口。' },
+    hope: { ex: 'I hope we can visit the science museum together.', exZh: '我希望我们能一起去科学博物馆。' },
+    ignore: { ex: 'Do not ignore the warning signs on the road.', exZh: '不要忽视路上的警告标志。' },
+    immediate: { ex: 'The broken window needs immediate repair.', exZh: '破窗户需要立即修理。' },
+    include: { ex: 'The price includes breakfast and a city map.', exZh: '价格包括早餐和一张城市地图。' },
+    increase: { ex: 'The number of readers increased last year.', exZh: '去年读者数量增加了。' },
+    independent: { ex: 'Living alone taught him to be independent.', exZh: '独自生活教会他独立。' },
+    influence: { ex: 'Friends can have a strong influence on our choices.', exZh: '朋友会对我们的选择产生很大影响。' },
+    insist: { ex: 'She insisted on paying for the meal.', exZh: '她坚持要付这顿饭钱。' },
+    inspire: { ex: 'His story inspired many young runners.', exZh: '他的故事激励了许多年轻跑者。' },
+    intelligent: { ex: 'Dolphins are intelligent animals that learn quickly.', exZh: '海豚是学得很快的聪明动物。' },
+    interest: { ex: 'She has a strong interest in space science.', exZh: '她对太空科学有浓厚的兴趣。' },
+    invent: { ex: 'Who invented the first telephone?', exZh: '谁发明了第一部电话？' },
+    invite: { ex: 'I invited my classmates to my birthday party.', exZh: '我邀请了同学参加我的生日聚会。' },
+    involve: { ex: 'The project involves collecting and sorting old books.', exZh: '这个项目包括收集和整理旧书。' },
+    journey: { ex: 'The journey to the mountain village took five hours.', exZh: '去山村的旅程花了五个小时。' },
+    judge: { ex: 'Do not judge a person by their clothes.', exZh: '不要以衣着评判一个人。' },
+    knowledge: { ex: 'Reading is one of the best ways to gain knowledge.', exZh: '阅读是获取知识的最好方式之一。' },
+    language: { ex: 'Music is a language that everyone can enjoy.', exZh: '音乐是一种人人都能欣赏的语言。' },
+    likely: { ex: 'It is likely to rain this afternoon.', exZh: '今天下午可能会下雨。' },
+    limit: { ex: 'The teacher limited the speech to three minutes.', exZh: '老师把发言限制在三分钟。' },
+    lonely: { ex: 'He felt lonely during his first week in the new city.', exZh: '刚到新城市的第一周他感到孤独。' },
+    maintain: { ex: 'It is important to maintain a clean classroom.', exZh: '保持教室整洁很重要。' },
+    major: { ex: 'Climate change is a major problem for the world.', exZh: '气候变化是世界面临的重大问题。' },
+    matter: { ex: 'It does not matter if you make a mistake; try again.', exZh: '犯错没关系，再试一次。' },
+    measure: { ex: 'The nurse measured the child’s height.', exZh: '护士量了孩子的身高。' },
+    memory: { ex: 'That summer trip is a happy memory for me.', exZh: '那次夏日旅行对我来说是快乐的回忆。' },
+    mention: { ex: 'She mentioned a good book during the meeting.', exZh: '她在会上提到了一本好书。' },
+    method: { ex: 'This method helps students remember new words.', exZh: '这个方法帮助学生记住新单词。' },
+    mistake: { ex: 'Everyone makes a mistake when learning something new.', exZh: '每个人学新东西时都会犯错。' },
+    modern: { ex: 'The modern library has computers and quiet study rooms.', exZh: '这座现代图书馆有电脑和安静的自习室。' },
+    necessary: { ex: 'It is necessary to bring your student card.', exZh: '有必要带上学生证。' },
+    nervous: { ex: 'She was nervous before her first piano performance.', exZh: '第一次钢琴表演前她很紧张。' },
+    notice: { ex: 'I noticed a small change in his handwriting.', exZh: '我注意到他的字迹有点变化。' },
+    offer: { ex: 'He offered to carry the heavy box upstairs.', exZh: '他主动提出把重箱子搬上楼。' },
+    ordinary: { ex: 'It looked like an ordinary day until the rain stopped.', exZh: '直到雨停，那看起来都是普通的一天。' },
+    patient: { ex: 'The doctor was patient with every question.', exZh: '医生耐心回答每个问题。' },
+    perform: { ex: 'The students will perform a play on Friday.', exZh: '学生们周五将表演一个短剧。' },
+    personal: { ex: 'This notebook is for your personal notes.', exZh: '这个本子用来记你的个人笔记。' },
+    persuade: { ex: 'She persuaded her brother to join the reading club.', exZh: '她说服弟弟加入了读书会。' },
+    pleasant: { ex: 'We had a pleasant walk along the river.', exZh: '我们沿着河边愉快地散步。' },
+    polite: { ex: 'It is polite to say thank you when someone helps you.', exZh: '别人帮你时说谢谢是有礼貌的。' },
+    popular: { ex: 'This song is popular among middle school students.', exZh: '这首歌在中学生中很流行。' },
+    possible: { ex: 'It is possible to finish the work before lunch.', exZh: '午饭前完成工作是有可能的。' },
+    practice: { ex: 'Daily practice is the key to speaking English well.', exZh: '每天练习是说好英语的关键。' },
+    pressure: { ex: 'Many students feel pressure before important exams.', exZh: '许多学生在重要考试前感到压力。' },
+    private: { ex: 'Please keep this letter private.', exZh: '请对这封信保密。' },
+    probably: { ex: 'She will probably arrive before noon.', exZh: '她可能会在中午前到。' },
+    problem: { ex: 'The first step is to understand the problem clearly.', exZh: '第一步是清楚地理解问题。' },
+    produce: { ex: 'This factory produces paper from recycled materials.', exZh: '这家工厂用回收材料生产纸张。' },
+    progress: { ex: 'You have made great progress in writing.', exZh: '你在写作上取得了很大进步。' },
+    promise: { ex: 'He promised to return the book on Monday.', exZh: '他答应周一还书。' },
+    proud: { ex: 'Her parents were proud of her hard work.', exZh: '父母为她的努力感到骄傲。' },
+    public: { ex: 'The public park is open from six in the morning.', exZh: '公园早上六点向公众开放。' },
+    purpose: { ex: 'The purpose of the survey is to learn student needs.', exZh: '这项调查的目的是了解学生需求。' },
+    quality: { ex: 'The quality of the sound was much better than before.', exZh: '音质比以前好多了。' },
+    raise: { ex: 'Please raise your hand if you have a question.', exZh: '有问题请举手。' },
+    reach: { ex: 'We reached the top of the hill before sunset.', exZh: '我们在日落前到达山顶。' },
+    receive: { ex: 'I received a letter from my old friend.', exZh: '我收到了老朋友的一封信。' },
+    recent: { ex: 'A recent study shows that sleep helps memory.', exZh: '最近一项研究表明睡眠有助于记忆。' },
+    refuse: { ex: 'He refused to give up after the first failure.', exZh: '第一次失败后他拒绝放弃。' },
+    regular: { ex: 'Regular exercise keeps both body and mind healthy.', exZh: '规律运动让身心都健康。' },
+    relax: { ex: 'Listening to music helps me relax after school.', exZh: '放学后听音乐帮我放松。' },
+    remain: { ex: 'Please remain quiet while the test is going on.', exZh: '考试期间请保持安静。' },
+    remember: { ex: 'I remember meeting her at the school gate.', exZh: '我记得在校门口见过她。' },
+    remind: { ex: 'This note will remind me to call my grandmother.', exZh: '这张便条会提醒我给奶奶打电话。' },
+    remove: { ex: 'Please remove your shoes before entering the room.', exZh: '进房间前请脱鞋。' },
+    repair: { ex: 'They repaired the broken chair in the classroom.', exZh: '他们修好了教室里坏掉的椅子。' },
+    repeat: { ex: 'Could you repeat the last sentence more slowly?', exZh: '你能把最后一句再慢一点说一遍吗？' },
+    replace: { ex: 'We need to replace the old light bulbs.', exZh: '我们需要更换旧灯泡。' },
+    reply: { ex: 'She replied to my message within a minute.', exZh: '她一分钟内回复了我的消息。' },
+    report: { ex: 'The group will report its results next week.', exZh: '小组将在下周汇报结果。' },
+    require: { ex: 'This job requires patience and careful work.', exZh: '这份工作需要耐心和细致。' },
+    rescue: { ex: 'Firefighters rescued the cat from the tall tree.', exZh: '消防员从高树上救下了猫。' },
+    responsible: { ex: 'Each student is responsible for cleaning one desk.', exZh: '每位学生负责清洁一张桌子。' },
+    result: { ex: 'The result of the experiment surprised the class.', exZh: '实验结果让全班惊讶。' },
+    return: { ex: 'Please return the library books by Friday.', exZh: '请在周五前归还图书馆的书。' },
+    review: { ex: 'A quick review before bed helps you remember.', exZh: '睡前快速复习有助于记忆。' },
+    reward: { ex: 'The best reward for hard work is progress.', exZh: '努力最好的回报是进步。' },
+    risk: { ex: 'There is a risk of slipping on the wet floor.', exZh: '湿地板有滑倒的风险。' },
+    safe: { ex: 'Keep your password safe and do not share it.', exZh: '保管好你的密码，不要分享。' },
+    satisfy: { ex: 'The answer did not satisfy the curious student.', exZh: '这个答案没有满足好奇的学生。' },
+    search: { ex: 'They searched the room for the missing key.', exZh: '他们在房间里找丢失的钥匙。' },
+    secret: { ex: 'She kept the secret for almost a year.', exZh: '她保守这个秘密将近一年。' },
+    select: { ex: 'Please select three books for the reading list.', exZh: '请为阅读清单挑选三本书。' },
+    sense: { ex: 'He has a good sense of direction in new places.', exZh: '他在新地方方向感很好。' },
+    separate: { ex: 'Keep the wet clothes separate from the dry ones.', exZh: '把湿衣服和干衣服分开放。' },
+    serious: { ex: 'The teacher looked serious when she read the report.', exZh: '老师看报告时表情严肃。' },
+    share: { ex: 'We shared our lunch with the new student.', exZh: '我们和新同学分享午餐。' },
+    similar: { ex: 'The two paintings look similar at first glance.', exZh: '这两幅画乍看很相似。' },
+    simple: { ex: 'The instructions are simple enough for beginners.', exZh: '这些说明对初学者来说足够简单。' },
+    skill: { ex: 'Note-taking is a skill that improves with practice.', exZh: '记笔记是一项通过练习提高的技能。' },
+    solve: { ex: 'She solved the math problem in two minutes.', exZh: '她两分钟解出了这道数学题。' },
+    special: { ex: 'Today is a special day for our class.', exZh: '今天对我们班来说是特别的一天。' },
+    spread: { ex: 'The news spread quickly through the school.', exZh: '消息很快传遍全校。' },
+    strange: { ex: 'He heard a strange sound outside the window.', exZh: '他听到窗外有奇怪的声音。' },
+    strict: { ex: 'Our coach is strict about being on time.', exZh: '教练对守时要求很严格。' },
+    strong: { ex: 'Strong winds blew the leaves across the road.', exZh: '大风吹着树叶穿过马路。' },
+    suffer: { ex: 'Many farmers suffered from the long drought.', exZh: '许多农民因长期干旱而受苦。' },
+    suppose: { ex: 'I suppose the meeting will end around four.', exZh: '我想会议大约四点结束。' },
+    surprise: { ex: 'The party was a wonderful surprise for her.', exZh: '这个聚会对她来说是个美妙的惊喜。' },
+    suspect: { ex: 'The detective suspected that the window was opened at night.', exZh: '侦探怀疑窗户是夜里被打开的。' },
+    terrible: { ex: 'The traffic was terrible this morning.', exZh: '今天早上交通糟透了。' },
+    threat: { ex: 'Plastic waste is a threat to sea animals.', exZh: '塑料垃圾对海洋动物是一种威胁。' },
+    tolerate: { ex: 'The teacher will not tolerate cheating in the exam.', exZh: '老师不会容忍考试作弊。' },
+    tough: { ex: 'It was a tough decision, but she chose to try.', exZh: '这是个艰难的决定，但她选择尝试。' },
+    travel: { ex: 'They travel by train whenever they visit their grandparents.', exZh: '他们去看祖父母时总是坐火车。' },
+    treat: { ex: 'The doctor treated the wound with clean water.', exZh: '医生用干净的水处理伤口。' },
+    trouble: { ex: 'He had trouble finding the right classroom.', exZh: '他找不到正确的教室。' },
+    trust: { ex: 'Good friends trust each other with their secrets.', exZh: '好朋友互相分享秘密并彼此信任。' },
+    truth: { ex: 'The truth is sometimes harder to say than a lie.', exZh: '有时真相比谎言更难说出口。' },
+    useful: { ex: 'This dictionary is useful for checking pronunciation.', exZh: '这本词典对查发音很有用。' },
+    usual: { ex: 'She took her usual seat near the window.', exZh: '她坐在靠窗的惯常位置。' },
+    valuable: { ex: 'Time is more valuable than money.', exZh: '时间比金钱更宝贵。' },
+    various: { ex: 'The shop sells various kinds of tea.', exZh: '这家店卖各种茶。' },
+    victory: { ex: 'The team celebrated their victory after the match.', exZh: '比赛后队伍庆祝胜利。' },
+    visit: { ex: 'We visit our grandparents every summer.', exZh: '我们每年夏天去看望祖父母。' },
+    voice: { ex: 'Her voice was clear even at the back of the hall.', exZh: '即使在大厅后排，她的声音也很清楚。' },
+    warn: { ex: 'The sign warns drivers to slow down.', exZh: '标志警告司机减速。' },
+    waste: { ex: 'Do not waste water while washing your hands.', exZh: '洗手时不要浪费水。' },
+    weak: { ex: 'He felt weak after the long illness.', exZh: '久病之后他感到虚弱。' },
+    wealth: { ex: 'The library is a wealth of information for students.', exZh: '图书馆是学生的信息宝库。' },
+    welcome: { ex: 'The whole class welcomed the new student warmly.', exZh: '全班热情欢迎新同学。' },
+    whole: { ex: 'She read the whole story in one evening.', exZh: '她一个晚上读完了整个故事。' },
+    wide: { ex: 'The river is too wide to swim across here.', exZh: '这条河太宽，这里游不过去。' },
+    wonder: { ex: 'I wonder why the sky turns red at sunset.', exZh: '我想知道为什么日落时天空会变红。' },
+    worry: { ex: 'Do not worry too much about one bad grade.', exZh: '不要太担心一次糟糕的成绩。' },
+    worth: { ex: 'The museum is worth a second visit.', exZh: '这座博物馆值得再参观一次。' },
+    wrong: { ex: 'It is better to ask than to guess wrong.', exZh: '问一下比猜错更好。' }
+  };
 
   function extractWordsFromText(text, glossary) {
     const counts = new Map();
@@ -336,11 +596,22 @@
     const list = [];
     const seen = new Set();
     String(text || '').split(/\r?\n+/).forEach((line) => {
-      const raw = line.trim().replace(/^[0-9]+[.、)\s]+/, '');
+      let raw = line.trim().replace(/^[0-9]+[.、)\s]+/, '');
       if (!raw) return;
+      let example = '';
+      let exampleZh = '';
+      /* 支持“word 中文 | English example. | 中文翻译”，老师可以自己带语境。 */
+      if (raw.includes('|')) {
+        const parts = raw.split('|').map((part) => part.trim());
+        raw = parts[0] || '';
+        example = parts[1] || '';
+        exampleZh = parts[2] || '';
+      }
       let word = '';
       let meaning = '';
-      const separated = raw.split(/\s*[=,，;；\t]\s*/);
+      /* 只用等号或制表符分隔“词 / 释义”。中文释义里常见的“；、，”不能当分隔符，
+         否则 “abandon 放弃；抛弃” 会被拆坏，整行被丢掉。 */
+      const separated = raw.split(/\s*[=\t]\s*/);
       if (separated.length >= 2) {
         word = separated[0].trim();
         meaning = separated.slice(1).join(' ').trim();
@@ -361,8 +632,8 @@
       const key = word.toLowerCase();
       if (seen.has(key)) return;
       seen.add(key);
-      list.push({ w: word, zh: meaning, kk: '', pos: '' });
-      if (list.length >= 100) return;
+      list.push({ w: word, zh: meaning, kk: '', pos: '', ex: example, exZh: exampleZh });
+      if (list.length >= 2000) return;
     });
     return list;
   }
@@ -927,10 +1198,96 @@
   }
 
   function renderReportList() {
+    renderDailyBoard();
     const list = allReports();
     $('#report-list').innerHTML = list.length
       ? list.map(reportFeedItem).join('')
       : emptyState('汇报库还是空的', '学生完成学习后生成汇报码，老师粘贴导入即可。');
+  }
+
+  /* ------------------------------ 每日汇报看板 ------------------------------ */
+
+  let dailyBoardOffset = 0;
+
+  function mondayOf(iso) {
+    const date = new Date(`${iso}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return iso;
+    const shift = (date.getDay() + 6) % 7;
+    return S.addDays(iso, -shift);
+  }
+
+  function tasksOnDay(student, day) {
+    return (student.tasks || []).filter((task) => task.status === 'done' && String(task.submittedAt || '').slice(0, 10) === day);
+  }
+
+  function renderDailyBoard() {
+    const box = $('#daily-board');
+    if (!box || !data) return;
+    const today = S.todayIso();
+    const start = S.addDays(mondayOf(today), dailyBoardOffset * 7);
+    const days = Array.from({ length: 7 }, (_, index) => S.addDays(start, index));
+    const students = (data.students || []).slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'zh'));
+    const weekEnd = days[6];
+    const label = $('#daily-board-range');
+    if (label) {
+      label.textContent = `${S.fmtDate(days[0])} — ${S.fmtDate(weekEnd)}`;
+    }
+    if (!students.length) {
+      box.innerHTML = emptyState('还没有学生', '先到“学生名册”添加学生。');
+      return;
+    }
+    let reportCount = 0;
+    let taskOnlyCount = 0;
+    const rows = students.map((student) => {
+      const dayLog = student.dayLog || {};
+      const cells = days.map((day) => {
+        const tasks = tasksOnDay(student, day);
+        const log = dayLog[day];
+        const checked = ((student.profile && student.profile.checkins) || []).includes(day);
+        let cls = '';
+        let tip = `${student.name} · ${S.fmtDate(day)}：`;
+        if (log) {
+          cls = 'is-report';
+          reportCount += 1;
+          tip += `已交今日汇报（${log.taskCount || 0} 个任务${log.avgScore != null ? `，均分 ${log.avgScore}` : ''}）`;
+        } else if (tasks.length) {
+          cls = 'is-task';
+          taskOnlyCount += 1;
+          tip += `完成了 ${tasks.length} 个任务，但还没有交今日汇报`;
+        } else if (checked) {
+          cls = 'is-checkin';
+          tip += '已打卡，没有交今日汇报';
+        } else {
+          tip += '没有记录';
+        }
+        if (day === today) cls += ' is-today';
+        return `<span class="daily-cell ${cls}" title="${S.escapeHtml(tip)}">${day === today ? '今' : Number(day.slice(8, 10))}</span>`;
+      }).join('');
+      const weekReports = days.filter((day) => dayLog[day]).length;
+      return `<div class="daily-row" data-student-id="${S.escapeHtml(student.id)}" tabindex="0" role="button" title="打开 ${S.escapeHtml(student.name)} 的详情">` +
+        `<span class="daily-name">${S.escapeHtml(student.avatar || '')} ${S.escapeHtml(student.name)}${weekReports ? `<b>${weekReports}</b>` : ''}</span>` +
+        `<span class="daily-cells">${cells}</span>` +
+      `</div>`;
+    }).join('');
+    const heads = days.map((day) => `<span class="daily-head${day === today ? ' is-today' : ''}">周${'一二三四五六日'[(new Date(`${day}T00:00:00`).getDay() + 6) % 7]}</span>`).join('');
+    box.innerHTML =
+      `<div class="daily-board">` +
+        `<div class="daily-row daily-row-head"><span class="daily-name">学生</span><span class="daily-cells">${heads}</span></div>` +
+        rows +
+      `</div>` +
+      `<div class="daily-board-foot">` +
+        `<span class="daily-legend"><i class="lg-report"></i>已交今日汇报 ${reportCount}</span>` +
+        `<span class="daily-legend"><i class="lg-task"></i>做了任务没交汇报 ${taskOnlyCount}</span>` +
+        `<span class="daily-legend"><i class="lg-none"></i>没有记录</span>` +
+        `<span class="daily-board-tip">点任意一行，查看这个学生的详情和画像。</span>` +
+      `</div>`;
+    box.querySelectorAll('.daily-row[data-student-id]').forEach((row) => {
+      const open = () => openDetail(row.dataset.studentId);
+      row.addEventListener('click', open);
+      row.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); }
+      });
+    });
   }
 
   function renderSettings() {
@@ -1652,6 +2009,9 @@
       planStart: plan.weekStart,
       planTitle: plan.title,
       planLevel: plan.level,
+      assignmentId: day.assignmentId || plan.bookAssignmentId || '',
+      wordSlot: day.wordSlot || '',
+      slotLabel: day.slotLabel || '',
       mode: day.kind === 'grammar' ? 'grammar' : day.kind === 'words' ? 'words' : '',
       grammarDay: day.grammarDay || 0,
       lesson: day.lesson || null,
@@ -1757,7 +2117,7 @@
   function renderPlanList() {
     const box = $('#plan-list');
     if (!box) return;
-    const list = (data.plans || []).filter((plan) => plan.kind !== 'grammar').slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    const list = (data.plans || []).filter((plan) => plan.kind !== 'grammar' && plan.kind !== 'book').slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     if (!list.length) {
       box.innerHTML = emptyState('还没有周计划', '选好材料和学生后，点“生成本周任务码”。');
       return;
@@ -1843,10 +2203,13 @@
     const title = $('#codes-title');
     const sub = $('#codes-sub');
     const isGrammar = plans.some((plan) => plan.kind === 'grammar');
-    if (title) title.textContent = isGrammar ? '语法打卡码' : '周计划码';
-    if (sub) sub.textContent = isGrammar
-      ? '一位学生一码，一份码里含 7 天语法课。学生导入后每天完成当天，第二天自动解锁；也可以点“多学一天”。'
-      : '一位学生一码，一份码里含 7 天任务。学生导入后每天自动解锁一天，也可以点“多学一天”提前学下一天。';
+    const isBook = plans.some((plan) => plan.kind === 'book');
+    if (title) title.textContent = isBook ? '词汇书周任务码' : isGrammar ? '语法打卡码' : '周计划码';
+    if (sub) sub.textContent = isBook
+      ? '一位学生一码：每个任务栏是一天，单词和语法可以混排。学生每天完成当天任务，第二天自动解锁；每天生成“今日汇报码”发给你。'
+      : isGrammar
+        ? '一位学生一码，一份码里含 7 天语法课。学生导入后每天完成当天，第二天自动解锁；也可以点“多学一天”。'
+        : '一位学生一码，一份码里含 7 天任务。学生导入后每天自动解锁一天，也可以点“多学一天”提前学下一天。';
     $('#codes-list').innerHTML = items.map((item, index) => {
       if (!item.code) {
         return `<div class="code-card"><div class="code-card-head"><strong>${S.escapeHtml(item.student.name)} · ${S.escapeHtml(item.student.id)}</strong></div>` +
@@ -2275,15 +2638,29 @@
   function wordAssignmentStats(assignment) {
     const rows = (assignment.studentIds || []).map((id) => {
       const student = getStudent(id);
-      const task = student ? (student.tasks || []).find((item) => item.id === assignment.id && item.status === 'done') : null;
-      return {
-        student,
-        task,
-        words: task && Array.isArray(task.wordStats) ? task.wordStats : []
-      };
+      const tasks = student
+        ? (student.tasks || []).filter((item) => item.status === 'done' && (item.id === assignment.id || item.assignmentId === assignment.id))
+        : [];
+      const words = [];
+      tasks.forEach((task) => (task.wordStats || []).forEach((word) => words.push(word)));
+      const scores = tasks.map((task) => Number(task.score)).filter((value) => Number.isFinite(value));
+      const task = tasks.length
+        ? {
+            ...tasks[0],
+            score: scores.length ? Math.round(mean(scores)) : null,
+            correct: words.filter((word) => word.ok).length,
+            total: words.length,
+            wordStats: words
+          }
+        : null;
+      return { student, task, tasks, words };
     });
     const done = rows.filter((row) => row.task);
-    const scores = done.map((row) => Number(row.task.score)).filter((value) => Number.isFinite(value));
+    const scores = [];
+    done.forEach((row) => row.tasks.forEach((task) => {
+      const value = Number(task.score);
+      if (Number.isFinite(value)) scores.push(value);
+    }));
     const wrongMap = new Map();
     done.forEach((row) => {
       row.words.filter((word) => !word.ok).forEach((word) => {
@@ -2295,13 +2672,29 @@
       });
     });
     const wrong = Array.from(wrongMap.values()).sort((a, b) => b.count - a.count).slice(0, 12);
+    const totalTasks = assignment.bookMode
+      ? (assignment.slotCount || (assignment.slots || []).length || 1) * rows.length
+      : rows.length;
+    const doneTasks = done.reduce((sum, row) => sum + (assignment.bookMode ? row.tasks.length : 1), 0);
     return {
       rows,
       total: rows.length,
       done: done.length,
+      doneTasks,
+      totalTasks,
+      completion: totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0,
       avgScore: scores.length ? Math.round(mean(scores)) : null,
       wrong
     };
+  }
+
+  function completionStars(percent, accuracy) {
+    let stars = 1;
+    if (percent >= 95 && (accuracy == null || accuracy >= 90)) stars = 5;
+    else if (percent >= 85 && (accuracy == null || accuracy >= 80)) stars = 4;
+    else if (percent >= 65) stars = 3;
+    else if (percent >= 35) stars = 2;
+    return stars;
   }
 
   function renderWords() {
@@ -2335,16 +2728,21 @@
 
     listEl.innerHTML = allStats.map(({ assignment, stats }) => {
       const total = (assignment.studentIds || []).length;
-      const percent = total ? Math.round((stats.done / total) * 100) : 0;
+      const percent = assignment.bookMode ? stats.completion : (total ? Math.round((stats.done / total) * 100) : 0);
       const overdue = assignment.due && assignment.due < S.todayIso();
       const wrongHtml = stats.wrong.length
         ? `高频错词：${stats.wrong.slice(0, 8).map((word) => `<span class="word-wrong-chip">${S.escapeHtml(word.w)}${word.count > 1 ? ` ×${word.count}` : ''}</span>`).join('')}`
         : '还没有收到汇报，交回后这里会出现高频错词。';
+      const stars = completionStars(percent, stats.avgScore);
+      const starHtml = assignment.bookMode
+        ? `<div class="word-stars" title="完成度与正确率综合星级"><span>${'★'.repeat(stars)}${'☆'.repeat(5 - stars)}</span><b>${percent}%</b></div>`
+        : '';
       return `<article class="assignment-card word" data-word-id="${S.escapeHtml(assignment.id)}">` +
         `<div class="assignment-main">` +
-          `<h3>${S.escapeHtml(assignment.title)}<span class="word-badge">WORD</span></h3>` +
+          `<h3>${S.escapeHtml(assignment.title)}<span class="word-badge">${assignment.bookMode ? 'BOOK' : 'WORD'}</span>${starHtml}</h3>` +
           `<div class="assignment-meta">` +
             `<span>${assignment.wordTotal || (assignment.words || []).length} 词</span>` +
+            (assignment.bookMode ? `<span>${assignment.slotCount || (assignment.slots || []).length} 个任务栏</span>` : '') +
             `<span>经验 <b>+${assignment.xp || 80}</b></span>` +
             `<span style="${overdue ? 'color:var(--red-bright);' : ''}">截止 ${assignment.due ? S.escapeHtml(S.fmtDate(assignment.due)) : '未设置'}${overdue ? '（已过）' : ''}</span>` +
             `<span>${stats.avgScore == null ? '平均正确率 —' : `平均正确率 ${stats.avgScore}%`}</span>` +
@@ -2352,12 +2750,13 @@
           `<div class="word-wrong-line">${wrongHtml}</div>` +
         `</div>` +
         `<div class="assignment-progress">` +
-          `<div class="progress-label"><span>已交汇报</span><b>${stats.done} / ${total}</b></div>` +
+          `<div class="progress-label"><span>${assignment.bookMode ? `任务完成 ${stats.doneTasks} / ${stats.totalTasks}` : '已交汇报'}</span><b>${assignment.bookMode ? `${stats.done} / ${total} 人` : `${stats.done} / ${total}`}</b></div>` +
           `<div class="mini-track"><i style="width:${percent}%"></i></div>` +
         `</div>` +
         `<div class="assignment-actions">` +
           `<button class="p-btn small" type="button" data-word-action="codes">任务码</button>` +
           `<button class="p-btn small ghost" type="button" data-word-action="detail">学情</button>` +
+          (assignment.bookMode ? `<button class="p-btn small ghost" type="button" data-word-action="continue">续编下周</button>` : '') +
           `<button class="p-btn small ghost" type="button" data-word-action="delete">删除</button>` +
         `</div>` +
       `</article>`;
@@ -2467,12 +2866,20 @@
     }
     box.innerHTML = wordDraft.map((word, index) => {
       const missing = !String(word.zh || '').trim();
+      const hasExample = Boolean(String(word.ex || '').trim());
       return `<div class="word-preview-row ${missing ? 'missing' : ''}" data-word-row="${index}">` +
         `<span class="word-index">${String(index + 1).padStart(2, '0')}</span>` +
-        `<span class="word-en">${S.escapeHtml(word.w)}</span>` +
+        `<span class="word-en">${S.escapeHtml(word.w)}${hasExample ? ' <span class="word-context-badge">语境</span>' : ''}</span>` +
         `<span class="word-phon" title="${S.escapeHtml(word.kk || '')}">${S.escapeHtml(word.kk || '—')}</span>` +
         `<input type="text" value="${S.escapeHtml(word.zh || '')}" data-word-meaning="${index}" placeholder="补一个中文释义" aria-label="${S.escapeHtml(word.w)} 的中文释义">` +
         `<button class="word-remove" type="button" data-word-remove="${index}" aria-label="移除 ${S.escapeHtml(word.w)}">×</button>` +
+        `<details class="word-example-box" ${hasExample ? 'open' : ''}>` +
+          `<summary>${hasExample ? '语境例句（可修改）' : '＋ 添加语境例句（可选）'}</summary>` +
+          `<div class="word-example-fields">` +
+            `<input type="text" value="${S.escapeHtml(word.ex || '')}" data-word-ex="${index}" placeholder="含这个单词的英文句子" aria-label="${S.escapeHtml(word.w)} 的英文例句">` +
+            `<input type="text" value="${S.escapeHtml(word.exZh || '')}" data-word-ex-zh="${index}" placeholder="例句中文翻译（可选）" aria-label="${S.escapeHtml(word.w)} 例句的中文翻译">` +
+          `</div>` +
+        `</details>` +
       `</div>`;
     }).join('');
     updateWordDraftCount();
@@ -2499,25 +2906,111 @@
     if (parsed.length > 80) S.toast('一次最多 80 个词，已截取前 80 个。', 'error', 5000);
     const source = parsed.slice(0, 80);
     const glossary = await loadGlossary();
+    const ranks = ensureGlossaryRanks(glossary);
     let filled = 0;
+    let exampleCount = 0;
     wordDraft = source.map((word) => {
-      const entry = glossary[word.w.toLowerCase()] || {};
+      const key = word.w.toLowerCase();
+      const entry = glossary[key] || {};
+      const bank = WORD_EXAMPLES[key] || {};
       const zh = String(word.zh || entry.zh || '').trim();
       if (!word.zh && entry.zh) filled += 1;
+      const ex = String(word.ex || bank.ex || '').trim();
+      const exZh = String(word.exZh || bank.exZh || '').trim();
+      if (ex) exampleCount += 1;
       return {
         w: word.w,
         zh,
         kk: word.kk || entry.kk || '',
-        pos: word.pos || entry.pos || ''
+        pos: word.pos || entry.pos || '',
+        ex,
+        exZh,
+        rank: ranks.has(key) ? ranks.get(key) : 99999
       };
     });
     renderWordPreview();
     const missing = wordDraft.filter((word) => !word.zh).length;
     const status = $('#word-glossary-status');
+    const contextNote = exampleCount
+      ? `其中 ${exampleCount} 个词有语境例句，会穿插“语境推词”题。`
+      : '还没有语境例句，可以点“AI 补例句”或在预览里手动补，否则只出英译中题。';
     if (status) {
       status.textContent = missing
-        ? `已自动补全 ${filled} 个释义；还有 ${missing} 个需要手动填写（红色的行）。`
-        : `释义齐全，共 ${wordDraft.length} 个词。可以发布。`;
+        ? `已自动补全 ${filled} 个释义；还有 ${missing} 个需要手动填写（红色的行）。${contextNote}`
+        : `释义齐全，共 ${wordDraft.length} 个词。${contextNote}`;
+    }
+    const contextStatus = $('#word-context-status');
+    if (contextStatus) {
+      const withContext = wordDraft.filter((word) => String(word.ex || '').trim()).length;
+      contextStatus.textContent = `语境题覆盖：${withContext} / ${wordDraft.length} 个词。本机例句库已自动补常见词；没有例句的词可以展开手动填写，或点“AI 补例句”。`;
+    }
+  }
+
+  function contextSentenceValid(sentence, word) {
+    const text = String(sentence || '').trim();
+    const target = String(word || '').trim();
+    if (!text || !target) return false;
+    const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`\\b${escaped}\\b`, 'i').test(text);
+  }
+
+  async function generateWordContexts() {
+    if (!wordDraft.length) { S.toast('先点“生成预览”，有了单词以后再补例句。', 'error'); return; }
+    const cfg = aiConfig();
+    if (!cfg.key) { S.toast('还没有配置 API Key。到“设置 → AI 直连”粘贴保存，或手动展开预览里的例句框填写。', 'error', 7000); return; }
+    const missing = wordDraft.filter((word) => !contextSentenceValid(word.ex, word.w)).slice(0, 60);
+    if (!missing.length) { S.toast('所有词都已经有语境例句了。', 'ok'); return; }
+    const promptWords = missing.map((word) => `${word.w}（${word.zh || '无释义'}）`).join('\n');
+    const prompt = `你是中小学英语词汇教学助手。请为下面每个单词写一句原创、自然、适合中学生的英文例句，长度 8–16 个词。\n` +
+      `要求：\n1. 例句中必须原样出现该单词（可以有正常的大小写变化，但不要换成别的词形）。\n2. 句子要提供足够的语境，让学生能猜出这个词的意思。\n3. 给每句配准确、通顺的中文翻译。\n4. 不涉及政治、暴力、成人内容，不使用教材或出版社的原句。\n` +
+      `只输出 JSON 数组，不要 Markdown，不要解释。格式：[{"w":"单词","ex":"English sentence.","exZh":"中文翻译。"}]\n\n单词：\n${promptWords}`;
+    const estimate = S.ai.estimate(prompt.length + 200, Math.min(4000, 120 + missing.length * 70));
+    if (!window.confirm(`这次会把 ${missing.length} 个单词（只发单词和释义，不含学生信息）发给 DeepSeek，生成语境例句。\n预计最多约 ${estimate.maxOutputTokens} 输出 tokens，约 ${S.ai.costText(estimate.cost + 0.002)}。\n只在你点确认后调用。继续吗？`)) return;
+    const button = $('#word-context-ai');
+    const status = $('#word-context-status');
+    if (button) { button.disabled = true; button.textContent = '生成例句中…'; }
+    if (status) status.textContent = '正在请 DeepSeek 写例句，通常几秒到十几秒…';
+    try {
+      const result = await callDeepSeek([
+        { role: 'system', content: '你是严谨的英语词汇教学助手。只输出合法 JSON 数组，不添加 Markdown 或解释。' },
+        { role: 'user', content: prompt }
+      ], Math.min(4000, 180 + missing.length * 70), '单词语境例句');
+      const text = String(result.text || '').replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+      const start = text.indexOf('[');
+      const end = text.lastIndexOf(']');
+      let list = [];
+      if (start >= 0 && end > start) {
+        try { list = JSON.parse(text.slice(start, end + 1)); } catch (error) { list = []; }
+      }
+      if (!Array.isArray(list) || !list.length) throw new Error('AI 返回的例句格式无法识别，请再试一次。');
+      const map = new Map();
+      list.forEach((item) => {
+        if (!item || !item.w || !item.ex) return;
+        const key = String(item.w).trim().toLowerCase();
+        if (!key) return;
+        map.set(key, {
+          ex: String(item.ex).trim(),
+          exZh: String(item.exZh || '').trim()
+        });
+      });
+      let added = 0;
+      wordDraft.forEach((word) => {
+        const hit = map.get(word.w.toLowerCase());
+        if (!hit) return;
+        if (!contextSentenceValid(hit.ex, word.w)) return;
+        word.ex = hit.ex;
+        word.exZh = hit.exZh;
+        added += 1;
+      });
+      renderWordPreview();
+      const used = Number(result.usage.total_tokens) || 0;
+      if (status) status.textContent = `已补 ${added} 个词的语境例句。本次 ${used} tokens · 约 ${S.ai.costText(result.cost)}。没补上的词可以手动展开填写。`;
+      S.toast(`语境例句已补 ${added} 个，本次约 ${S.ai.costText(result.cost)}。`, 'ok', 6000);
+    } catch (error) {
+      if (status) status.textContent = '这次没有成功补例句，可以重试或在预览里手动填写。';
+      S.toast(error.message || 'AI 补例句失败。', 'error', 8000);
+    } finally {
+      if (button) { button.disabled = false; button.textContent = 'AI 补例句（可选）'; }
     }
   }
 
@@ -2535,7 +3028,15 @@
     const title = $('#word-title').value.trim() || `单词打卡 · ${wordDraft.length} 词`;
     const due = $('#word-due').value || S.addDays(S.todayIso(), 3);
     const xp = clamp(Number($('#word-xp').value) || 80, 20, 600);
-    const words = wordDraft.map((word) => ({ w: word.w, zh: word.zh, kk: word.kk || '', pos: word.pos || '' }));
+    const words = wordDraft.map((word) => ({
+      w: word.w,
+      zh: word.zh,
+      kk: word.kk || '',
+      pos: word.pos || '',
+      ex: String(word.ex || '').trim(),
+      exZh: String(word.exZh || '').trim(),
+      rank: Number.isFinite(Number(word.rank)) ? Number(word.rank) : 99999
+    }));
     const assignment = {
       id: S.uid('W'),
       kind: 'words',
@@ -2614,6 +3115,521 @@
     await showBundleCodes(items, grammarUsed);
   }
 
+  /* ------------------------------ 词汇书周编排 ------------------------------ */
+
+  const BOOK_DIFFICULTIES = {
+    auto: { key: 'auto', label: '按学情自适应', factor: 1, levelShift: 0 },
+    gentle: { key: 'gentle', label: '基础巩固', factor: 0.85, levelShift: -1 },
+    standard: { key: 'standard', label: '标准进度', factor: 1, levelShift: 0 },
+    challenge: { key: 'challenge', label: '加难提升', factor: 1.15, levelShift: 1 },
+    sprint: { key: 'sprint', label: '冲刺强化', factor: 1.3, levelShift: 2 }
+  };
+
+  function bookDifficulty() {
+    const key = String(($('#book-difficulty') || {}).value || 'auto');
+    return BOOK_DIFFICULTIES[key] || BOOK_DIFFICULTIES.auto;
+  }
+
+  function defaultBookSlots() {
+    return [
+      { id: S.uid('SL'), type: 'words', count: 12, focus: 'adaptive' },
+      { id: S.uid('SL'), type: 'words', count: 12, focus: 'adaptive' },
+      { id: S.uid('SL'), type: 'words', count: 12, focus: 'adaptive' },
+      { id: S.uid('SL'), type: 'words', count: 10, focus: 'review' },
+      { id: S.uid('SL'), type: 'words', count: 10, focus: 'adaptive' },
+      { id: S.uid('SL'), type: 'grammar', count: 0, focus: 'adaptive' },
+      { id: S.uid('SL'), type: 'grammar', count: 0, focus: 'adaptive' }
+    ];
+  }
+
+  function openBookDialog(sourceId) {
+    const source = sourceId ? (data.assignments || []).find((item) => item.id === sourceId && item.bookMode) : null;
+    bookWords = source ? (source.words || []).slice() : [];
+    bookSlots = source && Array.isArray(source.slots) && source.slots.length
+      ? source.slots.map((slot) => ({ ...slot, id: S.uid('SL') }))
+      : defaultBookSlots();
+    bookPreviewStudentId = '';
+    bookStudentsCache = null;
+    bookSourceAssignmentId = source ? source.id : '';
+    const title = $('#book-title');
+    if (title) title.value = source ? `${String(source.title || '词汇书').replace(/·\s*续编.*$/, '').trim()} · 续编` : '';
+    const weekStart = $('#book-week-start');
+    if (weekStart) weekStart.value = S.todayIso();
+    const xp = $('#book-xp');
+    if (xp) xp.value = String(source ? source.xp || 80 : 80);
+    const difficulty = $('#book-difficulty');
+    if (difficulty) difficulty.value = BOOK_DIFFICULTIES[source && source.difficulty] ? source.difficulty : 'auto';
+    const input = $('#book-input');
+    if (input) {
+      input.value = source
+        ? (source.words || []).map((word) => `${word.w} ${word.zh || ''}${word.ex ? ` | ${word.ex} | ${word.exZh || ''}` : ''}`).join('\n')
+        : '';
+    }
+    const status = $('#book-status');
+    if (status) status.textContent = source
+      ? `已载入《${source.title}》的 ${bookWords.length} 个词。继续生成时，系统会自动跳过学生已经做过的词。`
+      : '本机释义库会自动补全中文释义和例句；导入后先点“解析词汇书”。';
+    renderBookStudents();
+    renderBookSlots();
+    renderBookPreview();
+    updateBookFoot();
+    S.openDialog($('#book-dialog'));
+    const previewStatus = $('#book-count');
+    if (previewStatus) previewStatus.textContent = `${bookWords.length} 个词`;
+  }
+
+  let bookSourceAssignmentId = '';
+
+  function renderBookStudents() {
+    const box = $('#book-students');
+    if (!box) return;
+    const list = sortedStudents();
+    if (!list.length) {
+      box.innerHTML = '<p class="hint">还没有学生。先在“学生名册”里添加。</p>';
+      return;
+    }
+    const selected = bookStudentsCache || new Set(list.map((student) => student.id));
+    box.innerHTML = list.map((student) => (
+      `<label class="check-chip"><input type="checkbox" name="book-student" value="${S.escapeHtml(student.id)}" ${selected.has(student.id) ? 'checked' : ''}>${S.escapeHtml(student.avatar || '🦊')} ${S.escapeHtml(student.name)}</label>`
+    )).join('');
+  }
+
+  function bookSelectedStudents() {
+    return $$('#book-students input[name="book-student"]:checked').map((input) => input.value).map(getStudent).filter(Boolean);
+  }
+
+  function updateBookFoot() {
+    const foot = $('#book-foot-hint');
+    if (!foot) return;
+    if (bookWords.length < 4) { foot.textContent = '至少导入 4 个词。'; return; }
+    if (!bookSlots.length) { foot.textContent = '至少插入 1 个任务栏。'; return; }
+    const wordSlots = bookSlots.filter((slot) => slot.type === 'words');
+    if (!wordSlots.length) { foot.textContent = '至少插入 1 个“单词”任务栏，否则没有词汇任务。'; return; }
+    const planned = wordSlots.reduce((sum, slot) => sum + Math.max(0, Number(slot.count) || 0), 0);
+    foot.textContent = `${bookSlots.length} 个任务栏 · 预计发出 ${planned} 个词位/人（系统会按学情上下浮动）。`;
+  }
+
+  function renderBookSlots() {
+    const box = $('#book-slots');
+    if (!box) return;
+    const weekStart = ($('#book-week-start') || {}).value || S.todayIso();
+    if (!bookSlots.length) {
+      box.innerHTML = '<p class="hint">还没有任务栏，点“＋ 插入任务栏”。</p>';
+      updateBookFoot();
+      return;
+    }
+    box.innerHTML = bookSlots.map((slot, index) => {
+      const isGrammar = slot.type === 'grammar';
+      return `<div class="book-slot" data-book-slot="${index}">` +
+        `<div class="book-slot-title"><b>任务 ${index + 1}</b><span>第 ${index + 1} 天 · ${S.escapeHtml(S.fmtDate(S.addDays(weekStart, index)))}</span></div>` +
+        `<div class="book-slot-fields">` +
+          `<select class="select" data-book-slot-type="${index}" aria-label="任务 ${index + 1} 类型">` +
+            `<option value="words" ${isGrammar ? '' : 'selected'}>单词</option>` +
+            `<option value="grammar" ${isGrammar ? 'selected' : ''}>语法</option>` +
+          `</select>` +
+          `<label class="book-slot-num ${isGrammar ? 'is-hidden' : ''}">词数 <input class="input" type="number" min="1" max="80" value="${Number(slot.count) || 10}" data-book-slot-count="${index}" aria-label="任务 ${index + 1} 词数"></label>` +
+          `<select class="select book-slot-focus ${isGrammar ? 'is-hidden' : ''}" data-book-slot-focus="${index}" aria-label="任务 ${index + 1} 选词策略">` +
+            `<option value="adaptive" ${slot.focus === 'adaptive' ? 'selected' : ''}>按水平自适应</option>` +
+            `<option value="high" ${slot.focus === 'high' ? 'selected' : ''}>高频词优先</option>` +
+            `<option value="mid" ${slot.focus === 'mid' ? 'selected' : ''}>中频词优先</option>` +
+            `<option value="low" ${slot.focus === 'low' ? 'selected' : ''}>低频词优先</option>` +
+            `<option value="review" ${slot.focus === 'review' ? 'selected' : ''}>错词回炉</option>` +
+          `</select>` +
+          (isGrammar ? '<span class="book-slot-fixed">5 关 · 接学生下一课</span>' : '') +
+        `</div>` +
+        `<button class="word-remove book-slot-remove" type="button" data-book-slot-remove="${index}" aria-label="删除任务 ${index + 1}">×</button>` +
+      `</div>`;
+    }).join('');
+    updateBookFoot();
+    if (bookWords.length) renderBookPreview();
+  }
+
+  function addBookSlot() {
+    const last = bookSlots[bookSlots.length - 1];
+    bookSlots.push({ id: S.uid('SL'), type: 'words', count: last && last.type === 'words' ? Number(last.count) || 10 : 10, focus: 'adaptive' });
+    renderBookSlots();
+  }
+
+  async function parseBookWords() {
+    const raw = $('#book-input').value;
+    const parsed = parseWordLines(raw);
+    if (!parsed.length) { S.toast('先粘贴词汇书，每行一个词。', 'error'); return; }
+    const glossary = await loadGlossary();
+    const ranks = ensureGlossaryRanks(glossary);
+    let skipped = 0;
+    const words = [];
+    parsed.slice(0, 1500).forEach((word) => {
+      const key = String(word.w || '').toLowerCase();
+      if (!key) return;
+      const entry = glossary[key] || {};
+      const bank = WORD_EXAMPLES[key] || {};
+      const zh = String(word.zh || entry.zh || '').trim();
+      if (!zh) { skipped += 1; return; }
+      words.push({
+        w: word.w,
+        zh,
+        kk: word.kk || entry.kk || '',
+        pos: word.pos || entry.pos || '',
+        ex: String(word.ex || bank.ex || '').trim(),
+        exZh: String(word.exZh || bank.exZh || '').trim(),
+        rank: ranks.has(key) ? ranks.get(key) : 99999
+      });
+    });
+    bookWords = words;
+    const bands = { high: 0, mid: 0, low: 0 };
+    words.forEach((word) => { bands[bookBandOf(word)] += 1; });
+    const withExample = words.filter((word) => word.ex).length;
+    const count = $('#book-count');
+    if (count) count.textContent = `${words.length} 个词`;
+    const status = $('#book-status');
+    if (status) {
+      status.textContent = `已解析 ${words.length} 个词：高频 ${bands.high} · 中频 ${bands.mid} · 低频 ${bands.low}；${withExample} 个带语境例句。` +
+        (skipped ? ` 有 ${skipped} 个词没有中文释义，已跳过。` : '');
+    }
+    if (parsed.length > 1500) S.toast('词汇书超过 1500 行，只取前 1500 个词。', 'error', 5000);
+    renderBookPreview();
+    updateBookFoot();
+    S.toast(`词汇书解析完成，共 ${words.length} 个可用词。`, 'ok', 4000);
+  }
+
+  function bookWordKey(word) {
+    return String(word && word.w || '').trim().toLowerCase();
+  }
+
+  function bookBandOf(word) {
+    const rank = Number(word && word.rank);
+    if (!Number.isFinite(rank) || rank >= 99999) return 'mid';
+    return wordFrequencyBand(rank);
+  }
+
+  function previousBookWordKeys(student, assignment) {
+    const keys = new Set();
+    const sourceId = assignment ? (assignment.sourceId || assignment.id) : bookSourceAssignmentId;
+    if (!sourceId) return keys;
+    (data.plans || []).forEach((plan) => {
+      if (plan.studentId !== student.id || plan.bookAssignmentId !== sourceId) return;
+      (plan.days || []).forEach((day) => (day.words || []).forEach((word) => keys.add(bookWordKey(word))));
+    });
+    (student.tasks || []).forEach((task) => {
+      if (task.assignmentId !== sourceId) return;
+      (task.wordStats || []).forEach((word) => keys.add(bookWordKey(word)));
+    });
+    return keys;
+  }
+
+  function bookStudentProfile(student) {
+    const diff = bookDifficulty();
+    const today = S.todayIso();
+    const cutoff = S.addDays(today, -7);
+    const done = (student.tasks || []).filter((task) => task.status === 'done');
+    const recent = done.filter((task) => String(task.submittedAt || '').slice(0, 10) >= cutoff);
+    const recentWordStats = [];
+    recent.filter((task) => task.mode === 'words').forEach((task) => (task.wordStats || []).forEach((word) => recentWordStats.push(word)));
+    const accuracy = recentWordStats.length
+      ? Math.round((recentWordStats.filter((word) => word.ok).length / recentWordStats.length) * 100)
+      : null;
+    const doneDays = new Set(recent.map((task) => String(task.submittedAt || '').slice(0, 10)).filter(Boolean)).size;
+    const weakMap = new Map();
+    done.forEach((task) => (task.wordStats || []).forEach((word) => {
+      if (word.ok || !word.w) return;
+      const key = bookWordKey(word);
+      const item = weakMap.get(key) || { w: word.w, zh: word.zh || '', count: 0 };
+      item.count += 1;
+      weakMap.set(key, item);
+    }));
+    const weak = Array.from(weakMap.values()).sort((a, b) => b.count - a.count);
+    const weakSet = new Set(weak.map((word) => bookWordKey(word)));
+    const level = studentWordLevel(student);
+    let weakAttr = '';
+    let weakAttrValue = null;
+    const attrs = S.normalizeAttrs(student.profile && student.profile.attrs);
+    S.ATTRS.map((attr) => {
+      const stat = attrs[attr.key] || { c: 0, t: 0 };
+      const display = S.attrDisplay(stat);
+      return { name: attr.name, value: display.value, empty: display.empty };
+    }).filter((item) => !item.empty).sort((a, b) => a.value - b.value).forEach((item, index) => {
+      if (index === 0) { weakAttr = item.name; weakAttrValue = item.value; }
+    });
+    let factor = 1;
+    if (accuracy != null) {
+      if (accuracy < 60) factor = 0.82;
+      else if (accuracy < 75) factor = 0.92;
+      else if (accuracy >= 90) factor = 1.12;
+    }
+    if (doneDays <= 2) factor = Math.min(factor, 0.88);
+    else if (doneDays >= 6) factor = Math.max(factor, 1.06);
+    if (weakAttrValue != null && weakAttrValue < 50) factor = Math.min(factor, 0.95);
+    factor = clamp(factor, 0.8, 1.15) * diff.factor;
+    factor = clamp(factor, 0.65, 1.45);
+    const effectiveLevel = clamp(level + diff.levelShift, 1, 9);
+    const attrNote = weakAttr ? `认知画像里「${weakAttr}」${weakAttrValue != null ? `（${weakAttrValue}）` : ''}偏弱` : '';
+    const note = done.length
+      ? `上周完成 ${doneDays} 天${accuracy != null ? `，单词一次答对 ${accuracy}%` : '，暂无单词数据'}；当前 Lv.${level}${weak.length ? `；错词 ${weak.length} 个` : ''}${attrNote ? `；${attrNote}，本周先稳住词量` : ''}。`
+      : `还没有历史打卡，先按 Lv.${level} 的基础量起步${attrNote ? `；${attrNote}` : ''}。`;
+    return { accuracy, doneDays, level, effectiveLevel, weak, weakSet, factor, note, weakAttr, difficulty: diff };
+  }
+
+  function bookOrderFor(words, focus, level, weakSet) {
+    const all = words.slice();
+    const rank = (word) => (Number.isFinite(Number(word.rank)) ? Number(word.rank) : 15000);
+    const byRank = (a, b) => rank(a) - rank(b);
+    if (focus === 'high') {
+      const list = all.filter((word) => bookBandOf(word) === 'high').sort(byRank);
+      return list.length ? list.concat(all.filter((word) => bookBandOf(word) !== 'high').sort(byRank)) : all.sort(byRank);
+    }
+    if (focus === 'mid') {
+      const list = all.filter((word) => bookBandOf(word) === 'mid').sort(byRank);
+      return list.length ? list.concat(all.filter((word) => bookBandOf(word) !== 'mid').sort(byRank)) : all.sort(byRank);
+    }
+    if (focus === 'low') {
+      const list = all.filter((word) => bookBandOf(word) === 'low').sort((a, b) => rank(b) - rank(a));
+      return list.length ? list.concat(all.filter((word) => bookBandOf(word) !== 'low').sort((a, b) => rank(b) - rank(a))) : all.sort((a, b) => rank(b) - rank(a));
+    }
+    if (focus === 'review') {
+      return all.sort((a, b) => (
+        Number(weakSet && weakSet.has(bookWordKey(b))) - Number(weakSet && weakSet.has(bookWordKey(a))) || byRank(a, b)
+      ));
+    }
+    if (focus === 'mix') {
+      const high = all.filter((word) => bookBandOf(word) === 'high').sort(byRank);
+      const mid = all.filter((word) => bookBandOf(word) === 'mid').sort(byRank);
+      const low = all.filter((word) => bookBandOf(word) === 'low').sort((a, b) => rank(b) - rank(a));
+      const ratio = level <= 3 ? [0.6, 0.3, 0.1] : level <= 6 ? [0.3, 0.5, 0.2] : [0.15, 0.4, 0.45];
+      const target = [Math.round(all.length * ratio[0]), Math.round(all.length * ratio[1]), Math.round(all.length * ratio[2])];
+      const picked = [];
+      const used = new Set();
+      const take = (list, limit) => {
+        let count = 0;
+        for (const word of list) {
+          if (count >= limit) break;
+          const key = bookWordKey(word);
+          if (used.has(key)) continue;
+          used.add(key); picked.push(word); count += 1;
+        }
+      };
+      take(high, target[0]); take(mid, target[1]); take(low, target[2]);
+      all.forEach((word) => { if (!used.has(bookWordKey(word))) picked.push(word); });
+      return picked;
+    }
+    const targetRank = level <= 3 ? 900 : level <= 6 ? 4300 : 11000;
+    return all.sort((a, b) => Math.abs(rank(a) - targetRank) - Math.abs(rank(b) - targetRank) || byRank(a, b));
+  }
+
+  function allocateBookWords(student, slots, words, assignment) {
+    const profile = bookStudentProfile(student);
+    const used = previousBookWordKeys(student, assignment);
+    const taken = new Set();
+    const byIndex = {};
+    let recycled = false;
+    const orders = new Map();
+    const orderFor = (focus) => {
+      if (!orders.has(focus)) orders.set(focus, bookOrderFor(words, focus, profile.effectiveLevel, profile.weakSet));
+      return orders.get(focus);
+    };
+    const pick = (list, count, picked) => {
+      for (const word of list) {
+        if (picked.length >= count) break;
+        const key = bookWordKey(word);
+        if (!key || taken.has(key) || used.has(key)) continue;
+        taken.add(key); picked.push(word);
+      }
+    };
+    slots.forEach((slot, index) => {
+      if (slot.type !== 'words') return;
+      const count = Math.max(1, Math.round((Number(slot.count) || 10) * profile.factor));
+      const picked = [];
+      pick(orderFor(slot.focus || 'adaptive'), count, picked);
+      if (picked.length < count) pick(orderFor('adaptive'), count, picked);
+      if (picked.length < count) {
+        recycled = true;
+        pick(words.slice().sort((a, b) => Number(a.rank) - Number(b.rank)), count, picked);
+      }
+      if (picked.length < count) {
+        recycled = true;
+        pick(words, count, picked);
+      }
+      /* 单词闯关至少要有 4 个词才能生成四选一。 */
+      if (picked.length < Math.min(4, words.length)) {
+        recycled = true;
+        for (const word of words) {
+          if (picked.length >= Math.min(4, words.length)) break;
+          const key = bookWordKey(word);
+          if (picked.some((item) => bookWordKey(item) === key)) continue;
+          picked.push(word);
+        }
+      }
+      byIndex[index] = picked;
+    });
+    return { byIndex, profile, recycled };
+  }
+
+  function bookGrammarDay(student, grammarDay) {
+    if (!G) return null;
+    const lesson = G.lessonByDay(grammarDay);
+    if (!lesson) return null;
+    const reviewLesson = G.lessonByDay(G.reviewDayFor(grammarDay));
+    return {
+      grammarDay: lesson.day,
+      lesson: G.summary(lesson),
+      blocks: G.buildBlocks(lesson, reviewLesson)
+    };
+  }
+
+  function buildBookPlan(student, assignment, weekStart) {
+    const planId = S.uid('BP');
+    const alloc = allocateBookWords(student, assignment.slots || [], assignment.words || [], assignment);
+    let grammarCursor = G ? nextGrammarDay(student) : 0;
+    const days = [];
+    (assignment.slots || []).forEach((slot, index) => {
+      const dayNumber = index + 1;
+      const date = S.addDays(weekStart, index);
+      const base = {
+        day: dayNumber,
+        date,
+        taskId: `${planId}-D${dayNumber}`,
+        slotLabel: `任务 ${dayNumber}`,
+        assignmentId: assignment.id,
+        wordSlot: slot.id || `S${dayNumber}`
+      };
+      if (slot.type === 'grammar') {
+        const lesson = bookGrammarDay(student, grammarCursor);
+        if (!lesson) return;
+        grammarCursor += 1;
+        days.push({
+          ...base,
+          kind: 'grammar',
+          title: `D${dayNumber} · 语法 ${lesson.grammarDay} · ${lesson.lesson.title}`,
+          paperTitle: `${assignment.title} · 语法`,
+          grammarDay: lesson.grammarDay,
+          lesson: lesson.lesson,
+          blocks: lesson.blocks,
+          questionTotal: 5,
+          xp: clamp(55 + lesson.grammarDay * 2, 60, 160)
+        });
+        return;
+      }
+      const words = alloc.byIndex[index] || [];
+      if (!words.length) return;
+      days.push({
+        ...base,
+        kind: 'words',
+        title: `D${dayNumber} · 任务 ${dayNumber} · ${words.length} 词`,
+        paperTitle: `${assignment.title} · 单词`,
+        words,
+        pool: wordPoolFor(words),
+        wordTotal: words.length,
+        xp: assignment.xp || 80
+      });
+    });
+    return {
+      id: planId,
+      kind: 'book',
+      studentId: student.id,
+      studentName: student.name,
+      weekStart,
+      title: `${assignment.title} · ${student.name}`,
+      level: alloc.profile.level,
+      difficulty: alloc.profile.difficulty.key,
+      difficultyLabel: alloc.profile.difficulty.label,
+      createdAt: S.nowIso(),
+      bookAssignmentId: assignment.id,
+      studentNote: alloc.profile.note,
+      recycled: alloc.recycled,
+      days
+    };
+  }
+
+  function bookPreviewHtml(student) {
+    if (!bookWords.length) {
+      return `<p class="hint">先导入并解析词汇书，这里会显示每位学生的分配依据。</p>`;
+    }
+    const alloc = allocateBookWords(student, bookSlots, bookWords, null);
+    const cells = bookSlots.map((slot, index) => {
+      if (slot.type === 'grammar') {
+        return `<span class="book-preview-cell is-grammar">D${index + 1} · 语法</span>`;
+      }
+      const count = (alloc.byIndex[index] || []).length;
+      return `<span class="book-preview-cell is-words">D${index + 1} · ${count} 词</span>`;
+    }).join('');
+    const total = Object.values(alloc.byIndex).reduce((sum, words) => sum + words.length, 0);
+    return `<div class="book-preview-row" data-book-preview="${S.escapeHtml(student.id)}">` +
+      `<div class="book-preview-student"><b>${S.escapeHtml(student.avatar || '🦊')} ${S.escapeHtml(student.name)}</b><small>Lv.${alloc.profile.level} · ${S.escapeHtml(alloc.profile.difficulty.label)} · 本周 ${total} 词${alloc.recycled ? ' · 词汇书已循环补词' : ''}</small></div>` +
+      `<p class="book-preview-note">${S.escapeHtml(alloc.profile.note)}</p>` +
+      `<div class="book-preview-cells">${cells}</div>` +
+    `</div>`;
+  }
+
+  function renderBookPreview() {
+    const box = $('#book-student-preview');
+    if (!box) return;
+    const students = bookSelectedStudents();
+    if (!bookWords.length) {
+      box.innerHTML = '<p class="hint">先导入并解析词汇书，这里会显示每位学生的分配依据。</p>';
+      return;
+    }
+    if (!students.length) {
+      box.innerHTML = '<p class="hint">先在下方勾选至少一位学生。</p>';
+      return;
+    }
+    box.innerHTML = students.map(bookPreviewHtml).join('');
+  }
+
+  async function generateBookAssignment() {
+    if (!bookWords.length) { S.toast('先点“解析词汇书”。', 'error'); return; }
+    if (bookWords.length < 4) { S.toast('至少需要 4 个带释义的词。', 'error'); return; }
+    if (!bookSlots.length) { S.toast('至少插入 1 个任务栏。', 'error'); return; }
+    const students = bookSelectedStudents();
+    if (!students.length) { S.toast('至少勾选一位学生。', 'error'); return; }
+    const missingPin = students.find((student) => !student.pin);
+    if (missingPin) { S.toast(`${missingPin.name} 还没有密码，无法生成任务码。`, 'error', 6000); return; }
+    const weekStart = ($('#book-week-start') || {}).value || S.todayIso();
+    const title = ($('#book-title') || {}).value.trim() || `词汇书周编排 · ${S.fmtDate(weekStart)}`;
+    const xp = clamp(Number(($('#book-xp') || {}).value) || 80, 20, 400);
+    const assignment = {
+      id: S.uid('B'),
+      kind: 'words',
+      mode: 'words',
+      bookMode: true,
+      title,
+      paperTitle: '词汇书周任务',
+      paperGrade: '',
+      due: S.addDays(weekStart, bookSlots.length - 1),
+      xp,
+      createdAt: S.nowIso(),
+      studentIds: students.map((student) => student.id),
+      wordTotal: bookWords.length,
+      words: bookWords.map((word) => ({ ...word })),
+      slots: bookSlots.map((slot) => ({ ...slot })),
+      slotCount: bookSlots.length,
+      difficulty: bookDifficulty().key,
+      difficultyLabel: bookDifficulty().label,
+      sourceId: bookSourceAssignmentId || '',
+      pool: wordPoolFor(bookWords)
+    };
+    data.assignments.unshift(assignment);
+    const plans = [];
+    students.forEach((student) => {
+      const plan = buildBookPlan(student, assignment, weekStart);
+      if (!plan.days.length) {
+        S.toast(`${student.name} 没有可分派的任务（可能是语法已学完或词汇不足）。`, 'error', 5000);
+        return;
+      }
+      data.plans = (data.plans || []).filter((item) => !(item.studentId === student.id && item.bookAssignmentId === assignment.id));
+      data.plans.unshift(plan);
+      plans.push(plan);
+    });
+    if (!plans.length) {
+      data.assignments = data.assignments.filter((item) => item.id !== assignment.id);
+      S.toast('没有生成任何计划，请检查任务栏设置。', 'error');
+      return;
+    }
+    save();
+    renderAll();
+    S.closeDialog($('#book-dialog'));
+    S.toast(`词汇书周任务已生成：${plans.length} 位学生，${bookSlots.length} 个任务栏。正在打开一人一码…`, 'ok', 7000);
+    await showPlanCodes(plans);
+  }
+
   function openWordDetail(assignmentId) {
     const assignment = (data.assignments || []).find((item) => item.id === assignmentId && item.kind === 'words');
     if (!assignment) return;
@@ -2621,6 +3637,8 @@
     const stats = wordAssignmentStats(assignment);
     const sub = $('#word-detail-sub');
     if (sub) sub.textContent = `${assignment.title} · ${assignment.wordTotal || (assignment.words || []).length} 词 · 截止 ${assignment.due ? S.fmtDate(assignment.due) : '未设置'}`;
+    const isBook = Boolean(assignment.bookMode);
+    const slotCount = assignment.slotCount || (assignment.slots || []).length || 1;
     const rows = stats.rows.map((row) => {
       if (!row.student) return '';
       const task = row.task;
@@ -2633,6 +3651,7 @@
       return `<tr>` +
         `<td><strong>${S.escapeHtml(row.student.name)}</strong><br><span class="hint">${S.escapeHtml(row.student.id)}</span></td>` +
         `<td>${task ? '已交汇报' : '未交'}</td>` +
+        (isBook ? `<td>${row.tasks.length} / ${slotCount}</td>` : '') +
         `<td>${task ? `${task.correct || 0} / ${task.total || row.words.length}` : '—'}</td>` +
         `<td class="${scoreClass}">${score == null ? '—' : score + '%'}</td>` +
         `<td>${wrongHtml}</td>` +
@@ -2641,14 +3660,21 @@
     const common = stats.wrong.length
       ? `<div class="word-common"><h3>全班高频错词</h3><p>${stats.wrong.map((word) => `<span class="word-wrong-chip">${S.escapeHtml(word.w)} · ${S.escapeHtml(word.zh || '')} ×${word.count}</span>`).join(' ')}</p><p class="hint">可以下一轮只挑这些词，做一次“错词回炉”。</p></div>`
       : '';
+    const stars = completionStars(stats.completion, stats.avgScore);
+    const starBlock = isBook
+      ? `<span>完成任务 <b>${stats.doneTasks} / ${stats.totalTasks}</b></span>` +
+        `<span>完成度 <b>${stats.completion}%</b></span>` +
+        `<span class="word-star-big">${'★'.repeat(stars)}${'☆'.repeat(5 - stars)}</span>`
+      : '';
     $('#word-detail-body').innerHTML =
       `<div class="word-detail-summary">` +
         `<span>参与 <b>${stats.total}</b> 人</span>` +
         `<span>已交 <b>${stats.done}</b> 人</span>` +
+        starBlock +
         `<span>平均一次答对率 <b>${stats.avgScore == null ? '—' : stats.avgScore + '%'}</b></span>` +
       `</div>` +
       (stats.done
-        ? `<table class="word-detail-table"><thead><tr><th>学生</th><th>状态</th><th>一次答对</th><th>正确率</th><th>错词</th></tr></thead><tbody>${rows}</tbody></table>`
+        ? `<table class="word-detail-table"><thead><tr><th>学生</th><th>状态</th>${isBook ? '<th>任务栏</th>' : ''}<th>一次答对</th><th>正确率</th><th>错词</th></tr></thead><tbody>${rows}</tbody></table>`
         : `<div class="word-detail-empty">还没有收到这个任务的汇报。学生在学生端完成后生成汇报码，老师导入后这里才会更新；学生答题时的进度条是实时的，但跨设备不会自动同步。</div>`) +
       common;
     S.openDialog($('#word-detail-dialog'));
@@ -2659,6 +3685,8 @@
     if (!assignment) return;
     if (!window.confirm(`删除单词任务《${assignment.title}》？已经发出的任务码仍然可用。`)) return;
     data.assignments = data.assignments.filter((item) => item.id !== assignmentId);
+    /* 词汇书任务对应的周计划也一起清掉，避免“单词卡删了、周计划里还挂着”的孤儿记录。 */
+    data.plans = (data.plans || []).filter((plan) => !(plan.kind === 'book' && plan.bookAssignmentId === assignmentId));
     save();
     renderAll();
     S.toast('单词任务已删除。');
@@ -2713,6 +3741,7 @@
       trialExpiresAt: String(profile.trialExpiresAt || ''),
       trialStartedAt: String(profile.trialStartedAt || ''),
       pets: profile.pets || null,
+      petPool: profile.petPool || null,
       activePet: String(profile.activePet || ''),
       fusion: profile.fusion || null,
       wheel: profile.wheel || null
@@ -2738,19 +3767,36 @@
     }
 
     const scores = tasks.filter(hasScore).map((task) => Number(task.score));
+    const isDaily = payload.scope === 'daily' && Boolean(payload.reportDay);
+    const daily = payload.daily || {};
     const summary = {
       reportId: payload.reportId,
       generatedAt: payload.generatedAt || S.nowIso(),
+      scope: isDaily ? 'daily' : 'full',
+      reportDay: isDaily ? String(payload.reportDay).slice(0, 10) : '',
       taskCount: tasks.length,
       avgScore: scores.length ? Math.round(mean(scores)) : null,
       xp: Number(profile.xp) || xpOfStudent(student),
       level: S.levelInfo(Number(profile.xp) || xpOfStudent(student)).level,
-      checkinStreak: S.streakFromCheckins(profile.checkins || [])
+      checkinStreak: S.streakFromCheckins(profile.checkins || []),
+      checkin: isDaily ? Boolean(daily.checkin) : null
     };
     const reportIndex = (student.reports || []).findIndex((report) => report.reportId === summary.reportId);
     if (reportIndex >= 0) student.reports[reportIndex] = summary;
     else student.reports.push(summary);
     student.reports.sort((a, b) => String(b.generatedAt || '').localeCompare(String(a.generatedAt || '')));
+    if (isDaily) {
+      student.dayLog = student.dayLog || {};
+      student.dayLog[summary.reportDay] = {
+        day: summary.reportDay,
+        reportId: summary.reportId,
+        at: summary.generatedAt,
+        taskCount: summary.taskCount,
+        avgScore: summary.avgScore,
+        checkin: Boolean(daily.checkin),
+        streak: Number(daily.checkinStreak) || 0
+      };
+    }
     student.lastReportAt = summary.generatedAt;
     student.updatedAt = S.nowIso();
 
@@ -2764,7 +3810,10 @@
     const wordNote = wordLevelChange && wordLevelChange.after !== wordLevelChange.before
       ? ` 单词难度自动 ${wordLevelChange.before} → ${wordLevelChange.after}（一次答对 ${wordLevelChange.accuracy}%）。`
       : '';
-    S.toast(`已导入 ${student.name} 的汇报，共 ${summary.taskCount} 个任务。${levelNote}${wordNote}`, 'ok', 9000);
+    const scopeNote = isDaily
+      ? ` 今日汇报 · ${S.fmtDate(summary.reportDay)}，${summary.taskCount} 个任务${summary.avgScore != null ? `，均分 ${summary.avgScore}` : ''}。`
+      : ' 完整档案（包含全部历史任务）。';
+    S.toast(`已导入 ${student.name} 的汇报。${scopeNote}${levelNote}${wordNote}`, 'ok', 9000);
     openDetail(student.id);
   }
 
@@ -3707,10 +4756,20 @@
     if (usage) {
       usage.textContent = `累计 ${cfg.totalTokens} tokens（输入 ${cfg.inputTokens} / 输出 ${cfg.outputTokens}）· ${cfg.calls} 次 · 约 ${S.ai.costText(cfg.cost)}`;
     }
+    const summary = $('#ai-source-summary');
+    if (summary) {
+      const usage = S.ai.summary();
+      summary.innerHTML = usage.sources.length
+        ? `<div class="ai-source-title"><b>按来源汇总</b><span>${usage.sources.length} 个来源 · 累计永久保留 · 明细最近 200 条</span></div>` +
+          `<table class="ai-source-table"><thead><tr><th>来源</th><th>次数</th><th>Tokens</th><th>费用</th></tr></thead><tbody>` +
+          usage.sources.map((row) => `<tr><td>${S.escapeHtml(row.source)}</td><td>${row.calls}</td><td>${row.tokens}</td><td>${S.ai.costText(row.cost)}</td></tr>`).join('') +
+          `</tbody></table>`
+        : '<p class="hint" style="text-align:left;margin:6px 0;">还没有 AI 消耗记录。</p>';
+    }
     const logEl = $('#ai-cost-log');
     if (logEl) {
       logEl.innerHTML = cfg.log.length
-        ? cfg.log.slice(0, 8).map((item) => (
+        ? cfg.log.slice(0, 12).map((item) => (
           `<li><span>${S.escapeHtml(S.fmtDateTime(item.at))} · ${S.escapeHtml(item.source)}</span>` +
           `<b>${item.tokens} tokens · ${S.ai.costText(item.cost)}</b></li>`
         )).join('')
@@ -3965,19 +5024,105 @@
     $('#assignment-add').addEventListener('click', () => openAssign(null));
     $('#word-add').addEventListener('click', () => openWordDialog(null));
     $('#word-build').addEventListener('click', buildWordPreview);
+    const wordContextAi = $('#word-context-ai');
+    if (wordContextAi) wordContextAi.addEventListener('click', generateWordContexts);
     $('#word-generate').addEventListener('click', generateWordAssignment);
     $('#word-extract').addEventListener('click', extractWordsFromMaterial);
+    const bookAdd = $('#book-add');
+    if (bookAdd) bookAdd.addEventListener('click', () => openBookDialog(''));
+    const bookParse = $('#book-parse');
+    if (bookParse) bookParse.addEventListener('click', parseBookWords);
+    const bookAddSlot = $('#book-add-slot');
+    if (bookAddSlot) bookAddSlot.addEventListener('click', addBookSlot);
+    const bookAutoSlots = $('#book-auto-slots');
+    if (bookAutoSlots) {
+      bookAutoSlots.addEventListener('click', () => {
+        bookSlots = defaultBookSlots();
+        renderBookSlots();
+        S.toast('已恢复成 5 天单词 + 2 天语法的推荐编排，可以继续手动改。', 'ok', 4000);
+      });
+    }
+    const bookSlotsBox = $('#book-slots');
+    if (bookSlotsBox) {
+      bookSlotsBox.addEventListener('click', (event) => {
+        const remove = event.target.closest('[data-book-slot-remove]');
+        if (!remove) return;
+        bookSlots.splice(Number(remove.dataset.bookSlotRemove), 1);
+        renderBookSlots();
+      });
+      bookSlotsBox.addEventListener('change', (event) => {
+        const type = event.target.closest('[data-book-slot-type]');
+        if (type) {
+          const slot = bookSlots[Number(type.dataset.bookSlotType)];
+          if (!slot) return;
+          slot.type = type.value === 'grammar' ? 'grammar' : 'words';
+          if (slot.type === 'words' && !Number(slot.count)) slot.count = 10;
+          renderBookSlots();
+          return;
+        }
+        const count = event.target.closest('[data-book-slot-count]');
+        if (count) {
+          const slot = bookSlots[Number(count.dataset.bookSlotCount)];
+          if (slot) slot.count = clamp(Number(count.value) || 10, 1, 80);
+          updateBookFoot();
+          renderBookPreview();
+          return;
+        }
+        const focus = event.target.closest('[data-book-slot-focus]');
+        if (focus) {
+          const slot = bookSlots[Number(focus.dataset.bookSlotFocus)];
+          if (slot) slot.focus = focus.value;
+          renderBookPreview();
+        }
+      });
+    }
+    const bookWeek = $('#book-week-start');
+    if (bookWeek) bookWeek.addEventListener('change', () => renderBookSlots());
+    const bookDifficultySelect = $('#book-difficulty');
+    if (bookDifficultySelect) bookDifficultySelect.addEventListener('change', () => renderBookPreview());
+    const bookStudents = $('#book-students');
+    if (bookStudents) {
+      bookStudents.addEventListener('change', () => {
+        bookStudentsCache = new Set(bookSelectedStudents().map((student) => student.id));
+        renderBookPreview();
+      });
+    }
+    const bookPreviewBtn = $('#book-preview-btn');
+    if (bookPreviewBtn) bookPreviewBtn.addEventListener('click', renderBookPreview);
+    const bookGenerate = $('#book-generate');
+    if (bookGenerate) bookGenerate.addEventListener('click', generateBookAssignment);
     $$('.word-source-tab').forEach((button) => {
       button.addEventListener('click', () => setWordSource(button.dataset.wordSource));
     });
     $('#word-preview').addEventListener('input', (event) => {
-      const input = event.target.closest('[data-word-meaning]');
-      if (!input) return;
-      const index = Number(input.dataset.wordMeaning);
-      if (!wordDraft[index]) return;
-      wordDraft[index].zh = input.value;
-      input.closest('.word-preview-row').classList.toggle('missing', !input.value.trim());
-      updateWordDraftCount();
+      const meaning = event.target.closest('[data-word-meaning]');
+      if (meaning) {
+        const index = Number(meaning.dataset.wordMeaning);
+        if (!wordDraft[index]) return;
+        wordDraft[index].zh = meaning.value;
+        meaning.closest('.word-preview-row').classList.toggle('missing', !meaning.value.trim());
+        updateWordDraftCount();
+        return;
+      }
+      const example = event.target.closest('[data-word-ex]');
+      if (example) {
+        const index = Number(example.dataset.wordEx);
+        if (!wordDraft[index]) return;
+        wordDraft[index].ex = example.value;
+        const row = example.closest('.word-preview-row');
+        const badge = row && row.querySelector('.word-context-badge');
+        if (badge) badge.remove();
+        if (example.value.trim() && row) {
+          const name = row.querySelector('.word-en');
+          if (name) name.insertAdjacentHTML('beforeend', ' <span class="word-context-badge">语境</span>');
+        }
+        return;
+      }
+      const translation = event.target.closest('[data-word-ex-zh]');
+      if (translation) {
+        const index = Number(translation.dataset.wordExZh);
+        if (wordDraft[index]) wordDraft[index].exZh = translation.value;
+      }
     });
     $('#word-preview').addEventListener('click', (event) => {
       const button = event.target.closest('[data-word-remove]');
@@ -3989,6 +5134,12 @@
       $('#import-report-code').value = '';
       S.openDialog($('#import-report-dialog'));
     });
+    const boardPrev = $('#daily-board-prev');
+    const boardNext = $('#daily-board-next');
+    const boardThis = $('#daily-board-this');
+    if (boardPrev) boardPrev.addEventListener('click', () => { dailyBoardOffset -= 1; renderDailyBoard(); });
+    if (boardNext) boardNext.addEventListener('click', () => { dailyBoardOffset += 1; renderDailyBoard(); });
+    if (boardThis) boardThis.addEventListener('click', () => { dailyBoardOffset = 0; renderDailyBoard(); });
 
     $('#teacher-tabs').addEventListener('click', (event) => {
       const button = event.target.closest('button[data-tab]');
@@ -4259,9 +5410,20 @@
       if (!card) return;
       const assignmentId = card.dataset.wordId;
       const action = button.dataset.wordAction;
-      if (action === 'codes') openCodesForAssignment(assignmentId);
-      else if (action === 'detail') openWordDetail(assignmentId);
-      else if (action === 'delete') deleteWordAssignment(assignmentId);
+      if (action === 'codes') {
+        const assignment = (data.assignments || []).find((item) => item.id === assignmentId);
+        if (assignment && assignment.bookMode) {
+          const plans = (data.plans || []).filter((plan) => plan.bookAssignmentId === assignmentId);
+          if (plans.length) showPlanCodes(plans);
+          else S.toast('这条词汇书任务还没有生成计划，请点“续编下周”重新生成。', 'error', 5000);
+        } else {
+          openCodesForAssignment(assignmentId);
+        }
+      } else if (action === 'detail') openWordDetail(assignmentId);
+      else if (action === 'continue') {
+        const assignment = (data.assignments || []).find((item) => item.id === assignmentId);
+        if (assignment) openBookDialog(assignmentId);
+      } else if (action === 'delete') deleteWordAssignment(assignmentId);
     });
 
     $('#detail-back').addEventListener('click', closeDetail);
@@ -4301,6 +5463,12 @@
     if (testKeyBtn) testKeyBtn.addEventListener('click', testAiKey);
     const clearKeyBtn = $('#ai-key-clear');
     if (clearKeyBtn) clearKeyBtn.addEventListener('click', clearAiKey);
+    window.addEventListener('storage', (event) => {
+      if (event.key === S.ai.storageKey) updateAiSettingsUI();
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) updateAiSettingsUI();
+    });
 
     $('#teacher-backup').addEventListener('click', openBackup);
     $('#backup-copy').addEventListener('click', async () => {
