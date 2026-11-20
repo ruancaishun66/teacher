@@ -23,6 +23,34 @@
     return `#${((1 << 24) + (out[0] << 16) + (out[1] << 8) + out[2]).toString(16).slice(1)}`;
   }
 
+  /* 每种属性一个主色。神兽原来的四色先向主色靠拢，
+     这样同屏二十只不会像打翻颜料盘，但仍保留各自的山海经底色。 */
+  const ATTR_ACCENTS = {
+    water: '#6fc9d8', fire: '#f08a5d', wind: '#9ad9c7', earth: '#c9a26b',
+    moon: '#b9a7e8', dream: '#e6a8c8', metal: '#d9c27a', wood: '#8cc47a',
+    storm: '#8f9fe8', sun: '#f2c14e', gold: '#e8b84a'
+  };
+
+  function harmonizePalette(colors, motion, fused) {
+    const raw = colors || {};
+    const attr = ATTR_ACCENTS[motion] || ATTR_ACCENTS.earth;
+    let body = raw.body || '#8bcfc7';
+    let ear = raw.ear || mix(body, '#0d2026', 0.36);
+    let belly = raw.belly || mix(body, '#fff7e8', 0.72);
+    let accent = raw.accent || attr;
+    body = mix(body, '#fff7ea', 0.06);
+    ear = mix(ear, body, 0.34);
+    belly = mix(belly, '#fff8ea', 0.38);
+    accent = mix(accent, attr, 0.46);
+    if (fused) {
+      body = mix('#8fded0', attr, 0.22);
+      ear = mix('#3f7f7b', '#1a2830', 0.24);
+      belly = '#fff7e6';
+      accent = '#f0c987';
+    }
+    return { body, ear, belly, accent };
+  }
+
   function star(x, y, radius, fill, opacity) {
     const r = Number(radius) || 4;
     const points = [
@@ -99,10 +127,71 @@
       `<linearGradient id="${g('mane')}" x1="0" y1="0" x2=".6" y2="1"><stop offset="0" stop-color="${maneLight}"/><stop offset=".55" stop-color="${p.ear}"/><stop offset="1" stop-color="${maneDark}"/></linearGradient>` +
       `<radialGradient id="${g('glow')}" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="${accentLight}" stop-opacity=".6"/><stop offset=".55" stop-color="${p.accent}" stop-opacity=".2"/><stop offset="1" stop-color="${p.accent}" stop-opacity="0"/></radialGradient>` +
       `<radialGradient id="${g('orb')}" cx="34%" cy="28%" r="72%"><stop offset="0" stop-color="#fffbe8"/><stop offset=".4" stop-color="${accentLight}"/><stop offset="1" stop-color="${accentDark}"/></radialGradient>` +
+      `<radialGradient id="${g('gloss')}" cx="34%" cy="26%" r="70%"><stop offset="0" stop-color="#fff" stop-opacity=".72"/><stop offset=".42" stop-color="#fff" stop-opacity=".2"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>` +
+      `<radialGradient id="${g('void')}" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#040207"/><stop offset=".5" stop-color="#170d1d"/><stop offset=".78" stop-color="#3a2340" stop-opacity=".7"/><stop offset="1" stop-color="${p.accent}" stop-opacity="0"/></radialGradient>` +
+      `<linearGradient id="${g('rim')}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".66"/><stop offset=".42" stop-color="#fff" stop-opacity=".08"/><stop offset=".72" stop-color="${p.accent}" stop-opacity="0"/><stop offset="1" stop-color="${p.accent}" stop-opacity=".32"/></linearGradient>` +
       `<filter id="${g('blur')}" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="6"/></filter>` +
       `<filter id="${g('soft')}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2.4"/></filter>` +
       `<filter id="${g('glowf')}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>` +
+      `<filter id="${g('depth')}" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="3.2" stdDeviation="2.2" flood-color="#07171d" flood-opacity=".4"/></filter>` +
     `</defs>`;
+  }
+
+  /* 属性特效：只放在身体外圈，避免遮住脸；缩略图会跳过这一层。 */
+  function attributeFx(motion, p, ids) {
+    const a = p.accent;
+    let inner = '';
+    if (motion === 'water') {
+      inner = [[48, 78, 4.6], [212, 92, 3.6], [66, 136, 3], [204, 150, 4.2], [82, 56, 2.6]]
+        .map(([x, y, r], i) => `<circle class="pet-fx-bubble f${i}" cx="${x}" cy="${y}" r="${r}" fill="${a}" opacity=".38"/>`).join('') +
+        `<path class="pet-fx-ripple" d="M34 164c10-5 20-5 30 0m132 8c9-4 18-4 27 0" fill="none" stroke="${a}" stroke-opacity=".34" stroke-width="1.6" stroke-linecap="round"/>`;
+    } else if (motion === 'fire') {
+      inner = [[44, 88, 0.9], [216, 76, 0.8], [58, 142, 1.1], [204, 140, 0.7], [84, 54, 0.6], [188, 54, 0.85]]
+        .map(([x, y, sc], i) => `<path class="pet-fx-ember f${i}" transform="translate(${x} ${y}) scale(${sc})" d="M0 10C-7 3-4-5 1-11c0 6 4 8 7 11 4-4 5-8 5-12 6 7 7 14 2 21-4 4-11 4-15 1Z" fill="${a}" opacity=".42"/>`).join('');
+    } else if (motion === 'wind') {
+      inner = [[30, 86, 1], [210, 70, 0.8], [40, 132, 0.7], [198, 154, 0.9]]
+        .map(([x, y, sc], i) => `<path class="pet-fx-wind f${i}" transform="translate(${x} ${y}) scale(${sc})" d="M0 0c14-9 28-9 42 0s26 9 38 1" fill="none" stroke="${a}" stroke-opacity=".38" stroke-width="2.2" stroke-linecap="round"/>`).join('');
+    } else if (motion === 'earth') {
+      inner = [[46, 130, 3], [210, 118, 2.4], [66, 76, 2], [196, 64, 2.6], [74, 158, 1.8]]
+        .map(([x, y, r], i) => `<circle class="pet-fx-dust f${i}" cx="${x}" cy="${y}" r="${r}" fill="${a}" opacity=".38"/>`).join('') +
+        `<path class="pet-fx-shard" d="M206 92l7-11 5 12-6 6Z" fill="${a}" opacity=".28"/>`;
+    } else if (motion === 'moon') {
+      inner = star(48, 70, 3.8, '#fff', 0.65) + star(214, 92, 2.8, a, 0.55) + star(64, 146, 2.3, a, 0.5) +
+        `<path class="pet-fx-moon" d="M206 50a18 18 0 1 0 12 31 15 15 0 0 1-12-31Z" fill="${a}" opacity=".25"/>`;
+    } else if (motion === 'dream') {
+      inner = [[48, 84, 8], [212, 74, 6], [62, 144, 5], [202, 146, 7]]
+        .map(([x, y, r], i) => `<circle class="pet-fx-dream f${i}" cx="${x}" cy="${y}" r="${r}" fill="${a}" opacity=".28" filter="url(#${ids.soft})"/>`).join('');
+    } else if (motion === 'metal') {
+      inner = [[46, 80, 1], [214, 100, 0.8], [62, 146, 0.7], [198, 58, 0.9]]
+        .map(([x, y, sc], i) => `<path class="pet-fx-spark f${i}" transform="translate(${x} ${y}) scale(${sc})" d="M0-12 3-3 12 0 3 3 0 12-3 3-12 0-3-3Z" fill="${a}" opacity=".55"/>`).join('');
+    } else if (motion === 'wood') {
+      inner = [[44, 92, -24], [214, 78, 26], [58, 148, -12], [200, 144, 18]]
+        .map(([x, y, rot], i) => `<ellipse class="pet-fx-leaf f${i}" cx="${x}" cy="${y}" rx="8" ry="4" fill="${a}" opacity=".34" transform="rotate(${rot} ${x} ${y})"/>`).join('');
+    } else if (motion === 'storm') {
+      inner = `<path class="pet-fx-bolt f0" d="M52 54l-9 22 10-2-7 24 21-29-11 2 8-17Z" fill="${a}" opacity=".5"/>` +
+        `<path class="pet-fx-bolt f1" d="M208 96l-7 18 8-1-5 18 16-22-9 1 6-14Z" fill="${a}" opacity=".42"/>` +
+        `<path class="pet-fx-ripple" d="M34 168c14-5 28-5 42 0m112 4c12-4 24-4 36 0" fill="none" stroke="${a}" stroke-opacity=".3" stroke-width="1.6" stroke-linecap="round"/>`;
+    } else if (motion === 'sun') {
+      inner = `<g class="pet-fx-sun" opacity=".5"><circle cx="214" cy="58" r="11" fill="${a}" opacity=".35"/>` +
+        `<path d="M214 38v-9M214 87v9M194 58h-9M243 58h9M200 44l-6-6M234 78l6 6M228 44l6-6M200 78l-6 6" stroke="${a}" stroke-width="2" stroke-linecap="round"/></g>` +
+        star(48, 88, 3.4, '#fff', 0.6);
+    } else if (motion === 'gold') {
+      inner = `<g class="pet-fx-coin f0"><circle cx="52" cy="86" r="8" fill="${a}" opacity=".55"/><rect x="49" y="83" width="6" height="6" rx="1" fill="${p.belly}" opacity=".8"/></g>` +
+        `<g class="pet-fx-coin f1"><circle cx="208" cy="110" r="7" fill="${a}" opacity=".5"/><rect x="205.5" y="107.5" width="5" height="5" rx="1" fill="${p.belly}" opacity=".8"/></g>` +
+        star(64, 58, 3, '#fff', 0.6) + star(198, 64, 2.4, a, 0.55);
+    } else {
+      inner = star(48, 88, 3.6, a, 0.5) + star(210, 102, 4.2, a, 0.42) + star(202, 52, 2.8, '#fff', 0.5) +
+        `<circle class="pet-fx-dust f0" cx="60" cy="140" r="2.4" fill="${a}" opacity=".34"/>`;
+    }
+    return `<g class="pet-fx pet-fx-${motion}" aria-hidden="true">${inner}</g>`;
+  }
+
+  function depthOverlay(p, ids) {
+    return `<g class="pet-depth" aria-hidden="true">` +
+      `<ellipse cx="104" cy="66" rx="34" ry="19" fill="url(#${ids.gloss})" transform="rotate(-18 104 66)"/>` +
+      `<path d="M82 116c3-26 15-45 34-57" fill="none" stroke="url(#${ids.rim})" stroke-width="3.2" stroke-linecap="round" opacity=".7"/>` +
+      `<path d="M180 138c-1 14-8 25-20 31" fill="none" stroke="${p.accent}" stroke-width="2" stroke-linecap="round" opacity=".25"/>` +
+    `</g>`;
   }
 
   function backdrop(species, s, p, fused, ids) {
@@ -124,8 +213,13 @@
         ? `<g class="pet-aura is-soft"><circle cx="130" cy="116" r="86" fill="url(#${ids.glow})" opacity=".72"/></g>`
         : '';
     const fusion = fused
-      ? `<g class="pet-fusion-aura"><circle cx="130" cy="108" r="106" fill="none" stroke="#f0c987" stroke-opacity=".45" stroke-width="2.6" stroke-dasharray="4 9"/>` +
-        `<circle cx="130" cy="108" r="90" fill="none" stroke="#8ed9c9" stroke-opacity=".36" stroke-width="5"/></g>`
+      ? `<g class="pet-fusion-aura">` +
+        `<circle cx="92" cy="110" r="34" fill="url(#${ids.void})" opacity=".5"/>` +
+        `<circle cx="168" cy="110" r="28" fill="url(#${ids.void})" opacity=".42"/>` +
+        `<circle class="pet-fusion-orbit o1" cx="130" cy="108" r="106" fill="none" stroke="#f0c987" stroke-opacity=".45" stroke-width="2.6" stroke-dasharray="4 9"/>` +
+        `<circle class="pet-fusion-orbit o2" cx="130" cy="108" r="90" fill="none" stroke="#8ed9c9" stroke-opacity=".36" stroke-width="5"/>` +
+        `<path class="pet-fusion-question" d="M116 30c0-9 6-16 15-16s14 6 14 14c0 6-3 9-8 13-4 3-5 5-5 10" fill="none" stroke="#f7e4bd" stroke-width="3.2" stroke-linecap="round" opacity=".34"/>` +
+        `<circle cx="132" cy="58" r="2.8" fill="#f7e4bd" opacity=".45"/></g>`
       : '';
     const shadow = `<ellipse cx="130" cy="191" rx="62" ry="9" fill="#102b32" opacity=".2" filter="url(#${ids.blur})"/>` +
       `<ellipse cx="130" cy="188" rx="40" ry="5" fill="#102b32" opacity=".18" filter="url(#${ids.soft})"/>`;
@@ -973,32 +1067,59 @@
       `<ellipse cx="146" cy="78" rx="8" ry="3.6" fill="#fff" opacity=".18" transform="rotate(-28 146 78)"/>`;
   }
 
+  /* 融合体：不是把两只拼在一起，而是“从问号里长出来”的新神兽。
+     大头、短身、三尾、双角、单翼，保留 Q 版比例，也保留黑洞的暗色核心。 */
+  function fusionArt(s, p, ids) {
+    const outline = mix(p.ear, '#0a1c22', 0.42);
+    const tail = `<path class="pet-tail" d="M100 158C72 174 44 174 28 158c-12-12 0-27 16-24 14 2 25 9 38 8" fill="url(#${ids.body})" stroke="${outline}" stroke-opacity=".3" stroke-width="1.8"/>` +
+      `<path class="pet-tail" d="M158 156c24 17 48 18 66 6 13-9 8-24-7-25-12-1-22 6-34 8" fill="url(#${ids.mane})" stroke="${outline}" stroke-opacity=".26" stroke-width="1.6"/>` +
+      `<path class="pet-tail" d="M132 166c4 16 1 27-8 36 13-2 21-10 25-24Z" fill="url(#${ids.accent})" opacity=".82"/>` +
+      rimPath('M38 152c15-3 29 2 43 6', '#fff', 2.2, 0.35);
+    const wings = `<path class="pet-wing-l" d="M92 126C64 102 42 102 28 116c12-2 22 3 28 12-10 1-17 7-21 16 14-6 26-4 36 3Z" fill="url(#${ids.mane})" opacity=".78" stroke="${outline}" stroke-opacity=".2" stroke-width="1.4"/>` +
+      `<path class="pet-wing-r" d="M168 124c26-22 46-22 60-8-12-2-22 2-28 11 10 1 16 7 20 15-13-5-25-3-35 4Z" fill="url(#${ids.mane})" opacity=".7" stroke="${outline}" stroke-opacity=".2" stroke-width="1.4"/>`;
+    const body = `<ellipse cx="130" cy="151" rx="44" ry="31" fill="url(#${ids.body})"/>` +
+      `<ellipse cx="130" cy="157" rx="28" ry="20" fill="url(#${ids.belly})"/>` +
+      `<path d="M112 146c6 5 30 5 36 0" fill="none" stroke="${p.accent}" stroke-opacity=".3" stroke-width="1.5" stroke-linecap="round"/>`;
+    const feet = `<ellipse cx="108" cy="180" rx="13" ry="6" fill="${p.ear}"/><ellipse cx="152" cy="180" rx="13" ry="6" fill="${p.ear}"/>` +
+      `<path d="M101 181h5m-2-2 2 2-2 2m44-2h5m-2-2 2 2-2 2" stroke="${mix(p.ear, '#ffffff', 0.3)}" stroke-width="1.2" stroke-linecap="round"/>`;
+    const head = `<ellipse cx="130" cy="96" rx="48" ry="42" fill="url(#${ids.head})"/>` +
+      `<path d="M92 80C80 58 84 42 98 34c5 10 13 18 24 23Z" fill="url(#${ids.mane})" stroke="${outline}" stroke-opacity=".24" stroke-width="1.5"/>` +
+      `<path d="M168 80c12-22 8-38-6-46-5 10-13 18-24 23Z" fill="url(#${ids.mane})" stroke="${outline}" stroke-opacity=".24" stroke-width="1.5"/>` +
+      `<path d="M92 62c-4-14 2-24 13-28-1 10 2 18 9 24M168 62c4-14-2-24-13-28 1 10-2 18-9 24" fill="none" stroke="#f0c987" stroke-width="3" stroke-linecap="round" opacity=".85"/>` +
+      `<ellipse cx="130" cy="111" rx="25" ry="16" fill="url(#${ids.belly})" opacity=".9"/>` +
+      `<path d="M122 115c5 4 11 4 16 0" fill="none" stroke="${outline}" stroke-width="1.8" stroke-linecap="round" opacity=".7"/>` +
+      eye(109, 94, 8.5, 10.5, p.accent, { iris: p.accent, look: 1 }) +
+      eye(151, 94, 8.5, 10.5, p.accent, { iris: p.accent, look: -1 }) +
+      `<path d="M96 122c-3 8 1 14 8 15M164 122c3 8-1 14-8 15" fill="none" stroke="${p.accent}" stroke-opacity=".25" stroke-width="2" stroke-linecap="round"/>`;
+    const orb = `<g class="pet-orb-group"><circle class="pet-orb" cx="130" cy="146" r="13" fill="url(#${ids.orb})" filter="url(#${ids.glowf})"/>` +
+      `<path d="M126 142c1-3 4-5 7-5s6 2 6 5c0 3-2 4-4 6-1 1-1 2-1 3" fill="none" stroke="${mix(p.accent, '#3a1d0d', 0.5)}" stroke-width="1.8" stroke-linecap="round"/>` +
+      `<circle cx="134" cy="153.5" r="1.2" fill="${mix(p.accent, '#3a1d0d', 0.55)}"/></g>`;
+    const mark = `<path d="M108 48c1-8 7-13 14-13 8 0 14 5 14 12 0 5-2 8-7 11-4 2-5 4-5 8" fill="none" stroke="#f7e4bd" stroke-width="2.4" stroke-linecap="round" opacity=".72"/>` +
+      `<circle cx="124" cy="72" r="2.2" fill="#f7e4bd" opacity=".8"/>` +
+      `<ellipse cx="104" cy="74" rx="7" ry="3.2" fill="#fff" opacity=".16" transform="rotate(-22 104 74)"/>`;
+    return tail + wings + body + feet + head + orb + mark;
+  }
+
   function render(opts) {
     const o = opts || {};
     const allowed = ['otter', 'fox', 'whale', 'bird', 'baize', 'qilin', 'zhulong', 'xuanwu', 'fuzhu', 'jinwu', 'yutu', 'mengdie', 'qingniao', 'suanni', 'baihu', 'kun', 'xianhe', 'lingyuan', 'jinchan', 'yinglong'];
-    const species = allowed.indexOf(o.species) >= 0 ? o.species : 'otter';
+    const species = o.fused ? 'fusion' : (allowed.indexOf(o.species) >= 0 ? o.species : 'otter');
     const s = Math.max(1, Math.min(4, Number(o.stage) || 1));
-    const p = {
-      body: o.colors.body,
-      ear: o.colors.ear,
-      belly: o.colors.belly,
-      accent: o.colors.accent
-    };
-    if (o.fused) {
-      p.body = '#9fdfd2';
-      p.ear = '#4f8f8b';
-      p.accent = '#f0c987';
-      p.belly = '#fff8e9';
-    }
+    const motion = ['water', 'fire', 'wind', 'earth', 'moon', 'dream', 'metal', 'wood', 'storm', 'sun', 'gold'].indexOf(o.motion) >= 0
+      ? o.motion
+      : (o.fused ? 'storm' : 'earth');
+    const p = harmonizePalette(o.colors, motion, o.fused);
     const uid = `petart${++seq}`;
     const ids = {
       body: `${uid}-body`, head: `${uid}-head`, belly: `${uid}-belly`, accent: `${uid}-accent`,
       mane: `${uid}-mane`, glow: `${uid}-glow`, orb: `${uid}-orb`,
-      blur: `${uid}-blur`, soft: `${uid}-soft`, glowf: `${uid}-glowf`
+      gloss: `${uid}-gloss`, rim: `${uid}-rim`, void: `${uid}-void`,
+      blur: `${uid}-blur`, soft: `${uid}-soft`, glowf: `${uid}-glowf`, depth: `${uid}-depth`
     };
     const bg = backdrop(species, s, p, o.fused, ids);
     let art = '';
-    if (species === 'otter') art = otterArt(s, p, ids);
+    if (species === 'fusion') art = fusionArt(s, p, ids);
+    else if (species === 'otter') art = otterArt(s, p, ids);
     else if (species === 'fox') art = foxArt(s, p, ids);
     else if (species === 'whale') art = whaleArt(s, p, ids);
     else if (species === 'bird') art = birdArt(s, p, ids);
@@ -1020,10 +1141,14 @@
     else if (species === 'yinglong') art = yinglongArt(s, p, ids);
     else art = otterArt(s, p, ids);
     const grow = [0.86, 0.93, 1, 1.07][s - 1];
-    const motion = ['water', 'fire', 'wind', 'earth', 'moon', 'dream', 'metal', 'wood', 'storm', 'sun', 'gold'].indexOf(o.motion) >= 0 ? o.motion : 'earth';
-    return `<svg class="pet-svg pet-stage-${s} pet-motion-${motion}${o.fused ? ' is-fused' : ''}" viewBox="0 0 260 210" role="img" aria-label="${o.label || '神兽'}">` +
-      petDefs(uid, p, o.fused) + bg.fusion + bg.aura + bg.ground + bg.bubbles + bg.shadow +
-      `<g class="pet-body-group"><g class="pet-art" transform="translate(130 190) scale(${grow}) translate(-130 -190)">${art}</g></g>` +
+    const thumb = Boolean(o.thumb);
+    const fx = thumb ? '' : attributeFx(motion, p, ids);
+    const depth = thumb ? '' : depthOverlay(p, ids);
+    const bodyFilter = thumb ? '' : ` filter="url(#${ids.depth})"`;
+    return `<svg class="pet-svg pet-stage-${s} pet-motion-${motion}${o.fused ? ' is-fused' : ''}${thumb ? ' is-thumb' : ''}" viewBox="0 0 260 210" role="img" aria-label="${o.label || '神兽'}">` +
+      petDefs(uid, p, o.fused) + bg.fusion + bg.aura + bg.ground + bg.bubbles + fx + bg.shadow +
+      `<g class="pet-body-group"><g class="pet-art"${bodyFilter} transform="translate(130 190) scale(${grow}) translate(-130 -190)">${art}</g></g>` +
+      depth +
     `</svg>`;
   }
 

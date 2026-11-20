@@ -154,16 +154,35 @@
       <div class="student-grid" id="student-grid"></div>
     </section>
 
-    <!-- 发布任务（练习卷 + 每日打卡，合并入口） -->
+    <!-- 发布任务：A 单词书 / B 阅读联动 / C 语法专项 + 待发区 -->
     <section class="teacher-pane" data-pane="publish">
       <div class="publish-head">
         <div>
-          <h2 class="pane-title">发布任务 <small>PUBLISH</small></h2>
-          <p class="pane-sub">先选类型：每日打卡管单词和语法，练习卷管阅读、完形和语法题。推荐用“词汇书周编排”，一次把 7 天的单词和语法混排好，一人一码。</p>
+          <h2 class="pane-title">发布中心 <small>PUBLISH</small></h2>
+          <p class="pane-sub">只有三个打卡入口：A 整本单词书、B 阅读联动（核心）、C 语法专项。任何任务生成后先进入下面的“待发区”，确认人数和内容后，再一键合并成一人一码。</p>
         </div>
       </div>
+
+      <div class="outbox-tray" id="outbox-tray">
+        <div class="outbox-head">
+          <div class="outbox-heading">
+            <span class="outbox-dot" aria-hidden="true"></span>
+            <b>待发区</b>
+            <span class="outbox-count" id="outbox-count">0</span>
+            <small>先在这里核对；所有任务会按学生合并，一位学生只发一个码。</small>
+          </div>
+          <div class="outbox-actions">
+            <button class="p-btn small ghost" type="button" id="outbox-clear" disabled>清空</button>
+            <button class="p-btn small" type="button" id="outbox-send" disabled>一键生成发送包</button>
+          </div>
+        </div>
+        <div class="outbox-list" id="outbox-list"></div>
+      </div>
+
       <div class="publish-subnav" id="publish-subnav" role="tablist" aria-label="发布类型">
-        <button type="button" class="active" data-publish-sub="daily" role="tab" aria-selected="true">每日打卡 <span>单词 + 语法</span></button>
+        <button type="button" data-publish-sub="book" role="tab" aria-selected="false"><b>A</b> 单词书打卡 <span>整本书 · 周编排</span></button>
+        <button type="button" class="active" data-publish-sub="reading" role="tab" aria-selected="true"><b>B</b> 阅读联动 <span>核心 · 一周四步</span></button>
+        <button type="button" data-publish-sub="grammar-camp" role="tab" aria-selected="false"><b>C</b> 语法专项 <span>60 天小营</span></button>
         <button type="button" data-publish-sub="papers" role="tab" aria-selected="false">练习卷 <span>周计划 + 单次</span></button>
       </div>
 
@@ -237,10 +256,147 @@
         </section>
       </div>
 
-      <div class="publish-subpane active" data-publish-pane="daily">
+      <!-- A 单词书打卡 -->
+      <div class="publish-subpane" data-publish-pane="book">
         <div class="publish-banner">
-          <div><b>推荐：词汇书周编排</b><p>导入整本词汇书，插入任务 1、2、3…；单词日和语法日可以混排，系统按学情分好每天的词，生成一人一码。下面也可以单独补发单词或语法。</p></div>
+          <div><b>一整本词汇书，排成一周任务</b><p>导入词汇书，插入任务 1、2、3…；单词日和语法日可以混排。系统按学情分好每天的词，生成一人一码。下面也可以单独补发一份单词任务。</p></div>
           <button class="p-btn small" type="button" id="publish-book">打开周编排</button>
+        </div>
+
+        <section class="publish-block book-launch">
+          <div class="book-launch-grid">
+            <div class="book-launch-copy">
+              <span class="book-launch-kicker">A · 整本书打卡</span>
+              <h2 class="pane-title">词汇书周编排 <small>BOOK WEEK</small></h2>
+              <p>适合长期词汇主线：把词汇书按单元切成任务栏，系统按每位学生的学情分配每天的词，7 天自动解锁。</p>
+              <ul class="book-launch-points">
+                <li><b>不会重复</b><span>接着上次的进度往下排，同一本书的词只出现一次。</span></li>
+                <li><b>单词 + 语法混排</b><span>任务栏可以插语法日，一周不必只背单词。</span></li>
+                <li><b>一人一码</b><span>生成后先入待发区，确认后再合并发送。</span></li>
+              </ul>
+            </div>
+            <div class="book-launch-side">
+              <button class="p-btn block" type="button" id="publish-book-main">打开词汇书周编排</button>
+              <a class="p-btn small ghost block" href="library.html">先到资料库导入词汇书 ↗</a>
+              <p class="hint">已有生成的词汇书任务，可在下面“单词打卡”里查看进度和续编下周。</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- 单词打卡（单独补发 / 查看进度） -->
+        <section class="publish-block" data-publish-block="words">
+      <div class="roster-toolbar">
+        <div>
+          <h2 class="pane-title">单词打卡 <small>WORD QUEST</small></h2>
+          <p class="pane-sub">粘贴一本单词书，或从资料库的文章里提取生词，发布成单次闯关。学生交回汇报码后，这里显示完成进度与错词；如果本周已用上面的“词汇书周编排”发过，这里不用重复发。</p>
+        </div>
+        <div class="toolbar-actions">
+          <a class="p-btn small ghost" href="library.html">从文章提词 ↗</a>
+          <button class="p-btn small" type="button" id="word-add">＋ 发布单词任务</button>
+        </div>
+      </div>
+      <div class="word-dash" id="word-stats"></div>
+      <div class="assignment-list" id="word-list"></div>
+        </section>
+      </div>
+
+      <!-- B 阅读联动（核心） -->
+      <div class="publish-subpane active" data-publish-pane="reading">
+        <div class="publish-banner reading-banner">
+          <div><b>阅读联动：一篇阅读，长出一周打卡</b><p>先认词 → 再看语法 → 拆长难句 → 最后站到命题人视角读全文。单词按原文首次出现的顺序提取，每天 40 个；本周装不下的自动顺延到下周，并在下方显示，绝不悄悄重复。</p></div>
+          <span class="reading-core-badge">核心功能</span>
+        </div>
+
+        <section class="publish-block">
+          <div class="p-grid">
+            <section class="p-card p-col-5">
+              <div class="p-card-head">
+                <h3 class="p-card-title">1. 选一篇阅读 <small>SOURCE</small></h3>
+                <button class="p-btn small ghost" type="button" id="reading-refresh">刷新资料</button>
+              </div>
+              <div class="field">
+                <label for="reading-paper">从资料库的练习卷里选</label>
+                <select class="select" id="reading-paper"><option value="">正在读取资料库…</option></select>
+                <p class="hint" id="reading-paper-meta">也可以直接在下面粘贴任意英文文章。</p>
+              </div>
+              <div class="field">
+                <label for="reading-text">阅读原文（可修改、可粘贴）</label>
+                <textarea class="textarea reading-textarea" id="reading-text" rows="12" placeholder="把要讲的阅读原文粘贴到这里…"></textarea>
+              </div>
+              <div class="reading-source-actions">
+                <button class="p-btn" type="button" id="reading-extract">提取本周单词</button>
+                <button class="p-btn small ghost" type="button" id="reading-clear-carry" hidden>重置这篇的单词进度</button>
+              </div>
+              <p class="hint" id="reading-extract-note">提取只在本机进行，不调用 AI、不花钱。</p>
+            </section>
+
+            <section class="p-card p-col-7">
+              <div class="p-card-head">
+                <h3 class="p-card-title">2. 一周怎么排 <small>WEEK ARC</small></h3>
+                <span class="hint" id="reading-week-label">先提取单词</span>
+              </div>
+              <div class="reading-week">
+                <div class="reading-day d-words"><span>D1–D4</span><b>单词初印象</b><small>每天 40 词，先混个脸熟</small></div>
+                <div class="reading-day d-grammar"><span>D5</span><b>阅读里的语法</b><small>先抓动词，再过五大句型</small></div>
+                <div class="reading-day d-sentence"><span>D6</span><b>阅读里的长难句</b><small>主干 + 一级 / 二级 / 三级修饰</small></div>
+                <div class="reading-day d-perspective"><span>D7</span><b>命题人视角</b><small>全文 + 选项语义中心</small></div>
+              </div>
+              <div class="reading-stats" id="reading-stats">
+                <p class="hint">选好文章后点“提取本周单词”，这里会显示：本周取多少词、还剩多少词顺延到下周。</p>
+              </div>
+              <details class="reading-words-details" id="reading-words-details" hidden>
+                <summary>查看本周单词 <span id="reading-word-count"></span></summary>
+                <div class="reading-word-list" id="reading-word-list"></div>
+              </details>
+              <div class="reading-fields">
+                <div class="field"><label for="reading-week-start">这周从哪天开始</label><input class="input" type="date" id="reading-week-start"></div>
+                <div class="field"><label for="reading-per-day">每天单词数</label><input class="input" type="number" id="reading-per-day" value="40" min="20" max="60" step="5"></div>
+                <div class="field"><label for="reading-grade">面向年级</label><input class="input" id="reading-grade" placeholder="如 高二"></div>
+              </div>
+              <div class="field">
+                <label>发给谁</label>
+                <div class="reading-student-list" id="reading-students"></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="publish-block reading-ai-block">
+          <div class="roster-toolbar">
+            <div>
+              <h2 class="pane-title">3. 让 AI 把阅读和语法课联动 <small>AI LINK</small></h2>
+              <p class="pane-sub">AI 会按老师的方法论，从原文里挑句子：先找谓语动词 → 五大基本句型找主干 → 其余一律当修饰 → 从句按二级、三级拆。再生成命题人视角的选项分析。只发送阅读原文，不发送学生信息。</p>
+            </div>
+            <div class="toolbar-actions">
+              <button class="p-btn small" type="button" id="reading-ai">AI 生成语法 + 长难句 + 命题视角</button>
+            </div>
+          </div>
+          <div class="reading-ai-status" id="reading-ai-status">还没有生成。没有 API Key 也能继续：系统会用“本机规则版”生成观察和拆解任务，只是没有 AI 那么细。</div>
+          <details class="reading-ai-preview" id="reading-ai-preview" hidden>
+            <summary>预览 AI 生成的内容（建议先核对答案）</summary>
+            <div id="reading-ai-preview-body"></div>
+          </details>
+        </section>
+
+        <section class="publish-block reading-generate-block">
+          <div class="roster-toolbar">
+            <div>
+              <h2 class="pane-title">4. 生成一周任务 <small>GENERATE</small></h2>
+              <p class="pane-sub">生成后不会立刻出码，而是先放进最上面的“待发区”。确认学生和内容后，再点“一键生成发送包”。</p>
+            </div>
+            <div class="toolbar-actions">
+              <span class="hint" id="reading-selected-count">已选 0 人</span>
+              <button class="p-btn" type="button" id="reading-generate">放进待发区</button>
+            </div>
+          </div>
+          <div class="reading-plan-list" id="reading-plan-list"></div>
+        </section>
+      </div>
+
+      <!-- C 语法专项 -->
+      <div class="publish-subpane" data-publish-pane="grammar-camp">
+        <div class="publish-banner">
+          <div><b>C · 独立语法线：60 天语法小营</b><p>不从阅读里取材，按 60 天课程地图单独练语法。若本周已在“阅读联动”或“词汇书周编排”里排了语法，这里不用重复发。</p></div>
         </div>
 
         <!-- 语法打卡 -->
@@ -248,7 +404,7 @@
       <div class="roster-toolbar">
         <div>
           <h2 class="pane-title">60 天语法小营 <small>GRAMMAR CAMP</small></h2>
-          <p class="pane-sub">一天 5 分钟：看一句故事里的句子，记一条规则，做 3 道小题，复习 1 道旧题，再写 1 句。老师一次发 7 天，学生每天自动解锁一天。如果本周已在“词汇书周编排”里混排了语法，这里不用重复发。</p>
+          <p class="pane-sub">一天 5 分钟：看一句故事里的句子，记一条规则，做 3 道小题，复习 1 道旧题，再写 1 句。老师一次发 7 天，学生每天自动解锁一天。如果本周已在“阅读联动”或“词汇书周编排”里排了语法，这里不用重复发。</p>
         </div>
         <div class="toolbar-actions">
           <span class="hint" id="grammar-selected-count">已选 0 人</span>
@@ -320,22 +476,6 @@
         </section>
       </div>
     </section>
-
-        <!-- 单词打卡 -->
-        <section class="publish-block" data-publish-block="words">
-      <div class="roster-toolbar">
-        <div>
-          <h2 class="pane-title">单词打卡 <small>WORD QUEST</small></h2>
-          <p class="pane-sub">粘贴一本单词书，或从资料库的文章里提取生词，发布成单次闯关。学生交回汇报码后，这里显示完成进度与错词；如果本周已用上面的“词汇书周编排”发过，这里不用重复发。</p>
-        </div>
-        <div class="toolbar-actions">
-          <a class="p-btn small ghost" href="library.html">从文章提词 ↗</a>
-          <button class="p-btn small" type="button" id="word-add">＋ 发布单词任务</button>
-        </div>
-      </div>
-      <div class="word-dash" id="word-stats"></div>
-      <div class="assignment-list" id="word-list"></div>
-        </section>
       </div>
     </section>
 

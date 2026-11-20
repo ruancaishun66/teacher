@@ -72,6 +72,10 @@
   let planRequestStudentId = null;
   let trialRequestPayload = null;
   let grammarStudentIds = null;
+  let readingState = null;
+  let readingSourceId = '';
+  let readingPapersLoaded = false;
+  let readingPapersLoading = false;
 
   /* ------------------------------- 存储 ------------------------------- */
 
@@ -83,6 +87,11 @@
     raw.students = Array.isArray(raw.students) ? raw.students.map(normalizeStudent).filter((s) => s.id) : [];
     raw.assignments = Array.isArray(raw.assignments) ? raw.assignments.filter((a) => a && a.id) : [];
     raw.plans = Array.isArray(raw.plans) ? raw.plans.filter((plan) => plan && plan.id && plan.studentId) : [];
+    raw.outbox = Array.isArray(raw.outbox)
+      ? raw.outbox.filter((item) => item && item.id && item.studentId && item.task && item.task.id)
+      : [];
+    raw.readingPlans = Array.isArray(raw.readingPlans) ? raw.readingPlans.filter((item) => item && item.id) : [];
+    raw.readingCarry = raw.readingCarry && typeof raw.readingCarry === 'object' ? raw.readingCarry : {};
     raw.insights = Array.isArray(raw.insights) ? normalizeInsights(raw.insights) : defaultInsights();
     return raw;
   }
@@ -137,6 +146,9 @@
       students: [],
       assignments: [],
       plans: [],
+      outbox: [],
+      readingPlans: [],
+      readingCarry: {},
       insights: defaultInsights()
     };
   }
@@ -924,7 +936,222 @@
     return `${item.student.name}，点开这个链接会自动导入本周任务：\n${link}`;
   }
 
-  async function showBundleCodes(items, grammarUsed) {
+  /* ------------------------------- 待发区 ------------------------------- */
+
+  function outboxTaskKind(task) {
+    if (task.mode === 'words') return 'words';
+    if (task.mode === 'grammar') return 'grammar';
+    if (task.mode === 'reading' || task.readingPlanId) return 'reading';
+    return 'paper';
+  }
+
+  function outboxTaskTypeText(task) {
+    const kind = outboxTaskKind(task);
+    if (kind === 'words') return `单词 ${(task.words || []).length || task.wordTotal || 0} 个`;
+    if (kind === 'grammar') return `语法 D${task.grammarDay || '?'}`;
+    if (kind === 'reading') return `阅读任务 ${(task.blocks || []).length} 栏`;
+    return `练习 ${(task.blocks || []).length} 栏`;
+  }
+
+  function outboxAddTask(student, task, label) {
+    if (!data || !student || !task || !task.id) return false;
+    const exists = (data.outbox || []).some((item) => item.studentId === student.id && item.task && item.task.id === task.id);
+    if (exists) return false;
+    const clean = JSON.parse(JSON.stringify(task));
+    delete clean.auth;
+    clean.studentId = student.id;
+    data.outbox.push({
+      id: S.uid('OB'),
+      studentId: student.id,
+      task: clean,
+      label: String(label || '').slice(0, 30),
+      addedAt: S.nowIso()
+    });
+    return true;
+  }
+
+  async function enqueueCodeItems(items, label) {
+    let added = 0;
+    let failed = 0;
+    for (const item of items || []) {
+      if (!item || !item.code || !item.student) continue;
+      try {
+        const payload = await S.unpackCode(item.code);
+        const tasks = payload && payload.kind === 'plan' ? (payload.tasks || []) : [payload];
+        for (const task of tasks) {
+          if (task && task.id && task.kind === 'task' && outboxAddTask(item.student, task, label)) added += 1;
+        }
+      } catch (error) {
+        failed += 1;
+      }
+    }
+    if (added) {
+      save();
+      renderOutbox();
+      renderAll();
+    }
+    if (failed) S.toast(`${failed} 份码没有放进待发区，请检查后重试。`, 'error', 6000);
+    if (added) S.toast(`已放进待发区：${added} 个任务。确认无误后，在下面点“一键生成发送包”。`, 'ok', 6500);
+    return added;
+  }
+
+  function renderOutbox() {
+    const box = $('#outbox-list');
+    if (!box || !data) return;
+    const list = Array.isArray(data.outbox) ? data.outbox : [];
+    const count = $('#outbox-count');
+    if (count) count.textContent = String(list.length);
+    const send = $('#outbox-send');
+    const clear = $('#outbox-clear');
+    if (send) send.disabled = !list.length;
+    if (clear) clear.disabled = !list.length;
+    if (!list.length) {
+      box.innerHTML = `<p class="outbox-empty">待发区还是空的。上面三个模块里点击生成后，任务会先来这里；确认人数和内容后，再一次性发出去。</p>`;
+      return;
+    }
+    const groups = new Map();
+    list.forEach((item) => {
+      const student = getStudent(item.studentId);
+      if (!student) return;
+      if (!groups.has(student.id)) groups.set(student.id, { student, items: [] });
+      groups.get(student.id).items.push(item);
+    });
+    box.innerHTML = Array.from(groups.values()).map(({ student, items }) => {
+      const tasks = items.map((item) => item.task);
+      const words = tasks.reduce((sum, task) => sum + (task.mode === 'words' ? ((task.words || []).length || Number(task.wordTotal) || 0) : 0), 0);
+      const grammar = tasks.filter((task) => task.mode === 'grammar').length;
+      const reading = tasks.filter((task) => outboxTaskKind(task) === 'reading').length;
+      const summary = [
+        words ? `单词 ${words}` : '',
+        grammar ? `语法 ${grammar} 天` : '',
+        reading ? `阅读 ${reading}` : '',
+        !words && !grammar && !reading ? `${tasks.length} 个任务` : ''
+      ].filter(Boolean).join(' · ');
+      const rows = items.slice().sort((a, b) => {
+        const da = Number(a.task.planDay) || 99;
+        const db = Number(b.task.planDay) || 99;
+        return da - db || String(a.task.due || '').localeCompare(String(b.task.due || ''));
+      }).map((item) => (
+        `<span class="outbox-task ${outboxTaskKind(item.task)}" title="${S.escapeHtml(item.task.title || '')}">` +
+          `<b>${S.escapeHtml(item.task.title || '未命名任务')}</b>` +
+          `<small>${S.escapeHtml(outboxTaskTypeText(item.task))}${item.task.planDay ? ` · D${item.task.planDay}` : ''}${item.task.due ? ` · ${S.escapeHtml(S.fmtDate(item.task.due))}` : ''}</small>` +
+          `<button type="button" data-outbox-remove="${S.escapeHtml(item.id)}" aria-label="移除这个任务">×</button>` +
+        `</span>`
+      )).join('');
+      return `<details class="outbox-student" open>` +
+        `<summary><span><b>${S.escapeHtml(student.name)}</b><small>${S.escapeHtml(student.id)} · ${summary}</small></span>` +
+        `<button type="button" class="outbox-remove-student" data-outbox-remove-student="${S.escapeHtml(student.id)}">移除此人</button></summary>` +
+        `<div class="outbox-tasks">${rows}</div>` +
+      `</details>`;
+    }).join('');
+  }
+
+  async function outboxSend() {
+    if (!data || !data.outbox || !data.outbox.length) { S.toast('待发区还是空的。'); return; }
+    const groups = new Map();
+    data.outbox.forEach((item) => {
+      if (!groups.has(item.studentId)) groups.set(item.studentId, []);
+      groups.get(item.studentId).push(item);
+    });
+    const items = [];
+    const sentIds = new Set();
+    for (const [studentId, entries] of groups) {
+      const student = getStudent(studentId);
+      if (!student) continue;
+      if (!student.pin) {
+        items.push({ student, code: '', error: '还没有设置密码，无法生成发送包。' });
+        continue;
+      }
+      const tasks = entries.map((entry) => entry.task).sort((a, b) => {
+        const da = Number(a.planDay) || 99;
+        const db = Number(b.planDay) || 99;
+        return da - db || String(a.due || '').localeCompare(String(b.due || ''));
+      });
+      for (let offset = 0; offset < tasks.length; offset += 70) {
+        const chunk = tasks.slice(offset, offset + 70);
+        const bundleId = S.uid('OB');
+        const auth = S.authCode(await S.sha256Hex(`${student.id}|${student.pin}|${bundleId}`));
+        for (const task of chunk) {
+          task.auth = S.authCode(await S.sha256Hex(`${student.id}|${student.pin}|${task.id}`));
+        }
+        try {
+          const code = await S.packCode({
+            v: 1,
+            kind: 'plan',
+            id: bundleId,
+            studentId: student.id,
+            createdAt: S.nowIso(),
+            auth,
+            tasks: chunk
+          });
+          items.push({ student, code, count: chunk.length });
+        } catch (error) {
+          items.push({ student, code: '', error: error.message || '生成发送包失败。' });
+        }
+      }
+      entries.forEach((entry) => sentIds.add(entry.id));
+    }
+    if (!items.length) { S.toast('没有可发送的任务。', 'error'); return; }
+    data.outbox = data.outbox.filter((item) => !sentIds.has(item.id));
+    save();
+    renderOutbox();
+    renderAll();
+    await showOutboxCodes(items);
+  }
+
+  function removeOutboxItem(id) {
+    if (!data) return;
+    data.outbox = (data.outbox || []).filter((item) => item.id !== id);
+    save();
+    renderOutbox();
+    renderAll();
+  }
+
+  function removeOutboxStudent(studentId) {
+    if (!data) return;
+    data.outbox = (data.outbox || []).filter((item) => item.studentId !== studentId);
+    save();
+    renderOutbox();
+    renderAll();
+  }
+
+  function clearOutbox() {
+    if (!data || !(data.outbox || []).length) return;
+    if (!window.confirm(`清空待发区里的 ${data.outbox.length} 个任务？已经发出去的任务不受影响。`)) return;
+    data.outbox = [];
+    save();
+    renderOutbox();
+    renderAll();
+    S.toast('待发区已清空。');
+  }
+
+  async function showOutboxCodes(items) {
+    lastCodes = items;
+    const title = $('#codes-title');
+    const sub = $('#codes-sub');
+    if (title) title.textContent = '待发区发送包';
+    if (sub) sub.textContent = '一位学生一码，已经把这名学生在待发区里的任务合并。学生导入一次，按天自动解锁；完成后发汇报码即可。';
+    $('#codes-list').innerHTML = items.map((item, index) => {
+      if (!item.code) {
+        return `<div class="code-card"><div class="code-card-head"><strong>${S.escapeHtml(item.student.name)} · ${S.escapeHtml(item.student.id)}</strong></div>` +
+          `<p class="hint warn">${S.escapeHtml(item.error)}</p></div>`;
+      }
+      return `<div class="code-card">` +
+        `<div class="code-card-head">` +
+          `<div><strong>${S.escapeHtml(item.student.name)}</strong> <span>${S.escapeHtml(item.student.id)} · ${item.count} 个任务</span></div>` +
+          codeCardButtons(item, index) +
+        `</div>` +
+        codeTextareaHtml(item.code) +
+      `</div>`;
+    }).join('');
+    S.openDialog($('#codes-dialog'));
+  }
+
+  async function showBundleCodes(items, grammarUsed, options) {
+    if (options && options.enqueue) {
+      await enqueueCodeItems(items, options.label || '单词 + 语法');
+      return;
+    }
     lastCodes = items;
     const title = $('#codes-title');
     const sub = $('#codes-sub');
@@ -1043,6 +1270,7 @@
     renderPlanList();
     renderGrammarList();
     renderWords();
+    renderOutbox();
     if ($('#trial-students')) renderTrialTab();
     renderReportList();
     renderInsights();
@@ -1521,12 +1749,860 @@
     }
   }
 
+  /* ============================ 阅读联动（核心） ============================ */
+
+  let readingSources = [];
+  let readingStudentIds = null;
+
+  function readingNormalizeText(text) {
+    return String(text || '').replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  }
+
+  function readingWordCount(text) {
+    return (String(text || '').match(/[A-Za-z][A-Za-z'’-]*/g) || []).length;
+  }
+
+  function readingHash(text) {
+    let hash = 5381;
+    const source = String(text || '');
+    for (let index = 0; index < source.length; index += 1) {
+      hash = ((hash << 5) + hash + source.charCodeAt(index)) >>> 0;
+    }
+    return hash.toString(36);
+  }
+
+  function ensureReadingState() {
+    if (!readingState || typeof readingState !== 'object') {
+      readingState = {};
+    }
+    if (!Array.isArray(readingState.words)) readingState.words = [];
+    if (!Array.isArray(readingState.carryOut)) readingState.carryOut = [];
+    if (!Array.isArray(readingState.questions)) readingState.questions = [];
+    if (!readingState.ai) readingState.ai = null;
+    return readingState;
+  }
+
+  function readingSourceById(id) {
+    return readingSources.find((source) => source.id === id) || null;
+  }
+
+  function readingOptionLetter(index) {
+    return String.fromCharCode(65 + index);
+  }
+
+  function readingNormalizeOptions(rawOptions) {
+    const list = Array.isArray(rawOptions) ? rawOptions : [];
+    return list.slice(0, 4).map((option, index) => {
+      if (option && typeof option === 'object') {
+        return {
+          letter: String(option.letter || readingOptionLetter(index)).toUpperCase().slice(0, 1),
+          text: String(option.text || option.label || option.content || '').trim()
+        };
+      }
+      return { letter: readingOptionLetter(index), text: String(option || '').trim() };
+    }).filter((option) => option.text);
+  }
+
+  function readingNormalizeQuestions(rawList, limit) {
+    const list = Array.isArray(rawList) ? rawList : [];
+    const result = [];
+    list.slice(0, limit || 4).forEach((raw) => {
+      if (!raw || typeof raw !== 'object') return;
+      const options = readingNormalizeOptions(raw.options);
+      if (options.length < 3) return;
+      let answer = String(raw.answer || '').trim().toUpperCase();
+      if (!/^[A-D]$/.test(answer)) {
+        const numeric = Number(raw.answer);
+        if (Number.isInteger(numeric) && numeric >= 0 && numeric < options.length) {
+          answer = readingOptionLetter(numeric);
+        } else {
+          const hit = options.find((option) => option.text === String(raw.answer || '').trim());
+          answer = hit ? hit.letter : '';
+        }
+      }
+      if (!answer || !options.some((option) => option.letter === answer)) return;
+      result.push({
+        n: result.length + 1,
+        stem: String(raw.stem || raw.question || '').trim() || '选出最符合原文的一项。',
+        options,
+        answer,
+        explanation: String(raw.explanation || '').trim()
+      });
+    });
+    return result;
+  }
+
+  function readingValidLessonDay(value) {
+    const day = Number(value);
+    if (!Number.isFinite(day)) return 0;
+    return G && G.lessonByDay(day) ? day : 0;
+  }
+
+  function readingNormalizeAi(raw) {
+    const grammar = (Array.isArray(raw.grammar) ? raw.grammar : []).slice(0, 4).map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const questions = readingNormalizeQuestions(item.questions, 3);
+      const sentence = String(item.sentence || item.passage || '').trim();
+      if (!questions.length || !sentence) return null;
+      return {
+        point: String(item.point || '阅读中的语法点').trim(),
+        lessonDay: readingValidLessonDay(item.lessonDay),
+        sentence,
+        questions
+      };
+    }).filter(Boolean);
+
+    const longSentences = (Array.isArray(raw.longSentences) ? raw.longSentences : []).slice(0, 4).map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const questions = readingNormalizeQuestions(item.questions, 3);
+      const sentence = String(item.sentence || '').trim();
+      if (!sentence) return null;
+      const chunks = (Array.isArray(item.chunks) ? item.chunks : []).slice(0, 24).map((chunk) => {
+        if (!chunk || typeof chunk !== 'object') return null;
+        const text = String(chunk.text || '').trim();
+        if (!text) return null;
+        return {
+          text,
+          role: String(chunk.role || '成分').trim().slice(0, 8),
+          level: clamp(Number(chunk.level) || 0, 0, 3)
+        };
+      }).filter(Boolean);
+      return {
+        sentence,
+        chunks,
+        translation: String(item.translation || item.zh || '').trim(),
+        questions
+      };
+    }).filter(Boolean);
+
+    const perspectiveRaw = Array.isArray(raw.perspective)
+      ? raw.perspective
+      : (raw.perspective && Array.isArray(raw.perspective.questions) ? raw.perspective.questions : []);
+    const perspectiveQuestions = readingNormalizeQuestions(perspectiveRaw, 5);
+    const perspectiveSummary = raw.perspective && !Array.isArray(raw.perspective)
+      ? String(raw.perspective.summary || '').trim()
+      : '';
+
+    return {
+      grammar,
+      longSentences,
+      perspective: { questions: perspectiveQuestions, summary: perspectiveSummary },
+      createdAt: S.nowIso()
+    };
+  }
+
+  function readingCopyQuestions(rawList) {
+    return readingNormalizeQuestions(rawList, 8);
+  }
+
+  function loadReadingSources(force) {
+    if (readingPapersLoading) return;
+    if (readingPapersLoaded && !force) {
+      renderReadingPapers();
+      return;
+    }
+    readingPapersLoading = true;
+    const select = $('#reading-paper');
+    if (select && !readingSources.length) select.innerHTML = '<option value="">正在读取资料库…</option>';
+    loadPapers().then((list) => {
+      const sources = [];
+      (list || []).forEach((paper) => {
+        (paper.sections || []).forEach((section) => {
+          if (String(section.type || '').toLowerCase() !== 'reading') return;
+          (section.items || []).forEach((item, index) => {
+            const text = readingNormalizeText(item.passage || item.content || '');
+            if (readingWordCount(text) < 60) return;
+            const title = String(item.title || '').trim() || `${paper.title || '练习卷'} · 阅读 ${index + 1}`;
+            sources.push({
+              id: `R-${paper.id}-${item.id || item.originalId || index}`,
+              paperId: paper.id,
+              paperTitle: paper.title || '',
+              title,
+              grade: paper.grade || item.grade || '',
+              text,
+              questions: readingCopyQuestions(item.questions || [])
+            });
+          });
+        });
+      });
+      readingSources = sources;
+      readingPapersLoaded = true;
+      readingPapersLoading = false;
+      renderReadingPapers();
+    }).catch((error) => {
+      console.warn(error);
+      readingPapersLoading = false;
+      readingPapersLoaded = true;
+      renderReadingPapers();
+      S.toast('读取练习卷失败，可以直接在下方粘贴阅读原文。', 'error', 5000);
+    });
+  }
+
+  function renderReadingPapers() {
+    const select = $('#reading-paper');
+    if (!select) return;
+    const current = select.value || readingSourceId;
+    const options = ['<option value="">不用练习卷，直接在下面粘贴原文</option>'];
+    readingSources.forEach((source) => {
+      options.push(`<option value="${S.escapeHtml(source.id)}">${S.escapeHtml(source.title)}${source.grade ? ` · ${S.escapeHtml(source.grade)}` : ''}</option>`);
+    });
+    if (!readingSources.length) {
+      options.push('<option value="" disabled>资料库里还没有可用的阅读题，请直接粘贴</option>');
+    }
+    select.innerHTML = options.join('');
+    if (current && readingSources.some((source) => source.id === current)) select.value = current;
+    updateReadingPaperMeta();
+  }
+
+  function updateReadingPaperMeta() {
+    const select = $('#reading-paper');
+    const meta = $('#reading-paper-meta');
+    if (!select || !meta) return;
+    const source = readingSourceById(select.value);
+    if (!source) {
+      meta.textContent = '可以直接粘贴任意英文文章；也可以先去组卷工作台做一份阅读练习卷。';
+      return;
+    }
+    meta.textContent = `${source.paperTitle || source.title} · ${source.grade || '未标注年级'} · 约 ${readingWordCount(source.text)} 词 · 可带回原题 ${source.questions.length} 道`;
+  }
+
+  function applyReadingSource(sourceId) {
+    const source = readingSourceById(sourceId);
+    const textarea = $('#reading-text');
+    if (!source || !textarea) {
+      updateReadingPaperMeta();
+      return;
+    }
+    const st = ensureReadingState();
+    textarea.value = source.text;
+    st.sourceId = source.id;
+    st.title = source.title;
+    st.text = source.text;
+    st.questions = source.questions.slice();
+    st.words = [];
+    st.carryOut = [];
+    st.carryIn = 0;
+    st.carryKey = '';
+    st.ai = null;
+    st.aiMeta = null;
+    readingSourceId = source.id;
+    updateReadingPaperMeta();
+    renderReadingStats();
+    renderReadingAiPreview();
+    S.toast(`已放入阅读：${source.title}`, 'ok', 3500);
+  }
+
+  function readingCurrentText() {
+    return readingNormalizeText(($('#reading-text') || {}).value || '');
+  }
+
+  function readingStoredRecord(key) {
+    const entry = data && data.readingCarry ? data.readingCarry[key] : null;
+    return entry && typeof entry === 'object' ? entry : {};
+  }
+
+  function readingStoredCarry(key) {
+    const entry = readingStoredRecord(key);
+    return Array.isArray(entry.words) ? entry.words : [];
+  }
+
+  function readingNormalizeWord(word) {
+    if (!word || !word.w) return null;
+    return {
+      w: String(word.w).toLowerCase(),
+      zh: String(word.zh || '').trim(),
+      kk: String(word.kk || '').trim(),
+      pos: String(word.pos || '').trim(),
+      rank: Number.isFinite(Number(word.rank)) ? Number(word.rank) : 99999
+    };
+  }
+
+  function readingPickSourceForText(text) {
+    const selected = readingSourceById(readingSourceId);
+    if (selected && readingNormalizeText(selected.text) === text) return selected;
+    return readingSources.find((source) => readingNormalizeText(source.text) === text) || null;
+  }
+
+  function extractReadingWordsNow() {
+    const text = readingCurrentText();
+    if (readingWordCount(text) < 40) {
+      S.toast('阅读原文太短了，至少要有 40 个英文词。', 'error', 5000);
+      return;
+    }
+    const button = $('#reading-extract');
+    if (button) { button.disabled = true; button.textContent = '提取中…'; }
+    loadGlossary().then((glossary) => {
+      const ranks = ensureGlossaryRanks(glossary);
+      const st = ensureReadingState();
+      const perDay = clamp(Number(($('#reading-per-day') || {}).value) || 40, 20, 60);
+      const need = perDay * 4;
+      const seen = new Set();
+      const found = [];
+      const matches = text.match(/[A-Za-z][A-Za-z'’-]*/g) || [];
+      matches.forEach((raw) => {
+        const word = raw.toLowerCase().replace(/’/g, "'").replace(/^[-']+|[-']+$/g, '');
+        if (!word || seen.has(word)) return;
+        seen.add(word);
+        if (word.length < 3 || word.length > 24) return;
+        if (!/^[a-z][a-z'-]*$/.test(word)) return;
+        if (WORD_STOP.has(word)) return;
+        const entry = glossary[word];
+        if (!entry || !entry.zh) return;
+        const rank = ranks.has(word) ? ranks.get(word) : 99999;
+        if (rank > 9000) return;
+        found.push({
+          w: word,
+          zh: S.meaningFor(word, entry.zh),
+          kk: entry.kk || '',
+          pos: entry.pos || '',
+          rank
+        });
+      });
+      const source = readingPickSourceForText(text);
+      const key = source ? `SRC:${source.id}` : `TXT:${readingHash(text)}`;
+      const record = readingStoredRecord(key);
+      const carried = readingStoredCarry(key).map(readingNormalizeWord).filter(Boolean);
+      const usedBefore = new Set((Array.isArray(record.used) ? record.used : []).map((word) => String(word || '').toLowerCase()));
+      const merged = [];
+      const known = new Set();
+      carried.forEach((word) => {
+        const lower = word.w.toLowerCase();
+        if (known.has(lower)) return;
+        known.add(lower);
+        merged.push(word);
+      });
+      found.forEach((word) => {
+        const lower = word.w.toLowerCase();
+        if (known.has(lower) || usedBefore.has(lower)) return;
+        known.add(lower);
+        merged.push(word);
+      });
+      st.sourceId = source ? source.id : '';
+      st.title = source ? source.title : `自定义阅读 · ${S.fmtDate(S.todayIso())}`;
+      st.text = text;
+      st.questions = source ? source.questions.slice() : [];
+      st.words = merged.slice(0, need);
+      st.carryOut = merged.slice(need);
+      st.carryIn = carried.length;
+      st.carryKey = key;
+      st.ai = null;
+      st.aiMeta = null;
+      if (button) { button.disabled = false; button.textContent = '提取本周单词'; }
+      renderReadingStats();
+      renderReadingAiPreview();
+      const note = $('#reading-extract-note');
+      if (note) {
+        note.textContent = merged.length
+          ? `提取完成：原文约 ${readingWordCount(text)} 词，可用常用词 ${merged.length} 个；本周取 ${st.words.length} 个，顺延 ${st.carryOut.length} 个。已排除前几周学过的词，只在本机完成，没有调用 AI。`
+          : `这篇阅读的常用词已经全部排进过周任务，没有新词可提取。要重新排，点“重置这篇的单词进度”。`;
+      }
+      if (merged.length) {
+        S.toast(`本周取 ${st.words.length} 词，顺延 ${st.carryOut.length} 词。`, 'ok', 5000);
+      } else {
+        S.toast('这篇阅读的词已经全部排过，没有新词可提取。', 'ok', 6000);
+      }
+    }).catch((error) => {
+      console.warn(error);
+      if (button) { button.disabled = false; button.textContent = '提取本周单词'; }
+      S.toast('释义库读取失败，请刷新页面再试。', 'error', 5000);
+    });
+  }
+
+  function clearReadingCarry() {
+    const st = ensureReadingState();
+    if (!st.carryKey || !data.readingCarry || !data.readingCarry[st.carryKey]) {
+      S.toast('这篇阅读还没有排过词，不需要重置。');
+      return;
+    }
+    if (!window.confirm('重置这篇阅读的单词进度？重置后，下次提取会从这篇原文重新开始，之前记下的“已排过”也会清空。')) return;
+    delete data.readingCarry[st.carryKey];
+    save();
+    st.words = [];
+    st.carryOut = [];
+    st.carryIn = 0;
+    st.carryKey = '';
+    renderReadingStats();
+    S.toast('这篇阅读的单词进度已重置，可以重新提取。', 'ok', 5000);
+  }
+
+  function renderReadingStats() {
+    const box = $('#reading-stats');
+    const details = $('#reading-words-details');
+    const list = $('#reading-word-list');
+    const label = $('#reading-week-label');
+    const st = ensureReadingState();
+    const perDay = clamp(Number(($('#reading-per-day') || {}).value) || 40, 20, 60);
+    if (!st.words.length) {
+      const finished = st.carryKey ? readingStoredRecord(st.carryKey) : {};
+      const finishedUsed = Array.isArray(finished.used) ? finished.used.length : 0;
+      if (box) {
+        box.innerHTML = finishedUsed
+          ? `<p class="reading-carry-note">这篇阅读的 ${finishedUsed} 个常用词已经全部排进过周任务，不会再重复出现。要重新排一遍，点“重置这篇的单词进度”。</p>`
+          : '<p class="hint">选好文章后点“提取本周单词”，这里会显示：本周取多少词、还剩多少词顺延到下周。</p>';
+      }
+      if (details) details.hidden = true;
+      if (list) list.innerHTML = '';
+      if (label) label.textContent = finishedUsed ? '这篇已排完' : '先提取单词';
+      const carryButton = $('#reading-clear-carry');
+      if (carryButton) carryButton.hidden = !finishedUsed;
+      return;
+    }
+    const carryIn = Number(st.carryIn) || 0;
+    const carryOut = (st.carryOut || []).length;
+    const wordDays = Math.max(1, Math.min(4, Math.ceil(st.words.length / perDay)));
+    if (box) {
+      box.innerHTML = `<div class="reading-stat-grid">` +
+        `<div class="reading-stat"><small>本周单词</small><b>${st.words.length}</b></div>` +
+        `<div class="reading-stat"><small>每天单词</small><b>${Math.min(perDay, st.words.length)}</b></div>` +
+        `<div class="reading-stat${carryOut ? ' warn' : ''}"><small>顺延到下周</small><b>${carryOut}</b></div>` +
+      `</div>` +
+      (carryIn ? `<p class="reading-carry-note">这篇阅读上次顺延了 <b>${carryIn}</b> 个词，本周已经优先排进来，不会重复。</p>` : '') +
+      (carryOut ? `<p class="reading-carry-note">本周排 ${wordDays} 天 × ${perDay} 词，装不下的 <b>${carryOut}</b> 个词会顺延到下周：${(st.carryOut || []).slice(0, 8).map((word) => S.escapeHtml(word.w)).join('、')}${carryOut > 8 ? '…' : ''}</p>` : '');
+    }
+    if (label) label.textContent = `本周 ${wordDays + 3} 天 · ${st.words.length} 词`;
+    if (details) details.hidden = false;
+    const count = $('#reading-word-count');
+    if (count) count.textContent = `· ${st.words.length} 个（每天 ${perDay} 个）`;
+    if (list) {
+      list.innerHTML = st.words.map((word) => (
+        `<span class="reading-word"><b>${S.escapeHtml(word.w)}</b><small>${S.escapeHtml(S.meaningLabel(word.w, word.zh, word.pos))}</small></span>`
+      )).join('');
+    }
+    const carryButton = $('#reading-clear-carry');
+    if (carryButton) carryButton.hidden = !carryOut && !carryIn;
+  }
+
+  function renderReadingStudents() {
+    const box = $('#reading-students');
+    if (!box) return;
+    const list = sortedStudents();
+    if (!list.length) {
+      box.innerHTML = '<p class="hint">还没有学生。先到“学生”页添加。</p>';
+      updateReadingSelectedCount();
+      return;
+    }
+    if (!readingStudentIds) readingStudentIds = new Set(list.map((student) => student.id));
+    box.innerHTML = list.map((student) => (
+      `<label class="reading-student">` +
+        `<input type="checkbox" value="${S.escapeHtml(student.id)}" ${readingStudentIds.has(student.id) ? 'checked' : ''}>` +
+        `<span><strong>${S.escapeHtml(student.name)}</strong><small>${S.escapeHtml(student.id)} · ${S.escapeHtml(student.grade || '未标注')}</small></span>` +
+      `</label>`
+    )).join('');
+    updateReadingSelectedCount();
+  }
+
+  function updateReadingSelectedCount() {
+    const count = $$('#reading-students input[type="checkbox"]:checked').length;
+    const el = $('#reading-selected-count');
+    if (el) el.textContent = `已选 ${count} 人`;
+    const button = $('#reading-generate');
+    if (button) button.disabled = !count;
+    return count;
+  }
+
+  function renderReadingPlanList() {
+    const box = $('#reading-plan-list');
+    if (!box) return;
+    const list = (data && data.readingPlans || []).slice(0, 8);
+    if (!list.length) {
+      box.innerHTML = '<p class="reading-plan-empty">还没有生成过阅读联动任务。生成后会先进入上面的待发区。</p>';
+      return;
+    }
+    box.innerHTML = list.map((plan) => (
+      `<div class="reading-plan-item"><div>` +
+        `<b>${S.escapeHtml(plan.title || '阅读联动')}</b>` +
+        `<small>${S.escapeHtml(S.fmtDate(plan.weekStart))} 起 · ${plan.studentCount || 0} 人 · 本周 ${plan.wordTotal || 0} 词 · 顺延 ${plan.carryOut || 0} 词</small>` +
+      `</div><span>${S.escapeHtml(S.fmtDate(plan.createdAt))}</span></div>`
+    )).join('');
+  }
+
+  function readingSentenceList(text) {
+    return String(text || '')
+      .replace(/\s+/g, ' ')
+      .match(/[^.!?。！？]+[.!?。！？]+/g)?.map((sentence) => sentence.trim()).filter((sentence) => readingWordCount(sentence) >= 8) || [];
+  }
+
+  function pickReadingSentences(text, count, mode) {
+    const sentences = readingSentenceList(text);
+    const scored = sentences.map((sentence, index) => {
+      const clause = /\b(which|that|who|whom|whose|when|where|while|although|though|because|since|if|unless|as|after|before|so that|even though)\b/i.test(sentence) ? 8 : 0;
+      const length = readingWordCount(sentence);
+      return { sentence, index, score: mode === 'long' ? length : clause + length * 0.35 };
+    }).sort((a, b) => b.score - a.score).slice(0, count);
+    return scored.sort((a, b) => a.index - b.index).map((item) => item.sentence);
+  }
+
+  function readingLessonLabel(day) {
+    if (!day || !G || !G.lessonByDay(day)) return '';
+    const lesson = G.lessonByDay(day);
+    return `对应语法课 D${lesson.day} · ${lesson.title}`;
+  }
+
+  function readingFallbackGrammarBlocks(self, planId) {
+    return pickReadingSentences(self.text, 3, 'grammar').map((sentence, index) => ({
+      id: `${planId}-G${index + 1}`,
+      type: 'writing',
+      label: `语法观察 ${index + 1}｜先找谓语，再拆主干`,
+      prompt: `原句：${sentence}\n\n① 圈出这句话的谓语动词。\n② 写出主语和宾语 / 表语，拼出主干。\n③ 把其余部分用括号括起来，标出它是定语、状语还是从句。\n④ 如果句中有从句，先写出从句自己的主干，再说明它修饰谁。`,
+      sample: '方法：先找动词，再问“谁 + 做了什么 + 什么”。从句先当二级结构：先找从句自己的主干，再看它在主句里修饰谁。'
+    }));
+  }
+
+  function readingGrammarBlocks(self, planId) {
+    if (self.ai && self.ai.grammar && self.ai.grammar.length) {
+      return self.ai.grammar.map((item, index) => {
+        const lesson = readingLessonLabel(item.lessonDay);
+        return {
+          id: `${planId}-G${index + 1}`,
+          type: 'reading',
+          label: `语法点 ${index + 1}｜${item.point}${lesson ? `（${lesson}）` : ''}`,
+          passage: item.sentence,
+          questions: item.questions
+        };
+      });
+    }
+    return readingFallbackGrammarBlocks(self, planId);
+  }
+
+  function readingLongSentenceBlocks(self, planId) {
+    if (self.ai && self.ai.longSentences && self.ai.longSentences.length) {
+      return self.ai.longSentences.map((item, index) => ({
+        id: `${planId}-L${index + 1}`,
+        type: 'breakdown',
+        label: `长难句 ${index + 1}｜先拆主干，再看修饰`,
+        breakdown: {
+          sentence: item.sentence,
+          chunks: item.chunks || [],
+          translation: item.translation || ''
+        },
+        questions: item.questions
+      }));
+    }
+    return pickReadingSentences(self.text, 3, 'long').map((sentence, index) => ({
+      id: `${planId}-L${index + 1}`,
+      type: 'writing',
+      label: `长难句 ${index + 1}｜自己先拆一遍`,
+      prompt: `原句：${sentence}\n\n① 写出主干（主语 + 谓语 + 宾语 / 表语）。\n② 用括号括出每一处修饰，标出定语 / 状语 / 从句。\n③ 如果是从句，写出它是二级还是三级结构，并说明它修饰谁。\n④ 写出整句的参考译文。`,
+      sample: '先抓谓语动词，再确定主干；从句是二级结构，从句里的非谓语或再套的从句是三级结构。主干先站起来，修饰再一层层挂回去。'
+    }));
+  }
+
+  function readingPerspectiveBlocks(self, planId) {
+    const blocks = [];
+    if (self.ai && self.ai.perspective && self.ai.perspective.questions.length) {
+      blocks.push({
+        id: `${planId}-P1`,
+        type: 'reading',
+        label: '命题人视角｜全文再读，抓语义中心',
+        passage: self.text,
+        questions: self.ai.perspective.questions
+      });
+    } else {
+      blocks.push({
+        id: `${planId}-P1`,
+        type: 'writing',
+        label: '命题人视角｜用一句话说清全文',
+        prompt: '读完全文，用一句话写出文章的主旨（谁 + 发生了什么 / 作者想说明什么）。再从文中找出一处“看起来像答案、其实只是局部复现”的干扰信息，说明它为什么不能当主旨。',
+        sample: '主旨看“反复出现的对象 + 作者对它的态度 / 结论”，不要被某一个局部例子带走。选项里如果只有一个词和原文重合，先怀疑它。'
+      });
+    }
+    if (Array.isArray(self.questions) && self.questions.length) {
+      blocks.push({
+        id: `${planId}-P2`,
+        type: 'reading',
+        label: '原题实战｜用命题人视角再做一遍',
+        questions: self.questions
+      });
+    }
+    return blocks;
+  }
+
+  function countBlockQuestions(blocks) {
+    return (blocks || []).reduce((sum, block) => (
+      sum + (block.type === 'writing' || block.prompt ? 1 : (block.questions || []).length)
+    ), 0);
+  }
+
+  function readingAiPrompt(self, grade) {
+    const lessonList = G && G.lessons
+      ? G.lessons.map((lesson) => `D${lesson.day} ${lesson.title}`).join('；')
+      : '';
+    return `你是资深高中英语教研员，擅长把一篇阅读拆成“先认词、再学语法、再拆长难句、最后站到命题人视角”的一周打卡。请严格按下面老师的方法论工作，不要写成泛泛的阅读课。\n\n` +
+      `【老师的方法论】\n` +
+      `1. 先抓句子里的谓语动词，再找动作的主人和承受者；\n` +
+      `2. 用五大基本句型（主谓、主谓宾、主谓双宾、主谓宾补、主系表）把主干抓出来；\n` +
+      `3. 其余部分一律先视为修饰（定语、状语、同位语等），不要一上来就陷入从句名称；\n` +
+      `4. 从句不另立门户，按二级、三级结构处理：先找从句自己的主干，再看它在主句里修饰谁；从句里再套的非谓语或从句是三级结构；\n` +
+      `5. 选项训练抓“语义中心”：先看选项的核心词，再回原文找同一语义场，防止被局部词复现骗；要能说清每个干扰项错在哪。\n\n` +
+      `【可挂靠的语法课】\n${lessonList}\n\n` +
+      `【阅读原文】\n${self.text.slice(0, 6500)}\n\n` +
+      `【年级】${grade || '高中'}\n\n` +
+      `【任务】\n` +
+      `A. 语法点：从原文中选 3 个最适合讲语法的句子（必须逐字引用原文，不要改写），每个句子生成 1 个语法点。每个语法点出 2 道四选一，考谓语动词、主干、修饰关系、从句层级、指代或逻辑。把语法点挂到上面最接近的一节语法课（lessonDay 填 1–60 的数字）。\n` +
+      `B. 长难句：从原文中选 3 个长难句（必须逐字引用），按 chunks 拆成：主干 level 0、一级修饰 level 1、从句 level 2、从句里的从句 / 非谓语 level 3。每个长难句出 2 道四选一，考主干、修饰归属、从句层级或句意。\n` +
+      `C. 命题人视角：出 3 道四选一，分别考主旨 / 结构、作者态度或写作目的、选项语义中心与干扰项陷阱。每题解释要指出“正确项为什么是语义中心，干扰项错在哪个局部”。\n\n` +
+      `【硬性要求】\n` +
+      `1. 所有题干、选项和解释用中文；选项文本可以用英文。\n` +
+      `2. 每题必须有且只有一个正确答案，answer 只能是 A/B/C/D。\n` +
+      `3. 阅读原文中的句子必须逐字引用；不要编造原文没有的内容。\n` +
+      `4. 不要输出 Markdown，不要输出解释性前后缀，只输出一个合法 JSON 对象。\n\n` +
+      `JSON 结构：\n` +
+      `{"grammar":[{"point":"语法点名称","lessonDay":12,"sentence":"原文句子","questions":[{"stem":"题干","options":[{"letter":"A","text":"选项"}],"answer":"A","explanation":"解析"}]}],"longSentences":[{"sentence":"原文长句","chunks":[{"text":"句子片段","role":"主语|谓语|宾语|表语|定语|状语|补语|从句|非谓语","level":0}],"translation":"参考译文","questions":[{"stem":"题干","options":[{"letter":"A","text":"选项"}],"answer":"A","explanation":"解析"}]}],"perspective":{"summary":"这篇阅读的命题视角总评","questions":[{"stem":"题干","options":[{"letter":"A","text":"选项"}],"answer":"A","explanation":"解析"}]}}`;
+  }
+
+  async function generateReadingAi() {
+    const st = ensureReadingState();
+    const text = readingCurrentText();
+    if (readingWordCount(text) < 40) { S.toast('先把阅读原文粘贴进来。', 'error'); return; }
+    if (!st.words.length || readingNormalizeText(st.text) !== text) {
+      S.toast('原文改过了或还没有提取单词。先点“提取本周单词”，再让 AI 联动。', 'error', 5500);
+      return;
+    }
+    const cfg = aiConfig();
+    if (!cfg.key) {
+      S.toast('还没有配置 API Key。可以先用“本机规则版”生成；要 AI 细拆，请到“设置 → AI 直连”粘贴 Key。', 'error', 7500);
+      return;
+    }
+    const grade = ($('#reading-grade') || {}).value || '';
+    const prompt = readingAiPrompt(st, grade);
+    const estimate = S.ai.estimate(prompt.length + 300, 4200);
+    if (!window.confirm(`这次会把这篇阅读原文（约 ${readingWordCount(text)} 词，不含学生信息）发给 DeepSeek，生成阅读语法、长难句拆解和命题视角题。\n预计最多约 ${estimate.maxOutputTokens} 输出 tokens，约 ${S.ai.costText(estimate.cost)}。\n只在你点确认后调用。继续吗？`)) return;
+    const button = $('#reading-ai');
+    const status = $('#reading-ai-status');
+    if (button) { button.disabled = true; button.textContent = 'AI 生成中…'; }
+    if (status) { status.className = 'reading-ai-status'; status.textContent = '正在请求 DeepSeek，通常需要十几秒。'; }
+    try {
+      const result = await callDeepSeek([
+        { role: 'system', content: '你是严谨的英语教研员。只输出合法 JSON 对象，不添加 Markdown 或解释。' },
+        { role: 'user', content: prompt }
+      ], 4200, '阅读联动生成');
+      let rawText = String(result.text || '').replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+      const start = rawText.indexOf('{');
+      const end = rawText.lastIndexOf('}');
+      if (start < 0 || end <= start) throw new Error('AI 返回的不是可识别的 JSON，请再试一次。');
+      let raw;
+      try { raw = JSON.parse(rawText.slice(start, end + 1)); } catch (error) { throw new Error('AI 返回的 JSON 无法解析，请再试一次。'); }
+      const ai = readingNormalizeAi(raw);
+      if (!ai.grammar.length && !ai.longSentences.length && !ai.perspective.questions.length) {
+        throw new Error('AI 没有生成可用的题目，请再试一次。');
+      }
+      st.ai = ai;
+      st.aiMeta = {
+        at: S.nowIso(),
+        tokens: Number(result.usage.total_tokens) || 0,
+        cost: Number(result.cost) || 0,
+        grade
+      };
+      renderReadingAiPreview();
+      const used = st.aiMeta.tokens;
+      if (status) {
+        status.className = 'reading-ai-status ok';
+        status.textContent = `AI 已生成：${ai.grammar.length} 个语法点、${ai.longSentences.length} 个长难句、${ai.perspective.questions.length} 道命题视角题。本次 ${used} tokens · 约 ${S.ai.costText(result.cost)}。生成前请先展开预览核对答案。`;
+      }
+      S.toast(`AI 联动完成：语法 ${ai.grammar.length} · 长难句 ${ai.longSentences.length} · 命题视角 ${ai.perspective.questions.length}。`, 'ok', 6500);
+    } catch (error) {
+      if (status) { status.className = 'reading-ai-status warn'; status.textContent = '这次 AI 没有成功。可以重试，或直接用本机规则版生成。'; }
+      S.toast(error.message || 'AI 生成失败。', 'error', 8000);
+    } finally {
+      if (button) { button.disabled = false; button.textContent = 'AI 生成语法 + 长难句 + 命题视角'; }
+    }
+  }
+
+  function renderReadingAiPreview() {
+    const details = $('#reading-ai-preview');
+    const body = $('#reading-ai-preview-body');
+    const status = $('#reading-ai-status');
+    const st = ensureReadingState();
+    if (!details || !body) return;
+    if (!st.ai) {
+      details.hidden = true;
+      body.innerHTML = '';
+      if (status && !st.aiMeta) {
+        status.className = 'reading-ai-status';
+        status.textContent = '还没有生成。没有 API Key 也能继续：系统会用“本机规则版”生成观察和拆解任务，只是没有 AI 那么细。';
+      }
+      return;
+    }
+    const ai = st.ai;
+    details.hidden = false;
+    const grammarRows = ai.grammar.map((item) => `<li><b>${S.escapeHtml(item.point)}</b>${item.lessonDay ? ` · D${item.lessonDay}` : ''}：${S.escapeHtml(item.sentence.slice(0, 90))}${item.sentence.length > 90 ? '…' : ''}（${item.questions.length} 题）</li>`).join('');
+    const longRows = ai.longSentences.map((item) => `<li>${S.escapeHtml(item.sentence.slice(0, 100))}${item.sentence.length > 100 ? '…' : ''}（${item.chunks.length} 个片段 · ${item.questions.length} 题）</li>`).join('');
+    const perspectiveRows = ai.perspective.questions.map((question) => `<li>${S.escapeHtml(question.stem)}</li>`).join('');
+    body.innerHTML = `<div class="reading-ai-summary">` +
+      `<p>AI 内容只是备课草稿，答案请老师先核对；确认无误后再生成任务。${st.aiMeta ? `本次 ${st.aiMeta.tokens} tokens · 约 ${S.ai.costText(st.aiMeta.cost)}。` : ''}</p>` +
+      (grammarRows ? `<div class="reading-ai-section"><h4>语法点（${ai.grammar.length}）</h4><ol>${grammarRows}</ol></div>` : '') +
+      (longRows ? `<div class="reading-ai-section"><h4>长难句（${ai.longSentences.length}）</h4><ol>${longRows}</ol></div>` : '') +
+      (perspectiveRows ? `<div class="reading-ai-section"><h4>命题人视角（${ai.perspective.questions.length}）</h4><ol>${perspectiveRows}</ol></div>` : '') +
+    `</div>`;
+  }
+
+  async function generateReadingWeek() {
+    const st = ensureReadingState();
+    const text = readingCurrentText();
+    if (!st.words.length) { S.toast('先点“提取本周单词”，再生成任务。', 'error'); return; }
+    if (readingNormalizeText(st.text) !== text) {
+      S.toast('原文改过了，请重新点“提取本周单词”，避免单词和文章对不上。', 'error', 6000);
+      return;
+    }
+    const studentIds = $$('#reading-students input[type="checkbox"]:checked').map((input) => input.value);
+    if (!studentIds.length) { S.toast('至少勾选一位学生。', 'error'); return; }
+    const students = studentIds.map(getStudent).filter(Boolean);
+    const missingPin = students.find((student) => !student.pin);
+    if (missingPin) { S.toast(`${missingPin.name} 还没有密码，无法生成任务码。`, 'error'); return; }
+    const perDay = clamp(Number(($('#reading-per-day') || {}).value) || 40, 20, 60);
+    const weekStart = ($('#reading-week-start') || {}).value || S.todayIso();
+    const aiReady = Boolean(st.ai && (st.ai.grammar.length || st.ai.longSentences.length || st.ai.perspective.questions.length));
+    if (!aiReady && !window.confirm('还没有生成 AI 语法和长难句。要先用“本机规则版”生成吗？\n规则版会给出观察、拆解和写作任务，但不会自动出语法选择题。')) return;
+    const planId = S.uid('RD');
+    const planTitle = `阅读联动 · ${st.title || '自定义阅读'}`;
+    const days = [];
+    const wordDayCount = Math.max(1, Math.min(4, Math.ceil(st.words.length / perDay)));
+
+    for (let index = 0; index < wordDayCount; index += 1) {
+      const slice = st.words.slice(index * perDay, index * perDay + perDay);
+      if (!slice.length) break;
+      days.push({
+        day: index + 1,
+        date: S.addDays(weekStart, index),
+        kind: 'words',
+        taskId: `${planId}-D${index + 1}`,
+        title: `第 ${index + 1} 天 · 阅读初词 ${slice.length} 词`,
+        paperTitle: `${planTitle} · 单词日`,
+        words: slice,
+        wordTotal: slice.length,
+        xp: clamp(Math.round(35 + slice.length * 8), 60, 380)
+      });
+    }
+
+    const grammarDay = wordDayCount + 1;
+    const longDay = wordDayCount + 2;
+    const perspectiveDay = wordDayCount + 3;
+    const grammarBlocks = readingGrammarBlocks(st, planId);
+    days.push({
+      day: grammarDay,
+      date: S.addDays(weekStart, grammarDay - 1),
+      kind: 'reading',
+      focus: 'grammar',
+      taskId: `${planId}-D${grammarDay}`,
+      title: `第 ${grammarDay} 天 · 阅读语法：先抓动词，再过五大句型`,
+      paperTitle: `${planTitle} · 阅读语法`,
+      blocks: grammarBlocks,
+      questionTotal: countBlockQuestions(grammarBlocks),
+      xp: clamp(70 + countBlockQuestions(grammarBlocks) * 18, 80, 220)
+    });
+
+    const longBlocks = readingLongSentenceBlocks(st, planId);
+    days.push({
+      day: longDay,
+      date: S.addDays(weekStart, longDay - 1),
+      kind: 'reading',
+      focus: 'long',
+      taskId: `${planId}-D${longDay}`,
+      title: `第 ${longDay} 天 · 阅读长难句：主干与修饰层级`,
+      paperTitle: `${planTitle} · 长难句`,
+      blocks: longBlocks,
+      questionTotal: countBlockQuestions(longBlocks),
+      xp: clamp(80 + countBlockQuestions(longBlocks) * 18, 90, 240)
+    });
+
+    const perspectiveBlocks = readingPerspectiveBlocks(st, planId);
+    days.push({
+      day: perspectiveDay,
+      date: S.addDays(weekStart, perspectiveDay - 1),
+      kind: 'reading',
+      focus: 'perspective',
+      taskId: `${planId}-D${perspectiveDay}`,
+      title: `第 ${perspectiveDay} 天 · 命题人视角：全文与选项语义中心`,
+      paperTitle: `${planTitle} · 命题视角`,
+      blocks: perspectiveBlocks,
+      questionTotal: countBlockQuestions(perspectiveBlocks),
+      xp: clamp(90 + countBlockQuestions(perspectiveBlocks) * 18, 100, 260)
+    });
+
+    const plan = {
+      id: planId,
+      kind: 'reading',
+      studentId: students[0].id,
+      studentName: students.length > 1 ? `${students[0].name} 等 ${students.length} 人` : students[0].name,
+      weekStart,
+      title: planTitle,
+      level: 0,
+      createdAt: S.nowIso(),
+      readingId: st.sourceId || st.carryKey || '',
+      days
+    };
+
+    const glossary = await loadGlossary();
+    let taskCount = 0;
+    students.forEach((student) => {
+      days.forEach((day) => {
+        const task = planTaskPayload(plan, day, student, data.teacherName || '阮老师', glossary);
+        if (day.kind !== 'words') {
+          task.mode = 'reading';
+          task.readingPlanId = plan.id;
+        }
+        if (outboxAddTask(student, task, '阅读联动')) taskCount += 1;
+      });
+    });
+
+    data.readingPlans = Array.isArray(data.readingPlans) ? data.readingPlans : [];
+    data.readingPlans.unshift({
+      id: plan.id,
+      title: plan.title,
+      weekStart,
+      createdAt: plan.createdAt,
+      studentCount: students.length,
+      wordTotal: st.words.length,
+      carryIn: Number(st.carryIn) || 0,
+      carryOut: (st.carryOut || []).length,
+      readingId: plan.readingId
+    });
+    data.readingPlans = data.readingPlans.slice(0, 30);
+    data.readingCarry = data.readingCarry && typeof data.readingCarry === 'object' ? data.readingCarry : {};
+    const carryKey = st.carryKey || (st.sourceId ? `SRC:${st.sourceId}` : `TXT:${readingHash(text)}`);
+    const previousRecord = readingStoredRecord(carryKey);
+    const usedWords = Array.from(new Set([
+      ...(Array.isArray(previousRecord.used) ? previousRecord.used : []),
+      ...st.words.map((word) => String(word.w || '').toLowerCase())
+    ].filter(Boolean)));
+    if ((st.carryOut || []).length || usedWords.length) {
+      data.readingCarry[carryKey] = {
+        title: st.title || '阅读联动',
+        updatedAt: S.nowIso(),
+        words: st.carryOut || [],
+        used: usedWords
+      };
+    } else {
+      delete data.readingCarry[carryKey];
+    }
+    save();
+    renderOutbox();
+    renderReadingPlanList();
+    renderReadingStats();
+    S.toast(`已放进待发区：${students.length} 位学生 × ${days.length} 天，共 ${taskCount} 个任务；本周 ${st.words.length} 词，顺延 ${(st.carryOut || []).length} 词。`, 'ok', 7500);
+    const tray = $('#outbox-tray');
+    if (tray) tray.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function renderReading() {
+    ensureReadingState();
+    renderReadingPapers();
+    renderReadingStudents();
+    renderReadingStats();
+    renderReadingAiPreview();
+    renderReadingPlanList();
+    const start = $('#reading-week-start');
+    if (start && !start.value) start.value = S.todayIso();
+  }
+
+
   /* ------------------------------- 标签切换 ------------------------------- */
 
-  let publishSub = 'daily';
+  let publishSub = 'reading';
 
   function setPublishSub(name) {
-    publishSub = name === 'papers' ? 'papers' : 'daily';
+    const allowed = ['book', 'reading', 'grammar-camp', 'papers'];
+    publishSub = allowed.includes(name) ? name : 'reading';
     $$('#publish-subnav button').forEach((button) => {
       const on = button.dataset.publishSub === publishSub;
       button.classList.toggle('active', on);
@@ -1539,15 +2615,19 @@
       renderAssignments();
       renderPlanTab();
       if (!planPapers.length) loadPlanPapers().then(() => renderPlanTab());
-    } else {
+    } else if (publishSub === 'book') {
       renderWords();
+    } else if (publishSub === 'grammar-camp') {
       renderGrammarTab();
+    } else {
+      renderReading();
+      if (!readingPapersLoaded) loadReadingSources(false);
     }
   }
 
   function switchTab(name) {
-    /* 旧入口（任务 / 周计划 / 语法 / 单词）都收进“发布任务”，保留跳转兼容。 */
-    const publishAlias = { assignments: 'papers', plan: 'papers', grammar: 'daily', words: 'daily' };
+    /* 旧入口（任务 / 周计划 / 语法 / 单词）都收进“发布中心”，保留跳转兼容。 */
+    const publishAlias = { assignments: 'papers', plan: 'papers', grammar: 'grammar-camp', words: 'book', daily: 'book' };
     if (publishAlias[name]) {
       switchTab('publish');
       setPublishSub(publishAlias[name]);
@@ -1822,11 +2902,11 @@
     save();
     renderAll();
     S.closeDialog($('#assign-dialog'));
-    S.toast(`任务已创建，共 ${questionTotal} 题。正在生成一人一码…`, 'ok');
-    await showCodes(assignment);
+    S.toast(`任务已创建，共 ${questionTotal} 题。已放进待发区。`, 'ok');
+    await showCodes(assignment, { enqueue: true, label: '练习卷' });
   }
 
-  async function showCodes(assignment) {
+  async function showCodes(assignment, options) {
     const title = $('#codes-title');
     const sub = $('#codes-sub');
     if (title) title.textContent = '任务码';
@@ -1845,6 +2925,10 @@
       } catch (error) {
         items.push({ student, code: '', error: error.message || '生成失败' });
       }
+    }
+    if (options && options.enqueue) {
+      await enqueueCodeItems(items, options.label || '练习任务');
+      return;
     }
     lastCodes = items;
     $('#codes-list').innerHTML = items.map((item, index) => {
@@ -2246,11 +3330,11 @@
     if (!plans.length) return;
     save();
     renderPlanList();
-    S.toast(`已生成 ${plans.length} 份周计划，正在生成周计划码…`, 'ok');
-    await showPlanCodes(plans);
+    S.toast(`已生成 ${plans.length} 份周计划，已放进待发区。`, 'ok');
+    await showPlanCodes(plans, { enqueue: true, label: '周计划' });
   }
 
-  async function showPlanCodes(plans) {
+  async function showPlanCodes(plans, options) {
     const items = [];
     for (const plan of plans) {
       const student = getStudent(plan.studentId);
@@ -2261,6 +3345,10 @@
       } catch (error) {
         items.push({ student, code: '', plan, error: error.message || '生成失败' });
       }
+    }
+    if (options && options.enqueue) {
+      await enqueueCodeItems(items, options.label || (plans.some((plan) => plan.kind === 'grammar') ? '语法周任务' : plans.some((plan) => plan.kind === 'book') ? '词汇书周任务' : '周计划'));
+      return;
     }
     lastCodes = items;
     const title = $('#codes-title');
@@ -2516,8 +3604,8 @@
     save();
     renderGrammarList();
     renderGrammarStudents();
-    S.toast(`已生成 ${plans.length} 份语法小营，正在生成打卡码…`, 'ok');
-    await showPlanCodes(plans);
+    S.toast(`已生成 ${plans.length} 份语法小营，已放进待发区。`, 'ok');
+    await showPlanCodes(plans, { enqueue: true, label: '语法小营' });
   }
 
   function renderGrammarList() {
@@ -3125,14 +4213,14 @@
     wordAssignStudentId = null;
 
     if (!withGrammar) {
-      S.toast(`单词任务已创建，共 ${words.length} 个词。正在生成一人一码…`, 'ok');
-      await showCodes(assignment);
+      S.toast(`单词任务已创建，共 ${words.length} 个词。已放进待发区。`, 'ok');
+      await showCodes(assignment, { enqueue: true, label: '单词任务' });
       return;
     }
 
     if (!G) {
-      S.toast('语法课程没有加载成功，这次先只发单词任务码。', 'error', 6000);
-      await showCodes(assignment);
+      S.toast('语法课程没有加载成功，这次先只放单词任务。', 'error', 6000);
+      await showCodes(assignment, { enqueue: true, label: '单词任务' });
       return;
     }
 
@@ -3140,7 +4228,7 @@
     const missingPin = studentObjects.find((student) => !student.pin);
     if (missingPin) {
       S.toast(`${missingPin.name} 还没有密码，无法生成合码。`, 'error', 6000);
-      await showCodes(assignment);
+      await showCodes(assignment, { enqueue: true, label: '单词任务' });
       return;
     }
     const weekStart = S.todayIso();
@@ -3174,8 +4262,8 @@
     renderGrammarList();
     renderGrammarStudents();
     const grammarUsed = items.some((item) => item.grammarDays);
-    S.toast(`本周合码已生成：${words.length} 个单词 + ${grammarUsed ? '7 天语法' : '语法已学完'}，正在打开…`, 'ok', 6000);
-    await showBundleCodes(items, grammarUsed);
+    S.toast(`本周任务已放进待发区：${words.length} 个单词 + ${grammarUsed ? '7 天语法' : '语法已学完'}。`, 'ok', 6000);
+    await showBundleCodes(items, grammarUsed, { enqueue: true, label: '单词 + 语法' });
   }
 
   /* ------------------------------ 词汇书周编排 ------------------------------ */
@@ -3689,8 +4777,8 @@
     save();
     renderAll();
     S.closeDialog($('#book-dialog'));
-    S.toast(`词汇书周任务已生成：${plans.length} 位学生，${bookSlots.length} 个任务栏。正在打开一人一码…`, 'ok', 7000);
-    await showPlanCodes(plans);
+    S.toast(`词汇书周任务已生成：${plans.length} 位学生，${bookSlots.length} 个任务栏，已放进待发区。`, 'ok', 7000);
+    await showPlanCodes(plans, { enqueue: true, label: '词汇书周任务' });
   }
 
   function openWordDetail(assignmentId) {
@@ -4947,6 +6035,9 @@
       students: data.students,
       assignments: data.assignments,
       plans: data.plans || [],
+      outbox: data.outbox || [],
+      readingPlans: data.readingPlans || [],
+      readingCarry: data.readingCarry || {},
       insights: IC ? IC.normalizePosts(data.insights) : []
     });
   }
@@ -4991,6 +6082,9 @@
       students: (payload.students || []).map(normalizeStudent).filter((student) => student.id),
       assignments: Array.isArray(payload.assignments) ? payload.assignments : [],
       plans: Array.isArray(payload.plans) ? payload.plans : [],
+      outbox: Array.isArray(payload.outbox) ? payload.outbox.filter((item) => item && item.id && item.studentId && item.task) : [],
+      readingPlans: Array.isArray(payload.readingPlans) ? payload.readingPlans : [],
+      readingCarry: payload.readingCarry && typeof payload.readingCarry === 'object' ? payload.readingCarry : {},
       insights: Array.isArray(payload.insights) ? normalizeInsights(payload.insights) : defaultInsights()
     };
     sessionPin = pin;
@@ -5232,6 +6326,50 @@
     }
     const publishBook = $('#publish-book');
     if (publishBook) publishBook.addEventListener('click', () => openBookDialog(''));
+    const publishBookMain = $('#publish-book-main');
+    if (publishBookMain) publishBookMain.addEventListener('click', () => openBookDialog(''));
+    const readingRefresh = $('#reading-refresh');
+    if (readingRefresh) readingRefresh.addEventListener('click', () => {
+      readingPapersLoaded = false;
+      loadReadingSources(true);
+      S.toast('正在刷新资料库里的阅读…', 'ok', 2500);
+    });
+    const readingPaper = $('#reading-paper');
+    if (readingPaper) readingPaper.addEventListener('change', () => applyReadingSource(readingPaper.value));
+    const readingExtract = $('#reading-extract');
+    if (readingExtract) readingExtract.addEventListener('click', extractReadingWordsNow);
+    const readingClearCarry = $('#reading-clear-carry');
+    if (readingClearCarry) readingClearCarry.addEventListener('click', clearReadingCarry);
+    const readingAi = $('#reading-ai');
+    if (readingAi) readingAi.addEventListener('click', generateReadingAi);
+    const readingGenerate = $('#reading-generate');
+    if (readingGenerate) readingGenerate.addEventListener('click', generateReadingWeek);
+    const readingPerDay = $('#reading-per-day');
+    if (readingPerDay) readingPerDay.addEventListener('change', renderReadingStats);
+    const readingStudents = $('#reading-students');
+    if (readingStudents) {
+      readingStudents.addEventListener('change', (event) => {
+        const input = event.target.closest('input[type="checkbox"]');
+        if (!input) return;
+        if (!readingStudentIds) readingStudentIds = new Set();
+        if (input.checked) readingStudentIds.add(input.value);
+        else readingStudentIds.delete(input.value);
+        updateReadingSelectedCount();
+      });
+    }
+    const outboxList = $('#outbox-list');
+    if (outboxList) {
+      outboxList.addEventListener('click', (event) => {
+        const removeTask = event.target.closest('[data-outbox-remove]');
+        if (removeTask) { removeOutboxItem(removeTask.dataset.outboxRemove); return; }
+        const removeStudent = event.target.closest('[data-outbox-remove-student]');
+        if (removeStudent) removeOutboxStudent(removeStudent.dataset.outboxRemoveStudent);
+      });
+    }
+    const outboxSendButton = $('#outbox-send');
+    if (outboxSendButton) outboxSendButton.addEventListener('click', outboxSend);
+    const outboxClearButton = $('#outbox-clear');
+    if (outboxClearButton) outboxClearButton.addEventListener('click', clearOutbox);
     $$('[data-goto]').forEach((button) => {
       button.addEventListener('click', () => {
         switchTab(button.dataset.goto);

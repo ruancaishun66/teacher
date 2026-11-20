@@ -343,10 +343,16 @@
 
   /* ------------------------------- 学习伙伴：小潮獭 ------------------------------- */
 
+  const PET_ATTR_LABELS = {
+    water: '水', fire: '火', wind: '风', earth: '土', moon: '月', dream: '梦',
+    metal: '金', wood: '木', storm: '雷', sun: '日', gold: '金'
+  };
+
   const PET_SPECIES = {
     otter: {
       name: '小潮獭',
       color: '#4fa8b3',
+      motion: 'water',
       stages: [
         { stage: 1, name: '幼獭', min: 0, next: 300, body: '#8fc4bb', ear: '#6fa79f', belly: '#f7ecd6', accent: '#e8b56b', desc: '刚学会在水面打滚的小家伙。' },
         { stage: 2, name: '潮獭', min: 300, next: 900, body: '#7fbbb3', ear: '#5f9d95', belly: '#f9efd9', accent: '#e0946c', desc: '会跟着潮水一起呼吸，眼睛亮亮的。' },
@@ -357,6 +363,7 @@
     fox: {
       name: '星尾狐',
       color: '#c58a5a',
+      motion: 'moon',
       stages: [
         { stage: 1, name: '幼狐', min: 0, next: 300, body: '#e3b68c', ear: '#c58a5a', belly: '#fff0dc', accent: '#e8b56b', desc: '尾巴还短短的小狐狸，喜欢追着光点跑。' },
         { stage: 2, name: '星尾狐', min: 300, next: 900, body: '#dda878', ear: '#b97845', belly: '#fff1dd', accent: '#c9784e', desc: '尾巴尖会亮起一颗小星星的伙伴。' },
@@ -367,6 +374,7 @@
     whale: {
       name: '云海鲸',
       color: '#5d86c9',
+      motion: 'water',
       stages: [
         { stage: 1, name: '幼鲸', min: 0, next: 300, body: '#9dbbe3', ear: '#7fa2d4', belly: '#eaf2ff', accent: '#7fc7d9', desc: '会喷出小小水花的云朵鲸。' },
         { stage: 2, name: '云鲸', min: 300, next: 900, body: '#88aede', ear: '#6c93ca', belly: '#eef5ff', accent: '#71bfd0', desc: '游过的地方会留下软软的云。' },
@@ -377,6 +385,7 @@
     bird: {
       name: '焰羽雀',
       color: '#d06a4e',
+      motion: 'fire',
       stages: [
         { stage: 1, name: '雏雀', min: 0, next: 300, body: '#e8a07f', ear: '#c9684a', belly: '#fff0e2', accent: '#e8b56b', desc: '刚会扑腾翅膀的小雀，嗓门倒不小。' },
         { stage: 2, name: '焰羽雀', min: 300, next: 900, body: '#df8a62', ear: '#b9573c', belly: '#fff0e4', accent: '#e2a24e', desc: '尾羽像一小簇不灭的火苗。' },
@@ -387,6 +396,7 @@
     baize: {
       name: '白泽',
       color: '#c9b98f',
+      motion: 'gold',
       unlock: { type: 'checkins', value: 7, label: '累计打卡 7 天解锁' },
       stages: [
         { stage: 1, name: '云泽兽', min: 0, next: 300, body: '#ece5d5', ear: '#c7baa0', belly: '#fffbf2', accent: '#d9b66f', desc: '从云里探出头的小瑞兽，额上有一只还没睁开的竖眼。' },
@@ -398,6 +408,7 @@
     qilin: {
       name: '麒麟',
       color: '#6fae8d',
+      motion: 'wood',
       unlock: { type: 'pool', value: 1200, label: '总经验池累计获得 1200 解锁' },
       stages: [
         { stage: 1, name: '幼麟', min: 0, next: 300, body: '#a9d4bb', ear: '#6da98b', belly: '#f3fbf4', accent: '#d9b66f', desc: '角还没长齐的小麒麟，走路会踩出一小片草芽。' },
@@ -409,6 +420,7 @@
     zhulong: {
       name: '烛龙',
       color: '#c9563f',
+      motion: 'sun',
       unlock: { type: 'checkins', value: 30, label: '累计打卡 30 天解锁' },
       stages: [
         { stage: 1, name: '烛崽', min: 0, next: 300, body: '#db7a5f', ear: '#a84731', belly: '#ffe8d4', accent: '#f0c987', desc: '衔着一小簇火苗的龙崽，睁眼就是白天，闭眼就是夜晚。' },
@@ -892,12 +904,96 @@
     S.toast(`已切换为「${petDisplayInfo(p).name}」。`, 'ok');
   }
 
-  function fusePets() {
+  let fusionSceneTimer = 0;
+
+  function closeFusionScene() {
+    if (fusionSceneTimer) { clearTimeout(fusionSceneTimer); fusionSceneTimer = 0; }
+    const overlay = $('#fusion-overlay');
+    if (overlay) overlay.remove();
+    document.body.classList.remove('fusion-open');
+  }
+
+  function openFusionScene() {
     const p = profile();
     const pair = fusionPairFor(p);
     if (!pair) { S.toast('需要两只精灵都成长到终极形态（2000）才能融合。', 'error', 6000); return; }
     if (p.fusion) { S.toast(`已经融合出「${p.fusion.name}」了。`, 'error'); return; }
-    if (!window.confirm(`把「${petSpeciesInfo(pair.a).name}」和「${petSpeciesInfo(pair.b).name}」融合成「${pair.name}」？融合后两只精灵都会保留，随时可以切回来。`)) return;
+    closeFusionScene();
+    const a = petSpeciesInfo(pair.a);
+    const b = petSpeciesInfo(pair.b);
+    const overlay = document.createElement('div');
+    overlay.className = 'fusion-overlay is-charging';
+    overlay.id = 'fusion-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', '精灵融合');
+    overlay.innerHTML =
+      `<div class="fusion-veil" data-fusion-cancel></div>` +
+      `<div class="fusion-stage">` +
+        `<p class="fusion-kicker">FUSION · 因果坍缩</p>` +
+        `<div class="fusion-void" aria-hidden="true">` +
+          `<div class="fusion-hole left"><i class="fusion-disc"></i><i class="fusion-ring r1"></i><i class="fusion-ring r2"></i><i class="fusion-core"></i><b>${S.escapeHtml(a.name)}</b></div>` +
+          `<div class="fusion-hole right"><i class="fusion-disc"></i><i class="fusion-ring r1"></i><i class="fusion-ring r2"></i><i class="fusion-core"></i><b>${S.escapeHtml(b.name)}</b></div>` +
+          `<div class="fusion-thread t1"></div><div class="fusion-thread t2"></div><div class="fusion-thread t3"></div>` +
+          `<div class="fusion-motes">` +
+            Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join('') +
+          `</div>` +
+          `<div class="fusion-question" aria-hidden="true">?</div>` +
+          `<div class="fusion-reveal" aria-hidden="true">${petSVG(4, 'fusion', true)}</div>` +
+        `</div>` +
+        `<h2 class="fusion-title">两股力量正在向内旋转</h2>` +
+        `<p class="fusion-copy">${S.escapeHtml(a.name)}与${S.escapeHtml(b.name)}的因果被卷进同一个奇点。<br>黑洞相加，会得到一个答案，还是一个更大的问号？</p>` +
+        `<div class="fusion-actions">` +
+          `<button class="p-btn fusion-main" type="button" data-fusion-confirm>把手伸进去</button>` +
+          `<button class="p-btn ghost" type="button" data-fusion-cancel>再等等</button>` +
+        `</div>` +
+        `<p class="fusion-note">两只精灵都会保留，融合后随时可以切回来。</p>` +
+      `</div>`;
+    document.body.appendChild(overlay);
+    document.body.classList.add('fusion-open');
+    fusionSceneTimer = setTimeout(() => {
+      overlay.classList.remove('is-charging');
+      overlay.classList.add('is-collapsing');
+      const title = overlay.querySelector('.fusion-title');
+      const copy = overlay.querySelector('.fusion-copy');
+      if (title) title.textContent = '它们在中间消失了';
+      if (copy) copy.innerHTML = '没有声音，没有光。<br>只剩一个问号，悬在你面前。';
+      fusionSceneTimer = setTimeout(() => {
+        overlay.classList.remove('is-collapsing');
+        overlay.classList.add('is-question');
+        const main = overlay.querySelector('[data-fusion-confirm]');
+        if (main) main.textContent = '揭开答案';
+      }, 1500);
+    }, 2100);
+    overlay.onclick = (event) => {
+      if (event.target.closest('[data-fusion-cancel]')) { closeFusionScene(); return; }
+      const confirm = event.target.closest('[data-fusion-confirm]');
+      if (!confirm) return;
+      if (!overlay.classList.contains('is-question')) return;
+      overlay.classList.add('is-revealed');
+      const name = overlay.querySelector('.fusion-copy');
+      if (name) name.innerHTML = `新的名字是「<b>${S.escapeHtml(pair.name)}</b>」。<br>它睁开了眼睛。`;
+      const title = overlay.querySelector('.fusion-title');
+      if (title) title.textContent = '融合完成';
+      overlay.querySelectorAll('.fusion-actions button').forEach((button) => { button.disabled = true; });
+      fusionSceneTimer = setTimeout(() => {
+        closeFusionScene();
+        performFusion(pair);
+      }, 1700);
+    };
+    const onKey = (event) => {
+      if (event.key === 'Escape') { document.removeEventListener('keydown', onKey); closeFusionScene(); }
+    };
+    document.addEventListener('keydown', onKey, { once: true });
+  }
+
+  function fusePets() {
+    openFusionScene();
+  }
+
+  function performFusion(pair) {
+    const p = profile();
+    if (!p || !pair || p.fusion) return;
     const a = ensurePet(p, pair.a);
     const b = ensurePet(p, pair.b);
     p.fusion = {
@@ -919,7 +1015,7 @@
 
   let petSvgSeq = 0;
 
-  function petSVG(stage, speciesId, fused) {
+  function petSVG(stage, speciesId, fused, options) {
     if (window.ShunshiPetArt) {
       const artSpecies = PET_SPECIES[speciesId] ? speciesId : 'otter';
       const artStages = petSpeciesInfo(artSpecies).stages;
@@ -931,6 +1027,7 @@
         colors: { body: artColors.body, ear: artColors.ear, belly: artColors.belly, accent: artColors.accent },
         fused: Boolean(fused),
         motion: fused ? 'storm' : (petSpeciesInfo(artSpecies).motion || 'earth'),
+        thumb: Boolean(options && options.thumb),
         label: `${fused ? '融合精灵' : petSpeciesInfo(artSpecies).name} · ${artColors.name}`
       });
     }
@@ -1315,7 +1412,14 @@
     scene.innerHTML = petSVG(info.stage, display.id, display.fused);
     $('#pet-name').textContent = display.name;
     $('#pet-stage-name').textContent = info.name;
-    $('#pet-desc').textContent = display.fused ? '两种终极精灵合为一体，成长没有终点。' : info.desc;
+    const attrEl = $('#pet-attr');
+    if (attrEl) {
+      const motion = display.fused ? 'storm' : (petSpeciesInfo(display.id).motion || 'earth');
+      attrEl.textContent = PET_ATTR_LABELS[motion] || '灵';
+      attrEl.className = `pet-attr pet-attr-${motion}`;
+      attrEl.title = `属性：${PET_ATTR_LABELS[motion] || '灵'}`;
+    }
+    $('#pet-desc').textContent = display.fused ? '两种终极神兽合为一体，成长没有终点。' : info.desc;
     const span = info.next ? info.next - info.min : 0;
     const ratio = info.next ? Math.min(1, Math.max(0, (pet.xp - info.min) / span)) : 1;
     $('#pet-growth-fill').style.width = `${Math.round(ratio * 100)}%`;
@@ -1378,19 +1482,20 @@
       const info = petStageOf(pet.xp, id);
       if (!lock.unlocked) {
         return `<button class="pet-chip is-locked" type="button" data-pet-switch="${id}" title="${S.escapeHtml(lock.text)}">` +
-          `<span class="pet-chip-art">${petSVG(1, id)}</span>` +
+          `<span class="pet-chip-art">${petSVG(1, id, false, { thumb: true })}</span>` +
           `<span><b>🔒 ${species.name}</b><small>${S.escapeHtml(lock.text)} · ${lock.have}/${lock.need} ${lock.unit}</small></span>` +
           `<span class="pet-lock-progress"><i style="width:${Math.round(lock.progress * 100)}%"></i></span>` +
         `</button>`;
       }
       return `<button class="pet-chip ${active === id ? 'is-active' : ''}" type="button" data-pet-switch="${id}" title="切换为 ${species.name}">` +
-        `<span class="pet-chip-art">${petSVG(info.stage, id)}</span>` +
+        `<span class="pet-chip-art">${petSVG(info.stage, id, false, { thumb: true })}</span>` +
         `<span><b>${species.name}</b><small>${info.name} · ${pet.xp}</small></span>` +
       `</button>`;
     }).join('');
     const fusion = p.fusion
       ? `<button class="pet-chip fusion ${active === 'fusion' ? 'is-active' : ''}" type="button" data-pet-switch="fusion" title="切换融合精灵">` +
-          `<span class="pet-chip-mark">✦</span><span><b>${S.escapeHtml(p.fusion.name || '融合精灵')}</b><small>终极形态</small></span></button>`
+          `<span class="pet-chip-art fusion-chip-art">${petSVG(4, 'fusion', true, { thumb: true })}<i class="pet-chip-mark">?</i></span>` +
+          `<span><b>${S.escapeHtml(p.fusion.name || '融合精灵')}</b><small>终极形态</small></span></button>`
       : '';
     const pair = fusionPairFor(p);
     const fuseButton = pair && !p.fusion
@@ -2104,6 +2209,44 @@
     return `<div class="passage">${blocks.map((block) => `<p>${S.escapeHtml(block).replace(/\n/g, '<br>')}</p>`).join('')}</div>`;
   }
 
+  /* 阅读联动 · 长难句拆解：先让学生自己拆，再展开看“主干 / 一级 / 二级 / 三级”。 */
+  function renderBreakdown(block) {
+    const data = block.breakdown || {};
+    const sentence = String(data.sentence || block.passage || '').trim();
+    const chunks = Array.isArray(data.chunks) ? data.chunks.filter((chunk) => chunk && chunk.text) : [];
+    const G = window.ShunshiGrammar;
+    const levels = [
+      { level: 0, label: '主干' },
+      { level: 1, label: '一级修饰' },
+      { level: 2, label: '从句 · 二级' },
+      { level: 3, label: '从句里的从句 · 三级' }
+    ];
+    const levelHtml = levels.map((item) => {
+      const list = chunks.filter((chunk) => clampLevel(chunk.level) === item.level);
+      if (!list.length) return '';
+      return `<div class="breakdown-level"><b>${item.label}</b><div class="breakdown-chips">` +
+        list.map((chunk) => {
+          const role = String(chunk.role || '成分');
+          const cls = G && G.roleClass ? G.roleClass(role) : 'other';
+          return `<span class="breakdown-chip role-${S.escapeHtml(cls)}"><b>${S.escapeHtml(chunk.text)}</b><small>${S.escapeHtml(role)}</small></span>`;
+        }).join('') +
+      `</div></div>`;
+    }).join('');
+    return `<div class="breakdown-card">` +
+      (sentence ? `<p class="breakdown-sentence">${S.escapeHtml(sentence)}</p>` : '') +
+      `<details class="breakdown-reveal"><summary>先自己拆，再点开看拆法</summary>` +
+        (levelHtml ? `<div class="breakdown-levels">${levelHtml}</div>` : '') +
+        (data.translation ? `<p class="breakdown-translation">参考译文：${S.escapeHtml(data.translation)}</p>` : '') +
+      `</details>` +
+    `</div>`;
+  }
+
+  function clampLevel(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return 0;
+    return Math.max(0, Math.min(3, Math.round(number)));
+  }
+
   function renderGrammarHero(task) {
     const lesson = task.lesson;
     if (!lesson) return '';
@@ -2321,6 +2464,7 @@
       const label = block.label || `${cnNumber(index)}、${S.blockLabel(block.type)}`;
       html += `<h3 class="block-heading">${S.escapeHtml(label)}</h3>`;
       if (block.passage) html += renderPassage(block.passage);
+      if (block.type === 'breakdown' && block.breakdown) html += renderBreakdown(block);
       if (block.type === 'writing' || block.prompt) {
         const prompt = block.prompt || block.passage || '';
         html += `<div class="writing-box">${S.escapeHtml(prompt)}</div>`;
@@ -2486,8 +2630,10 @@
   }
 
   function wordOptionsFor(task, word, index) {
-    const answer = S.primaryMeaning(word.zh);
-    const others = (task.words || []).map((item) => S.primaryMeaning(item.zh)).filter((zh) => zh && zh !== answer);
+    const answer = S.meaningLabel(word.w, word.zh, word.pos);
+    const others = (task.words || [])
+      .map((item) => S.meaningLabel(item.w, item.zh, item.pos))
+      .filter((zh) => zh && zh !== answer);
     const pool = Array.from(new Set(others.concat(WORD_FALLBACK_ZH)))
       .filter((zh) => zh && zh !== answer);
     const distractors = seededShuffle(pool, hashString(`${word.w}|${index}|zh`)).slice(0, 3);
@@ -2734,7 +2880,7 @@
       $('#runner-count').textContent = '已完成';
       $('#runner-fill').style.width = '100%';
       const petDone = task.petGain
-        ? `<div class="word-summary-pet"><div class="word-summary-pet-art">${petSVG(petInfo.stage, petDisplay.id, petDisplay.fused)}</div><div><b>这一轮${petDisplay.name}也吃饱了</b><span>成长 +${task.petGain} · 小鱼干 +${task.petSnacks || 0}</span></div></div>`
+        ? `<div class="word-summary-pet"><div class="word-summary-pet-art">${petSVG(petInfo.stage, petDisplay.id, petDisplay.fused, { thumb: true })}</div><div><b>这一轮${petDisplay.name}也吃饱了</b><span>成长 +${task.petGain} · 小鱼干 +${task.petSnacks || 0}</span></div></div>`
         : '';
       $('#runner-body').innerHTML = resultHero(task) + `<div class="word-run">${petDone}${wordResultTable(task, run)}</div>`;
       $('#runner-body').onclick = null;
@@ -2765,7 +2911,7 @@
             `<div><b>+${xp}</b><span>预计 EXP</span></div>` +
           `</div>` +
           `<div class="word-summary-pet">` +
-            `<div class="word-summary-pet-art">${petSVG(petInfo.stage, petDisplay.id, petDisplay.fused)}</div>` +
+            `<div class="word-summary-pet-art">${petSVG(petInfo.stage, petDisplay.id, petDisplay.fused, { thumb: true })}</div>` +
             `<div><b>${petDisplay.name}陪你完成了这一轮</b><span>成长 +${task.petGain || 0} · 小鱼干 +${task.petSnacks || 0}</span></div>` +
           `</div>` +
           (wrong.length
@@ -2808,7 +2954,7 @@
       : kind === 'context'
         ? contextOptionsFor(task, word, index)
         : wordOptionsFor(task, word, index);
-    const correctText = kind === 'meaning' ? S.primaryMeaning(word.zh) : word.w;
+    const correctText = kind === 'meaning' ? S.meaningLabel(word.w, word.zh, word.pos) : word.w;
     const progress = isReview
       ? (run.reviewQueue.length ? run.reviewI / run.reviewQueue.length : 1)
       : (total ? index / total : 0);
@@ -2829,7 +2975,7 @@
     const stage = kind === 'review'
       ? `<div class="word-stage review">` +
           `<div class="word-stage-label"><span>错词回炉 · ${word.w}</span><span class="word-phase">中 → 英</span></div>` +
-          `<div class="word-main"><p class="word-big cn">${S.escapeHtml(S.primaryMeaning(word.zh))}</p>` +
+          `<div class="word-main"><p class="word-big cn">${S.escapeHtml(S.meaningLabel(word.w, word.zh, word.pos))}</p>` +
           `<p class="word-phon">选回对应的英文单词</p></div>` +
         `</div>`
       : kind === 'context'
@@ -2864,7 +3010,7 @@
         options.map((option) => `<button class="word-option" type="button" data-word-option="${S.escapeHtml(option)}">${S.escapeHtml(option)}</button>`).join('') +
       `</div>` +
       `<div class="word-pet-row" id="word-pet-row">` +
-        `<div class="word-pet" id="word-pet">${petSVG(petInfo.stage, petDisplay.id, petDisplay.fused)}</div>` +
+        `<div class="word-pet" id="word-pet">${petSVG(petInfo.stage, petDisplay.id, petDisplay.fused, { thumb: true })}</div>` +
         `<div class="word-pet-copy"><b>${petDisplay.name} · ${petInfo.name}</b><span id="word-pet-say">答对一题，就喂我 2 点成长。</span></div>` +
         `<span class="word-pet-gain" id="word-pet-gain" aria-live="polite"></span>` +
       `</div>` +
@@ -2971,10 +3117,10 @@
         : '';
       feedback.innerHTML = ok
         ? `<b>${context.isReview ? '订正成功' : '答对了'} · 连击 x${run.combo}</b>` +
-          `<div class="word-answer-line">${S.escapeHtml(context.word.w)} · ${S.escapeHtml(S.primaryMeaning(context.word.zh))}${context.isReview ? '' : '　已记入本轮成绩'}</div>` +
+          `<div class="word-answer-line">${S.escapeHtml(context.word.w)} · ${S.escapeHtml(S.meaningLabel(context.word.w, context.word.zh, context.word.pos))}${context.isReview ? '' : '　已记入本轮成绩'}</div>` +
           contextAnswer
         : `<b>${context.isReview ? '这次还没记住' : '先记一下'}</b>` +
-          `<div class="word-answer-line"><strong>${S.escapeHtml(context.word.w)}</strong> · ${S.escapeHtml(S.primaryMeaning(context.word.zh))}${context.word.kk ? ` · ${S.escapeHtml(context.word.kk)}` : ''}</div>` +
+          `<div class="word-answer-line"><strong>${S.escapeHtml(context.word.w)}</strong> · ${S.escapeHtml(S.meaningLabel(context.word.w, context.word.zh, context.word.pos))}${context.word.kk ? ` · ${S.escapeHtml(context.word.kk)}` : ''}</div>` +
           contextAnswer +
           `<div class="word-answer-line">${context.isReview ? '下一轮再遇到它，试着先回想发音。' : '这个词会在最后再考一次。'}</div>`;
     }

@@ -298,10 +298,10 @@
 
   /* 常见词只保留学生最常考的一两个意思，避免词典里生僻义项堆在一起。 */
   const COMMON_MEANINGS = {
-    a: '一个', an: '一个', account: '账户', address: '地址；演讲', appreciate: '欣赏；感激',
+    a: '一个；每一', an: '一个；每一', account: '账户；解释', address: '地址；演讲', appreciate: '欣赏；感激',
     available: '可获得的；有空的', benefit: '益处；好处', capital: '首都；资本', case: '情况；案例',
-    certain: '确定的；某些', confident: '自信的', project: '项目；计划', respect: '尊重；敬意',
-    solve: '解决', succeed: '成功',
+    certain: '确定的；某些', confident: '自信的；确信的', project: '项目；计划', respect: '尊重；敬意',
+    solve: '解决；解答', succeed: '成功；接替',
     bear: '熊；忍受', change: '变化；零钱', charge: '费用；充电',
     company: '公司；陪伴', decline: '下降；拒绝', even: '甚至；平坦的',
     fair: '公平的；集市', figure: '数字；人物', fine: '好的；罚款',
@@ -309,14 +309,36 @@
     lead: '领导；带领', leave: '离开；留下', lie: '躺；撒谎',
     light: '光；轻的', like: '喜欢；像', long: '长的；渴望',
     may: '可以；可能', matter: '事情；要紧', mean: '意味着；吝啬的',
-    might: '可能', order: '顺序；命令', patient: '病人；耐心的',
+    might: '可能；力量', order: '顺序；命令', patient: '病人；耐心的',
     present: '礼物；现在的', pretty: '漂亮的；相当', race: '比赛；种族',
-    rare: '稀有的', right: '正确的；右边', ring: '戒指；铃声',
-    row: '一排；划船', saw: '锯子', scale: '规模；刻度', seal: '印章；海豹',
+    rare: '稀有的；罕见的', right: '正确的；右边', ring: '戒指；铃声',
+    row: '一排；划船', saw: '锯子；看见', scale: '规模；刻度', seal: '印章；海豹',
     second: '第二；秒', sound: '声音；听起来', spring: '春天；泉水',
     state: '状态；州', still: '仍然；静止的', subject: '科目；主题',
     term: '学期；术语', tip: '小费；提示', top: '顶部；最高的',
-    watch: '观看；手表', wave: '波浪；挥手', will: '将；意志', wonder: '想知道；奇迹'
+    watch: '观看；手表', wave: '波浪；挥手', will: '将；意志', wonder: '想知道；奇迹',
+    achieve: '实现；达到', affect: '影响；感动', ancient: '古代的；古老的',
+    approach: '方法；接近', attend: '参加；出席', avoid: '避免；避开',
+    balance: '平衡；余额', behavior: '行为；举止', challenge: '挑战；质疑',
+    common: '常见的；共同的', compare: '比较；对比', complete: '完成；完整的',
+    concern: '担忧；关心', consider: '考虑；认为', contain: '包含；容纳',
+    continue: '继续；延续', contribute: '贡献；促成', create: '创造；产生',
+    culture: '文化；培养', curious: '好奇的；求知的', damage: '损害；破坏',
+    describe: '描述；形容', develop: '发展；培养', difference: '差别；分歧',
+    difficult: '困难的；难相处的', direct: '直接的；指导', discuss: '讨论；商量',
+    encourage: '鼓励；促进', entire: '整个的；全部的', equal: '平等的；相等的',
+    escape: '逃跑；逃避', essential: '必要的；本质的', examine: '检查；考察',
+    exchange: '交换；交流', expect: '期待；预料', experience: '经历；经验',
+    explain: '解释；说明', explore: '探索；探究', express: '表达；快递',
+    familiar: '熟悉的；常见的', feature: '特点；以…为特色', focus: '集中；焦点',
+    foreign: '外国的；陌生的', forgive: '原谅；宽恕', fortunate: '幸运的；侥幸的',
+    improve: '改善；提高', include: '包括；包含', increase: '增加；增长',
+    introduce: '介绍；引进', manage: '管理；设法完成', matter: '事情；要紧',
+    organize: '组织；整理', participate: '参加；参与', prefer: '更喜欢；宁愿',
+    prepare: '准备；预备', prevent: '阻止；预防', provide: '提供；供应',
+    realize: '意识到；实现', recognize: '认出；承认', recommend: '推荐；建议',
+    reduce: '减少；降低', respect: '尊重；方面', support: '支持；支撑',
+    survive: '生存；幸存', understand: '理解；明白', volunteer: '志愿者；自愿做'
   };
 
   const RARE_MEANING = /(古|诗|律|医|解剖|植物学|动物学|化学|物理|军事|航海|印刷|牌戏|俚|谑|罕|废|方言|苏格兰|爱尔兰|加拿大|南非|圣经|神学|纹章|逻辑|修辞|板球|高尔夫|棒球|赛马|狩猎|钓鱼|航空|电学|力学|几何|统计|会计|法庭|议会|外交|宗教|基督教|犹太|伊斯兰|希腊|罗马|北欧|神话)/;
@@ -365,10 +387,10 @@
     const first = ranked[0];
     let second = null;
     for (const item of ranked.slice(1)) {
-      if (item.score < 55) break;
+      if (item.score < 45) break;
       const overlap = item.part.split('').filter((ch) => first.part.includes(ch)).length;
       if (overlap >= Math.min(item.part.length, first.part.length) * 0.7) continue;
-      if (first.part.length + item.part.length > 18) continue;
+      if (first.part.length + item.part.length > 22) continue;
       second = item;
       break;
     }
@@ -385,6 +407,16 @@
   function primaryMeaning(zh) {
     const first = String(zh || '').split(/[；;、|/]/).map((part) => part.trim()).filter(Boolean)[0];
     return first || String(zh || '').trim();
+  }
+
+  /* 选项里统一显示“词性 + 两个常用义”，例如 “vt. 放弃；抛弃”。
+     只用于展示和判题文本，不改变 word.zh 里保存的义项顺序。 */
+  function meaningLabel(word, raw, pos) {
+    const senses = meaningFor(word, raw);
+    const cleanPos = String(pos || '')
+      .replace(/[.。]+$/, '')
+      .trim();
+    return (cleanPos ? cleanPos + '. ' : '') + senses;
   }
 
   /* 代码里用短数组装单词，比重复写 w/zh/kk/pos 省一大截。
@@ -790,6 +822,7 @@
     simplifyMeaning,
     meaningFor,
     primaryMeaning,
+    meaningLabel,
     packWordList,
     unpackWordList,
     packCode,
