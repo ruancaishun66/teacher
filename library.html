@@ -1771,36 +1771,7 @@
       margin-top: 18px;
     }
 
-    /* 智能识别：一道题、一份专题卷或一整套试卷，按题型分类入库 */
-    .split-paper-card {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      margin-bottom: 14px;
-      padding: 18px 20px;
-      border: 1px solid rgba(217, 110, 81, 0.28);
-      border-radius: 18px;
-      background:
-        radial-gradient(circle at 100% 0%, rgba(255, 199, 137, 0.32), transparent 55%),
-        linear-gradient(135deg, #fffaf2, #fff5ec);
-      box-shadow: var(--shadow);
-    }
-
-    .split-paper-card h2 {
-      color: var(--blue-deep);
-      font-family: var(--round);
-      font-size: 1.02rem;
-    }
-
-    .split-paper-card p {
-      margin-top: 4px;
-      color: var(--ink-soft);
-      font-size: 0.72rem;
-      line-height: 1.75;
-    }
-
+    /* 智能识别：上传 Word / PDF，一道题、专题卷或整卷按题型分类入库 */
     .split-dialog {
       width: min(860px, calc(100% - 24px));
     }
@@ -1825,6 +1796,98 @@
       background: var(--gold-soft);
       font-size: 0.68rem;
       line-height: 1.75;
+    }
+
+    .split-file-zone {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      padding: 14px;
+      border: 1.5px dashed rgba(49, 95, 140, 0.3);
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(238, 244, 248, 0.8), rgba(255, 250, 242, 0.8));
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .split-file-zone.is-dragging {
+      border-color: var(--red);
+      background: var(--red-soft);
+    }
+
+    .split-file-zone.is-error {
+      border-color: rgba(178, 58, 46, 0.45);
+      background: rgba(255, 240, 236, 0.75);
+    }
+
+    .split-file-icon {
+      display: grid;
+      flex: 0 0 auto;
+      width: 44px;
+      height: 44px;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--blue);
+      background: var(--paper);
+      box-shadow: 0 0 0 5px rgba(49, 95, 140, 0.06);
+    }
+
+    .split-file-icon .icon {
+      width: 22px;
+      height: 22px;
+    }
+
+    .split-file-copy {
+      flex: 1 1 220px;
+      min-width: 0;
+    }
+
+    .split-file-copy b {
+      display: block;
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 0.86rem;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .split-file-copy span {
+      display: block;
+      margin-top: 2px;
+      color: var(--ink-soft);
+      font-size: 0.64rem;
+      line-height: 1.65;
+    }
+
+    .split-file-zone .btn {
+      flex: 0 0 auto;
+      min-height: 34px;
+      padding: 6px 12px;
+      font-size: 0.7rem;
+    }
+
+    .split-manual {
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.55);
+    }
+
+    .split-manual summary {
+      padding: 9px 11px;
+      color: var(--ink-soft);
+      font-size: 0.68rem;
+      line-height: 1.6;
+      cursor: pointer;
+    }
+
+    .split-manual[open] summary {
+      border-bottom: 1px solid var(--line);
+    }
+
+    .split-manual .field {
+      margin: 10px 11px 11px;
     }
 
     .split-toolbar {
@@ -1943,11 +2006,11 @@
     }
 
     @media (max-width: 640px) {
-      .split-paper-card {
-        padding: 15px 16px;
+      .split-file-zone {
+        padding: 12px;
       }
 
-      .split-paper-card .btn {
+      .split-file-zone .btn {
         width: 100%;
         justify-content: center;
       }
@@ -2683,19 +2746,8 @@
           <div>
             <p class="eyebrow">Upload <span>/ 上传资料</span></p>
             <h1 id="upload-title">把资料交给我，剩下的我来整理。</h1>
-            <p>支持 Word (.docx)、PDF、TXT；自动识别题型、提取文字，并生成带水印的整理版。原文件会完整保留。</p>
+            <p>上传 Word (.docx) 或 PDF，AI 先判断题型、拆开大题，你核对确认后再入库。原文件完整保留，之后仍可修改标题和题型。</p>
           </div>
-        </div>
-
-        <div class="split-paper-card">
-          <div>
-            <h2>一道题、一份专题卷、一整套卷，都能识别入库</h2>
-            <p>把原文粘贴进来，点一次「智能识别入库」：自动判断题型、拆开大题、生成可布置的练习卷。本机先免费识别，拿不准时才问你要不要用 AI。</p>
-          </div>
-          <button class="btn btn-primary" type="button" id="split-paper-open">
-            <svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>
-            智能识别入库
-          </button>
         </div>
 
         <div class="upload-panel">
@@ -2703,8 +2755,8 @@
             <span class="dropzone-icon" aria-hidden="true">
               <svg class="icon"><use href="#i-upload"/></svg>
             </span>
-            <h2>拖进来，或者点一下选择文件</h2>
-            <p>可以一次选择多份。识别结果会自动入库，之后仍可修改标题、题型和年级。</p>
+            <h2>上传 Word / PDF，智能识别后入库</h2>
+            <p>一道题、一份专题卷、一整套试卷都可以。拖进来或点「选择文件」，先识别预览、确认后再入库；可以一次选多份，逐份确认。支持 .docx、.pdf；旧版 .doc 请先用 Word 另存为 .docx。</p>
             <button class="btn btn-primary" type="button" id="pick-files">
               <svg class="icon" aria-hidden="true"><use href="#i-file"/></svg>
               选择文件
@@ -2717,16 +2769,16 @@
               <svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>
               载入示例资料
             </button>
-            <span class="upload-hint">PDF 若为扫描图片，文字提取可能为空，原文件仍可下载。</span>
+            <span class="upload-hint">扫描版 PDF 会先尝试本地 OCR；文字仍为空时，请换清晰的文字版。</span>
           </div>
 
           <div class="queue" id="upload-queue" aria-live="polite"></div>
 
           <div class="pipeline" aria-label="处理流程">
-            <div class="pipeline-step"><span>01</span><strong>读取文件</strong><p>解析 Word / PDF 文字，保留原文件。</p></div>
-            <div class="pipeline-step"><span>02</span><strong>识别题型</strong><p>单选、完形、阅读、五选五、语法、作文等。</p></div>
-            <div class="pipeline-step"><span>03</span><strong>整理入库</strong><p>抽取题组，生成带水印的整理版。</p></div>
-            <div class="pipeline-step"><span>04</span><strong>随时组卷</strong><p>一句指令随机选题，导出 Word / PDF。</p></div>
+            <div class="pipeline-step"><span>01</span><strong>读取文件</strong><p>解析 Word / PDF 文字，原文件完整保留。</p></div>
+            <div class="pipeline-step"><span>02</span><strong>AI 识别</strong><p>优先用已保存的 Key 判断题型、拆开大题；失败时本机兜底。</p></div>
+            <div class="pipeline-step"><span>03</span><strong>预览确认</strong><p>核对题型和题数，可改可勾选，确认后才入库。</p></div>
+            <div class="pipeline-step"><span>04</span><strong>随时组卷</strong><p>每个题型生成一份练习卷，教师端直接布置。</p></div>
           </div>
         </div>
       </section>
@@ -3184,11 +3236,32 @@
   <dialog class="app-dialog split-dialog" id="paper-split-dialog">
     <form class="dialog-form" id="paper-split-form" method="dialog">
       <div class="dialog-head">
-        <h2>智能识别入库</h2>
+        <h2>上传并智能识别</h2>
         <button class="dialog-close" type="submit" value="cancel" aria-label="关闭">×</button>
       </div>
       <div class="split-dialog-body">
-        <p class="split-lead">一道题、一份专题卷、一整套试卷都可以。粘贴原文后点一次「智能识别」：本机先免费判断题型、拆开大题；没把握时才会问你要不要用 AI 再认一次。AI 只发送题目正文（会先尽量剔除答案区），不含学生信息；记录只留在教师端。</p>
+        <p class="split-lead">上传 Word / PDF 后会自动读取文字并准备识别：已保存 Key 时先显示预计费用，你确认后才调用 AI 精准判断题型、拆开大题；没有 Key 或 AI 失败时，自动用本机规则兜底。AI 只发送题目正文（会先尽量剔除答案区），不含学生信息；记录只留在教师端。</p>
+        <div class="split-file-zone" id="paper-split-file-drop">
+          <span class="split-file-icon" aria-hidden="true">
+            <svg class="icon"><use href="#i-upload"/></svg>
+          </span>
+          <div class="split-file-copy">
+            <b id="paper-split-file-title">拖入 Word / PDF，或点「选择文件」</b>
+            <span id="paper-split-file-note">支持 .docx、.pdf；可以一次选多份，逐份确认入库。</span>
+          </div>
+          <button class="btn btn-outline" type="button" id="paper-split-pick">
+            <svg class="icon" aria-hidden="true"><use href="#i-file"/></svg>
+            选择文件
+          </button>
+          <input class="visually-hidden" id="paper-split-file" type="file" multiple accept=".docx,.pdf,.txt,.md,.doc,.png,.jpg,.jpeg">
+        </div>
+        <details class="split-manual" id="paper-split-manual">
+          <summary>也可以直接粘贴文字（备用）</summary>
+          <div class="field">
+            <label for="paper-split-text">原文</label>
+            <textarea id="paper-split-text" rows="8" placeholder="把题目、专题卷或整份试卷粘贴到这里：听力、单选、完形、阅读、语法、写作……答案和解析一起粘贴也可以。"></textarea>
+          </div>
+        </details>
         <div class="form-row">
           <div class="field">
             <label for="paper-split-title">标题</label>
@@ -3204,16 +3277,12 @@
             </select>
           </div>
         </div>
-        <div class="field">
-          <label for="paper-split-text">原文</label>
-          <textarea id="paper-split-text" rows="10" placeholder="把题目、专题卷或整份试卷粘贴到这里：听力、单选、完形、阅读、语法、写作……答案和解析一起粘贴也可以。"></textarea>
-        </div>
         <div class="split-toolbar">
           <button class="btn btn-primary" type="button" id="paper-split-recognize">
             <svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>
             智能识别
           </button>
-          <span class="split-ai-note" id="paper-split-ai-note">本机先免费识别；AI 需要先在「设置 → AI 直连」保存 Key，只在你确认后调用。</span>
+          <span class="split-ai-note" id="paper-split-ai-note">AI 需要先在「设置 → AI 直连」保存 Key，只在你确认后调用。</span>
         </div>
         <p class="split-status" id="paper-split-status"></p>
         <div class="split-preview" id="paper-split-preview"></div>
@@ -3328,8 +3397,8 @@
 
   <script src="vendor/jszip.min.js"></script>
   <script>window.SHUNSHI_TEACHER_AI = true;</script>
-  <script src="portal.js?v=20261120g"></script>
-  <script src="library.js?v=20261120g"></script>
+  <script src="portal.js?v=20261120h"></script>
+  <script src="library.js?v=20261120h"></script>
 <script src="pwa.js" defer></script>
 </body>
 </html>
