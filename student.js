@@ -740,6 +740,16 @@
     return { a, b, key, name: FUSION_NAMES[key] || `${petSpeciesInfo(a).name}·${petSpeciesInfo(b).name}` };
   }
 
+  /* 融合栏常驻：还没凑齐两只终极神兽时，展示离融合最近的两只和还差多少。 */
+  function nearestFusionPair(p) {
+    const unlocked = Object.keys(PET_SPECIES).filter((id) => petUnlockState(p, id).unlocked);
+    const pool = unlocked.length >= 2 ? unlocked : Object.keys(PET_SPECIES);
+    const ranked = pool
+      .map((id) => ({ id, xp: ensurePet(p, id).xp }))
+      .sort((a, b) => b.xp - a.xp);
+    return { a: ranked[0].id, b: ranked[1].id };
+  }
+
   /* ------------------------- 连续学习 / 满月转盘 ------------------------- */
 
   function activityDates(p) {
@@ -913,24 +923,30 @@
     document.body.classList.remove('fusion-open');
   }
 
-  function openFusionScene() {
+  function openFusionScene(preview) {
     const p = profile();
-    const pair = fusionPairFor(p);
-    if (!pair) { S.toast('需要两只精灵都成长到终极形态（2000）才能融合。', 'error', 6000); return; }
+    const realPair = fusionPairFor(p);
     if (p.fusion) { S.toast(`已经融合出「${p.fusion.name}」了。`, 'error'); return; }
+    if (!realPair && !preview) { S.toast('需要两只精灵都成长到终极形态（2000）才能融合。', 'error', 6000); return; }
+    const pair = realPair || nearestFusionPair(p);
+    const locked = !realPair;
     closeFusionScene();
     const a = petSpeciesInfo(pair.a);
     const b = petSpeciesInfo(pair.b);
+    const ax = ensurePet(p, pair.a).xp;
+    const bx = ensurePet(p, pair.b).xp;
+    const gapA = Math.max(0, 2000 - ax);
+    const gapB = Math.max(0, 2000 - bx);
     const overlay = document.createElement('div');
     overlay.className = 'fusion-overlay is-charging';
     overlay.id = 'fusion-overlay';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
-    overlay.setAttribute('aria-label', '精灵融合');
+    overlay.setAttribute('aria-label', locked ? '融合预告' : '精灵融合');
     overlay.innerHTML =
       `<div class="fusion-veil" data-fusion-cancel></div>` +
-      `<div class="fusion-stage">` +
-        `<p class="fusion-kicker">FUSION · 因果坍缩</p>` +
+      `<div class="fusion-stage${locked ? ' is-preview' : ''}">` +
+        `<p class="fusion-kicker">${locked ? 'FUSION PREVIEW · 因果未合' : 'FUSION · 因果坍缩'}</p>` +
         `<div class="fusion-void" aria-hidden="true">` +
           `<div class="fusion-hole left"><i class="fusion-disc"></i><i class="fusion-ring r1"></i><i class="fusion-ring r2"></i><i class="fusion-core"></i><b>${S.escapeHtml(a.name)}</b></div>` +
           `<div class="fusion-hole right"><i class="fusion-disc"></i><i class="fusion-ring r1"></i><i class="fusion-ring r2"></i><i class="fusion-core"></i><b>${S.escapeHtml(b.name)}</b></div>` +
@@ -941,13 +957,15 @@
           `<div class="fusion-question" aria-hidden="true">?</div>` +
           `<div class="fusion-reveal" aria-hidden="true">${petSVG(4, 'fusion', true)}</div>` +
         `</div>` +
-        `<h2 class="fusion-title">两股力量正在向内旋转</h2>` +
-        `<p class="fusion-copy">${S.escapeHtml(a.name)}与${S.escapeHtml(b.name)}的因果被卷进同一个奇点。<br>黑洞相加，会得到一个答案，还是一个更大的问号？</p>` +
+        `<h2 class="fusion-title">${locked ? '两个黑洞，还在等一个答案' : '两股力量正在向内旋转'}</h2>` +
+        `<p class="fusion-copy">${locked
+          ? `${S.escapeHtml(a.name)}与${S.escapeHtml(b.name)}还没有同时到终极形态。<br>还差 ${gapA} 与 ${gapB} 点成长。`
+          : `${S.escapeHtml(a.name)}与${S.escapeHtml(b.name)}的因果被卷进同一个奇点。<br>黑洞相加，会得到一个答案，还是一个更大的问号？`}</p>` +
         `<div class="fusion-actions">` +
           `<button class="p-btn fusion-main" type="button" data-fusion-confirm>把手伸进去</button>` +
-          `<button class="p-btn ghost" type="button" data-fusion-cancel>再等等</button>` +
+          `<button class="p-btn ghost" type="button" data-fusion-cancel>${locked ? '关闭' : '再等等'}</button>` +
         `</div>` +
-        `<p class="fusion-note">两只精灵都会保留，融合后随时可以切回来。</p>` +
+        `<p class="fusion-note">${locked ? '两只都到 2000 时，问号才会真正打开。' : '两只精灵都会保留，融合后随时可以切回来。'}</p>` +
       `</div>`;
     document.body.appendChild(overlay);
     document.body.classList.add('fusion-open');
@@ -956,13 +974,15 @@
       overlay.classList.add('is-collapsing');
       const title = overlay.querySelector('.fusion-title');
       const copy = overlay.querySelector('.fusion-copy');
-      if (title) title.textContent = '它们在中间消失了';
-      if (copy) copy.innerHTML = '没有声音，没有光。<br>只剩一个问号，悬在你面前。';
+      if (title) title.textContent = locked ? '它们在中间停住了' : '它们在中间消失了';
+      if (copy) copy.innerHTML = locked
+        ? '还差一点。<br>两只都到 2000，问号才会打开。'
+        : '没有声音，没有光。<br>只剩一个问号，悬在你面前。';
       fusionSceneTimer = setTimeout(() => {
         overlay.classList.remove('is-collapsing');
         overlay.classList.add('is-question');
         const main = overlay.querySelector('[data-fusion-confirm]');
-        if (main) main.textContent = '揭开答案';
+        if (main) main.textContent = locked ? '先攒成长' : '揭开答案';
       }, 1500);
     }, 2100);
     overlay.onclick = (event) => {
@@ -970,6 +990,11 @@
       const confirm = event.target.closest('[data-fusion-confirm]');
       if (!confirm) return;
       if (!overlay.classList.contains('is-question')) return;
+      if (locked) {
+        closeFusionScene();
+        S.toast('两只神兽都到 2000 时，再来把这个问号揭开。', 'ok', 5200);
+        return;
+      }
       overlay.classList.add('is-revealed');
       const name = overlay.querySelector('.fusion-copy');
       if (name) name.innerHTML = `新的名字是「<b>${S.escapeHtml(pair.name)}</b>」。<br>它睁开了眼睛。`;
@@ -1447,6 +1472,7 @@
 
     renderPetPool(p);
     renderPetRoster(p);
+    renderFusionBar(p);
     renderWheelEntry(p);
 
     if (info.stage > (pet.lastEvolvedStage || 1)) {
@@ -1497,18 +1523,12 @@
           `<span class="pet-chip-art fusion-chip-art">${petSVG(4, 'fusion', true, { thumb: true })}<i class="pet-chip-mark">?</i></span>` +
           `<span><b>${S.escapeHtml(p.fusion.name || '融合精灵')}</b><small>终极形态</small></span></button>`
       : '';
-    const pair = fusionPairFor(p);
-    const fuseButton = pair && !p.fusion
-      ? `<div class="pet-fusion-offer"><b>可融合：${S.escapeHtml(petSpeciesInfo(pair.a).name)} + ${S.escapeHtml(petSpeciesInfo(pair.b).name)}</b>` +
-        `<button class="p-btn small" type="button" id="pet-fuse-btn" data-fuse="${S.escapeHtml(`${pair.a}|${pair.b}`)}">融合成 ${S.escapeHtml(pair.name)}</button></div>`
-      : '';
     box.innerHTML = `<div class="pet-roster-head"><b>精灵图鉴</b><span>每一只单独成长，喂食和打卡都会加到当前出战精灵。</span></div>` +
       `<button class="pet-roster-toggle" type="button" data-pet-roster-toggle aria-expanded="${petRosterOpen ? 'true' : 'false'}">` +
         `<span><b>神兽收藏 · 已解锁 ${unlockedCount} / ${ids.length}</b><small>${petRosterOpen ? '收起图鉴' : '点这里展开，看看还有哪些神兽等你解锁'}</small></span>` +
         `<i aria-hidden="true">${petRosterOpen ? '▴' : '▾'}</i>` +
       `</button>` +
-      `<div class="pet-chips${petRosterOpen ? ' is-open' : ''}"${petRosterOpen ? '' : ' hidden'}>${cards}${fusion}</div>` +
-      fuseButton;
+      `<div class="pet-chips${petRosterOpen ? ' is-open' : ''}"${petRosterOpen ? '' : ' hidden'}>${cards}${fusion}</div>`;
     const toggle = box.querySelector('[data-pet-roster-toggle]');
     if (toggle) {
       toggle.onclick = () => {
@@ -1516,6 +1536,43 @@
         renderPetRoster(p);
       };
     }
+  }
+
+  function renderFusionBar(p) {
+    const box = $('#pet-fusion-bar');
+    if (!box) return;
+    if (p.fusion) {
+      box.className = 'pet-fusion-bar is-done';
+      box.innerHTML =
+        `<div class="pet-fusion-orbs is-done" aria-hidden="true"><i class="hole left"></i><span class="ask">?</span><i class="hole right"></i></div>` +
+        `<div class="pet-fusion-copy"><b>融合栏 · 答案已经出现</b><span>「${S.escapeHtml(p.fusion.name || '融合精灵')}」已经加入图鉴，原来的两只都还在。</span></div>` +
+        `<button class="p-btn small ghost" type="button" data-fusion-view="1">看融合神兽</button>`;
+      const view = box.querySelector('[data-fusion-view]');
+      if (view) view.onclick = () => switchPet('fusion');
+      return;
+    }
+    const pair = fusionPairFor(p);
+    const nearest = pair || nearestFusionPair(p);
+    const a = petSpeciesInfo(nearest.a);
+    const b = petSpeciesInfo(nearest.b);
+    const ax = ensurePet(p, nearest.a).xp;
+    const bx = ensurePet(p, nearest.b).xp;
+    const ready = Boolean(pair);
+    const pct = (xp) => Math.max(2, Math.min(100, Math.round((xp / 2000) * 100)));
+    box.className = `pet-fusion-bar${ready ? ' is-ready' : ''}`;
+    box.innerHTML =
+      `<div class="pet-fusion-orbs" aria-hidden="true"><i class="hole left"></i><span class="ask">?</span><i class="hole right"></i></div>` +
+      `<div class="pet-fusion-copy">` +
+        `<b>融合栏 · 两个黑洞，一个问号</b>` +
+        `<span>${ready ? '两只神兽都到终极形态了。要不要把手伸进去？' : '两只神兽都到终极形态（2000）后，问号才会打开。'}</span>` +
+        `<div class="pet-fusion-meters">` +
+          `<span><i style="width:${pct(ax)}%"></i><em>${S.escapeHtml(a.name)} ${ax} / 2000</em></span>` +
+          `<span><i style="width:${pct(bx)}%"></i><em>${S.escapeHtml(b.name)} ${bx} / 2000</em></span>` +
+        `</div>` +
+      `</div>` +
+      `<button class="p-btn small ${ready ? '' : 'ghost'}" type="button" data-fusion-open="${ready ? '1' : 'preview'}">${ready ? '打开融合' : '看看还差多少'}</button>`;
+    const open = box.querySelector('[data-fusion-open]');
+    if (open) open.onclick = () => openFusionScene(!ready);
   }
 
   function renderWheelEntry(p) {
@@ -2392,9 +2449,10 @@
       html += `<article class="grammar-step-card writing">` +
         `<div class="grammar-step-kicker">第五关 · 写一句</div>` +
         `<p class="grammar-step-stem">${S.escapeHtml(block.prompt || '用今天学的结构写一句。')}</p>` +
-        `<textarea class="writing-input grammar-writing" data-g-writing="${S.escapeHtml(block.id)}" placeholder="写一句自己的话，自动保存在本机…">${S.escapeHtml(value)}</textarea>` +
-        (block.sample ? `<p class="grammar-step-hint">参考写法：${S.escapeHtml(block.sample)}</p>` : '') +
-        `<p class="grammar-step-hint">写完后点下面的“提交今日语法”。不要求一模一样，能用自己的话写对结构就好。</p>` +
+        `<div class="writing-toolbar"><span>自动保存在本机</span><span>写完点“提交今日语法”</span></div>` +
+        `<textarea class="writing-input grammar-writing" data-g-writing="${S.escapeHtml(block.id)}" placeholder="写一句自己的话…">${S.escapeHtml(value)}</textarea>` +
+        (block.sample ? `<details class="writing-sample"><summary>写完再看参考写法</summary><p>${S.escapeHtml(block.sample)}</p></details>` : '') +
+        `<p class="grammar-step-hint">不要求一模一样，能用自己的话写对结构就好。</p>` +
       `</article>`;
     }
     html += `</div>`;
@@ -2467,18 +2525,19 @@
       if (block.type === 'breakdown' && block.breakdown) html += renderBreakdown(block);
       if (block.type === 'writing' || block.prompt) {
         const prompt = block.prompt || block.passage || '';
-        html += `<div class="writing-box">${S.escapeHtml(prompt)}</div>`;
+        html += `<div class="writing-box"><span class="writing-box-kicker">写作 / 拆句</span><p class="writing-box-text">${S.escapeHtml(prompt)}</p></div>`;
         const key = `writing:${block.id}`;
         const value = (task.answers || {})[key] || '';
         if (done) {
           html += value
-            ? `<div class="review-note" style="margin-top:12px;white-space:pre-wrap;">${S.escapeHtml(value)}</div>`
+            ? `<div class="writing-review"><b>你写的</b><p>${S.escapeHtml(value)}</p></div>`
             : `<p class="hint" style="margin-top:10px;">这道书面表达没有留下文字稿。</p>`;
           if (block.sample) {
             html += `<div class="g-sample"><b>参考写法</b><p>${S.escapeHtml(block.sample)}</p><small>不要求一模一样，能用自己的话写对结构就好。</small></div>`;
           }
         } else {
-          html += `<textarea class="writing-input" data-writing-block="${S.escapeHtml(block.id)}" placeholder="在这里写作文，自动保存在本机…">${S.escapeHtml(value)}</textarea>`;
+          html += `<div class="writing-toolbar"><span>自动保存在本机</span><span>不必一次写完</span></div>` +
+            `<textarea class="writing-input" data-writing-block="${S.escapeHtml(block.id)}" placeholder="按上面的步骤，一条一条写下来…">${S.escapeHtml(value)}</textarea>`;
         }
         return;
       }
@@ -2504,7 +2563,10 @@
           });
           html += `</div>`;
         } else {
-          html += `<input class="text-answer" data-qid="${S.escapeHtml(qid)}" value="${S.escapeHtml(userAnswer)}" placeholder="在这里填写答案" ${done ? 'disabled' : ''}>`;
+          html += `<label class="text-answer-field">` +
+            `<span class="text-answer-label">简答</span>` +
+            `<textarea class="text-answer" data-qid="${S.escapeHtml(qid)}" rows="2" placeholder="用一句话写清楚即可…" ${done ? 'disabled' : ''}>${S.escapeHtml(userAnswer)}</textarea>` +
+          `</label>`;
         }
         if (done) {
           const answerText = String(question.answer || '').trim() || '老师暂未附答案';

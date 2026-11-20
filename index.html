@@ -2553,22 +2553,15 @@
       line-height: 1.55;
     }
 
-    .platform-core-link {
+    .platform-core-note {
       position: relative;
       z-index: 1;
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
       margin-top: auto;
       padding-top: 16px;
-      color: #f0cf8a;
-      font-size: 0.74rem;
+      color: rgba(240, 207, 138, 0.82);
+      font-size: 0.72rem;
+      line-height: 1.7;
       letter-spacing: 0.02em;
-      transition: color 0.22s ease;
-    }
-
-    .platform-core-link:hover {
-      color: #fffaf1;
     }
 
     .platform-method {
@@ -2839,11 +2832,7 @@
     @media (max-width: 470px) {
       .platform-actions {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-      }
-
-      .platform-btn--primary {
-        grid-column: 1 / -1;
+        grid-template-columns: 1fr;
       }
     }
 
@@ -6940,7 +6929,7 @@
                 <div><b>命题人视角</b><small>全文与选项语义中心</small></div>
               </li>
             </ol>
-            <a class="platform-core-link" href="guide.html#words">看看阅读联动怎么用 <span aria-hidden="true">→</span></a>
+            <p class="platform-core-note">先认词，再懂结构，最后站在命题人的位置看文章。</p>
           </article>
 
           <article class="platform-card reveal">
@@ -6975,12 +6964,10 @@
             <li><b>4</b><span>步阅读闭环</span></li>
           </ul>
           <div class="platform-actions">
-            <a class="platform-btn platform-btn--primary" href="student.html">
-              学生入口
+            <a class="platform-btn platform-btn--primary" href="#contact">
+              预约沟通
               <svg class="icon" aria-hidden="true"><use href="#i-arrow-up-right"/></svg>
             </a>
-            <a class="platform-btn" href="guide.html">使用指南</a>
-            <a class="platform-btn platform-btn--ghost" href="teacher.html">教师入口</a>
           </div>
         </div>
         <p class="platform-privacy reveal">学习记录只保存在学生自己的浏览器里；任务码由老师单独发送，不上传学生名单与成绩。</p>
@@ -7306,13 +7293,13 @@
           <p class="insight-dialog-kicker">SHUNSHI · LEARNING LOG</p>
           <h2 id="insight-dialog-title">学习心得</h2>
           <p class="insight-dialog-sub">把学习里的定位、坚持与复盘，写成一张张海边手记。</p>
-          <p class="insight-preview-note" id="insight-preview-note" hidden>本页正在预览教师端草稿，只有你能看到；发布后访客才会看到。</p>
+          <p class="insight-preview-note" id="insight-preview-note" hidden>本页正在预览尚未发布的草稿，只有你能看到；发布后访客才会看到。</p>
         </div>
         <button class="insight-dialog-close" type="button" id="insight-dialog-close" aria-label="关闭学习心得">×</button>
       </div>
       <div class="insight-dialog-body" id="insight-dialog-list"></div>
       <div class="insight-dialog-foot">
-        <span>共 <b id="insight-dialog-count">0</b> 篇 · 按教师端顺序排列</span>
+        <span>共 <b id="insight-dialog-count">0</b> 篇 · 按时间顺序排列</span>
         <span class="insight-dialog-mark">潮起有时 · 循光而行</span>
       </div>
     </div>
@@ -7426,12 +7413,12 @@
         const latest = posts.slice(0, 3);
         list.innerHTML = latest.length
           ? latest.map(cardItem).join('')
-          : '<p class="insight-empty">第一篇手记正在路上。先去教师端写下你的学习心得。</p>';
+          : '<p class="insight-empty">第一篇手记正在路上，稍后见。</p>';
         if (count) count.textContent = countLabel();
         if (!posts.length) {
           more.disabled = true;
           more.querySelector('.log-more-copy strong').textContent = '暂无手记';
-          more.querySelector('.log-more-copy small').textContent = '在教师端写第一篇';
+          more.querySelector('.log-more-copy small').textContent = '更新中';
         }
         const card = document.querySelector('.insight-card');
         if (card) card.classList.toggle('is-preview', previewing);
@@ -7463,7 +7450,7 @@
       function renderDialog() {
         dialogList.innerHTML = posts.length
           ? posts.map(fullItem).join('')
-          : '<div class="insight-dialog-empty"><strong>还没有学习心得</strong><p>先在教师端「心得」页写一篇，再导出发布。</p></div>';
+          : '<div class="insight-dialog-empty"><strong>第一篇手记正在路上</strong><p>这里会陆续放上学习心得与课堂随笔。</p></div>';
         if (dialogCount) dialogCount.textContent = String(posts.length);
         if (previewNote) previewNote.hidden = !previewing;
       }
