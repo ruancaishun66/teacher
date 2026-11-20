@@ -642,7 +642,7 @@
       perfect,
       tasks: tasks.length,
       night,
-      fusion: who && who.fusion ? 1 : 0
+      fusion: who ? fusionCount(who) : 0
     };
   }
 
@@ -676,10 +676,90 @@
     'bird|whale': '云焰鲲鹏'
   };
 
+  /* 融合之后的路：每 500–1000 成长提升一阶共鸣，只给小鱼干和称号，不再滚经验。 */
+  const FUSION_TIERS = [
+    { min: 2500, name: '初醒', next: 3000, desc: '它还在适应这具新的身体，偶尔会同时看向两个方向。' },
+    { min: 3000, name: '共鸣', next: 3500, snacks: 8, desc: '两股力量开始同频，呼吸时会有两种颜色的光交替亮起。' },
+    { min: 3500, name: '星辉', next: 4000, snacks: 12, desc: '它走过的地方会短暂浮起星屑，像把两道因果缝在一起。' },
+    { min: 4000, name: '月蚀', next: 5000, snacks: 15, title: '融相', desc: '它学会把光收进身体里，只在需要时露出一线。' },
+    { min: 5000, name: '无相', next: null, snacks: 30, title: '无相', desc: '已经看不出它由谁融合而来，只剩一个安静的答案。' }
+  ];
+
+  const MOON_PHASES = [
+    { name: '新月', icon: '🌑' },
+    { name: '上弦', icon: '🌓' },
+    { name: '满月', icon: '🌕' },
+    { name: '下弦', icon: '🌗' }
+  ];
+
+  const MOON_CYCLE_TITLES = ['守月人', '月宫客', '广寒行者'];
+
+  function fusionKey(a, b) {
+    return [a, b].filter(Boolean).sort().join('|');
+  }
+
+  function fusionDisplayName(a, b) {
+    return FUSION_NAMES[fusionKey(a, b)] || `${petSpeciesInfo(a).name}·${petSpeciesInfo(b).name}`;
+  }
+
+  function fusionTier(xp) {
+    const value = Math.max(0, Number(xp) || 0);
+    let index = 0;
+    for (let i = 0; i < FUSION_TIERS.length; i += 1) {
+      if (value >= FUSION_TIERS[i].min) index = i;
+    }
+    const tier = FUSION_TIERS[index];
+    return { ...tier, index, next: tier.next };
+  }
+
+  function fusionsOf(p) {
+    if (!p) return {};
+    if (!p.fusions || typeof p.fusions !== 'object') p.fusions = {};
+    if (p.fusion && Array.isArray(p.fusion.pair) && p.fusion.pair.length >= 2) {
+      const key = fusionKey(p.fusion.pair[0], p.fusion.pair[1]);
+      if (!p.fusions[key]) {
+        p.fusion.key = p.fusion.key || key;
+        p.fusions[key] = p.fusion;
+      }
+      if (!p.activeFusion) p.activeFusion = key;
+    }
+    if (p.activeFusion && p.fusions[p.activeFusion]) p.fusion = p.fusions[p.activeFusion];
+    else if (!p.fusion) {
+      const keys = Object.keys(p.fusions);
+      if (keys.length) {
+        p.activeFusion = keys[0];
+        p.fusion = p.fusions[keys[0]];
+      }
+    }
+    return p.fusions;
+  }
+
+  function fusionCount(p) {
+    return Object.keys(fusionsOf(p)).length;
+  }
+
+  function titlesOf(p) {
+    if (!p) return [];
+    if (!Array.isArray(p.titles)) p.titles = [];
+    return p.titles;
+  }
+
+  function grantTitle(p, title) {
+    if (!p || !title) return false;
+    const list = titlesOf(p);
+    if (list.indexOf(title) >= 0) return false;
+    list.push(title);
+    return true;
+  }
+
   function activePetId(p) {
     const who = p || profile();
     const id = String(who && who.activePet || 'otter');
     if (PET_SPECIES[id]) return id;
+    if (id === 'fusion') {
+      if (who && !who.fusion) fusionsOf(who);
+      return who && who.fusion ? 'fusion' : 'otter';
+    }
     return who && who.fusion ? 'fusion' : 'otter';
   }
 
@@ -700,13 +780,15 @@
     const id = speciesId || activePetId(p);
     p.pets = p.pets && typeof p.pets === 'object' ? p.pets : {};
     if (id === 'fusion') {
-      if (!p.fusion) p.fusion = { id: 'fusion', name: '融合精灵', xp: 0, snacks: 0, fed: 0, lastFed: '', lastEvolvedStage: 1, pair: [] };
+      fusionsOf(p);
+      if (!p.fusion) p.fusion = { id: 'fusion', name: '融合精灵', xp: 0, snacks: 0, fed: 0, lastFed: '', lastEvolvedStage: 4, pair: [] };
       const fused = p.fusion;
       fused.xp = Math.max(0, Math.round(Number(fused.xp) || 0));
       fused.snacks = Math.max(0, Math.round(Number(fused.snacks) || 0));
       fused.fed = Math.max(0, Math.round(Number(fused.fed) || 0));
       fused.lastFed = String(fused.lastFed || '');
-      fused.lastEvolvedStage = Math.max(1, Math.round(Number(fused.lastEvolvedStage) || 1));
+      fused.lastEvolvedStage = 4;
+      if (!Array.isArray(fused.tierSeen)) fused.tierSeen = [fusionTier(fused.xp).index];
       return fused;
     }
     if (!p.pets[id]) {
@@ -732,22 +814,38 @@
   }
 
   function fusionPairFor(p) {
+    const fusions = fusionsOf(p);
     const finals = Object.keys(PET_SPECIES).filter((id) => ensurePet(p, id).xp >= 2000);
-    if (finals.length < 2) return null;
-    const a = finals[0];
-    const b = finals[1];
-    const key = [a, b].sort().join('|');
-    return { a, b, key, name: FUSION_NAMES[key] || `${petSpeciesInfo(a).name}·${petSpeciesInfo(b).name}` };
+    for (let i = 0; i < finals.length; i += 1) {
+      for (let j = i + 1; j < finals.length; j += 1) {
+        const key = fusionKey(finals[i], finals[j]);
+        if (!fusions[key]) return { a: finals[i], b: finals[j], key, name: fusionDisplayName(finals[i], finals[j]) };
+      }
+    }
+    return null;
   }
 
-  /* 融合栏常驻：还没凑齐两只终极神兽时，展示离融合最近的两只和还差多少。 */
-  function nearestFusionPair(p) {
+  /* 融合栏常驻：展示下一道门最近的两只神兽、各自成长和还差多少。 */
+  function nextFusionPair(p) {
+    const fusions = fusionsOf(p);
+    const made = new Set(Object.keys(fusions));
     const unlocked = Object.keys(PET_SPECIES).filter((id) => petUnlockState(p, id).unlocked);
     const pool = unlocked.length >= 2 ? unlocked : Object.keys(PET_SPECIES);
-    const ranked = pool
-      .map((id) => ({ id, xp: ensurePet(p, id).xp }))
-      .sort((a, b) => b.xp - a.xp);
-    return { a: ranked[0].id, b: ranked[1].id };
+    let best = null;
+    for (let i = 0; i < pool.length; i += 1) {
+      for (let j = i + 1; j < pool.length; j += 1) {
+        const key = fusionKey(pool[i], pool[j]);
+        if (made.has(key)) continue;
+        const ax = ensurePet(p, pool[i]).xp;
+        const bx = ensurePet(p, pool[j]).xp;
+        const ready = ax >= 2000 && bx >= 2000;
+        const score = Math.min(ax, 2000) + Math.min(bx, 2000) + (ready ? 4000 : 0);
+        if (!best || score > best.score) {
+          best = { a: pool[i], b: pool[j], key, name: fusionDisplayName(pool[i], pool[j]), ax, bx, ready, score };
+        }
+      }
+    }
+    return best;
   }
 
   /* ------------------------- 连续学习 / 满月转盘 ------------------------- */
@@ -789,14 +887,63 @@
     const who = p || profile();
     if (!who.wheel || typeof who.wheel !== 'object') who.wheel = { lastSpinAt: '', spins: [] };
     if (!Array.isArray(who.wheel.spins)) who.wheel.spins = [];
+    if (!Number.isFinite(Number(who.wheel.totalSpins))) {
+      who.wheel.totalSpins = Math.max(who.wheel.spins.length, who.wheel.lastSpinAt ? 1 : 0, (Number(who.wheel.cycles) || 0) * 4);
+    }
+    who.wheel.totalSpins = Math.max(0, Math.round(Number(who.wheel.totalSpins) || 0));
+    if (!Number.isFinite(Number(who.wheel.cycles))) who.wheel.cycles = Math.floor(who.wheel.totalSpins / 4);
+    who.wheel.cycles = Math.max(0, Math.round(Number(who.wheel.cycles) || 0));
     return who.wheel;
+  }
+
+  function wheelCounters(wheel) {
+    const totalSpins = Math.max(0, Math.round(Number(wheel.totalSpins) || 0));
+    const cycles = Math.max(0, Math.round(Number(wheel.cycles) || 0));
+    const inCycle = totalSpins === 0 ? 0 : (totalSpins % 4 === 0 ? 4 : totalSpins % 4);
+    return { totalSpins, cycles, inCycle, remaining: 4 - inCycle };
   }
 
   function wheelReady(p) {
     const streak = activityStreak(p);
     const wheel = wheelInfo(p);
-    const canSpin = streak >= 30 && (!wheel.lastSpinAt || S.daysBetween(wheel.lastSpinAt, S.todayIso()) >= 30);
-    return { streak, wheel, canSpin };
+    const daysSince = wheel.lastSpinAt ? S.daysBetween(wheel.lastSpinAt, S.todayIso()) : 999;
+    const daysLeft = Math.max(0, 30 - daysSince);
+    const streakLeft = Math.max(0, 30 - streak);
+    const canSpin = streak >= 30 && daysLeft === 0;
+    return { streak, wheel, canSpin, daysLeft, streakLeft, counters: wheelCounters(wheel) };
+  }
+
+  function wheelNextText(state) {
+    if (state.canSpin) return '满月已经到了，可以转动转盘。';
+    if (state.streak < 30) return `还差 ${30 - state.streak} 天连续学习；满 30 天后转盘才会亮起。`;
+    if (state.daysLeft > 0) return `距上次领取还差 ${state.daysLeft} 天；这期间每天学一点，转盘才会再次亮起。`;
+    return '下一次满月：再连续学习 30 天。';
+  }
+
+  function wheelCycleReward(cycle) {
+    if (cycle <= 1) return '小鱼干 ×10 · 称号「守月人」';
+    if (cycle === 2) return '成长 +300 · 称号「月宫客」';
+    return '小鱼干 ×15 · 成长 +300 · 称号「广寒行者」';
+  }
+
+  function renderWheelJournal(state) {
+    const box = $('#wheel-journal');
+    if (!box) return;
+    const counters = state.counters;
+    const moons = MOON_PHASES.map((phase, index) =>
+      `<span class="${index < counters.inCycle ? 'is-lit' : ''}"><i>${index < counters.inCycle ? phase.icon : '·'}</i><b>${phase.name}</b></span>`
+    ).join('');
+    const history = (state.wheel.spins || []).slice(0, 4).map((spin) =>
+      `<li><span>${String(spin.at || '').slice(0, 10)}</span><b>${S.escapeHtml(spin.label || '')}</b><small>连续 ${Number(spin.streak) || 0} 天</small></li>`
+    ).join('');
+    box.innerHTML =
+      `<div class="wheel-journal-head"><b>月光手账</b><span>已转 ${counters.totalSpins} 次 · 完成月轮 ${counters.cycles} 轮</span></div>` +
+      `<div class="wheel-moons">${moons}</div>` +
+      `<p class="wheel-cycle-note">${counters.inCycle >= 4
+        ? '这一轮月相已经集满，下一次转盘点亮新一轮的新月。'
+        : `再转 ${counters.remaining} 次集满本轮月相。`} 第 ${counters.cycles + 1} 轮奖励：${wheelCycleReward(counters.cycles + 1)}</p>` +
+      (history ? `<ul class="wheel-history">${history}</ul>` : '<p class="wheel-history-empty">还没有记录，第一次满月会写在这里。</p>') +
+      `<p class="wheel-next">${wheelNextText(state)}</p>`;
   }
 
   function pickWheelSegment() {
@@ -841,8 +988,9 @@
     }
     if (button) {
       button.disabled = !state.canSpin;
-      button.textContent = state.canSpin ? '转动转盘' : '还差一点';
+      button.textContent = state.canSpin ? '转动转盘' : (state.streak < 30 ? '未满 30 天' : state.daysLeft > 0 ? `还有 ${state.daysLeft} 天` : '还差一点');
     }
+    renderWheelJournal(state);
     S.openDialog(dialog);
   }
 
@@ -884,15 +1032,38 @@
         streak: state.streak
       });
       wheel.spins = wheel.spins.slice(0, 24);
+      wheel.totalSpins = (Number(wheel.totalSpins) || 0) + 1;
+      let cycleNote = '';
+      if (wheel.totalSpins % 4 === 0) {
+        wheel.cycles = (Number(wheel.cycles) || 0) + 1;
+        const cycle = wheel.cycles;
+        const title = MOON_CYCLE_TITLES[Math.min(cycle - 1, MOON_CYCLE_TITLES.length - 1)];
+        grantTitle(p, title);
+        if (cycle === 1) {
+          pet.snacks += 10;
+          cycleNote = `月相集满一轮：获得称号「${title}」和小鱼干 ×10。`;
+        } else if (cycle === 2) {
+          addPetXp(300);
+          cycleNote = `月相集满两轮：获得称号「${title}」和成长 +300。`;
+        } else {
+          pet.snacks += 15;
+          addPetXp(300);
+          cycleNote = `月相又集满一轮：获得称号「${title}」、小鱼干 ×15 和成长 +300。`;
+        }
+      }
       save();
       renderAll();
       if (result) {
+        const counters = wheelCounters(wheel);
         result.hidden = false;
         result.innerHTML = `<b>${segment.icon} ${segment.label}</b><span>${rewardText}</span>` +
-          `<small>这是连续学习 ${state.streak} 天的满月奖励。下一次转盘将在 30 天后再次亮起。</small>`;
+          (cycleNote ? `<span class="wheel-cycle-hit">${cycleNote}</span>` : '') +
+          `<small>这是连续学习 ${state.streak} 天的满月奖励 · 月相 ${counters.inCycle}/4。下一次满月：${S.addDays(S.todayIso(), 30)}（保持连续学习）。</small>`;
       }
+      renderWheelJournal(wheelReady(p));
+      if (result) setTimeout(() => result.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 160);
       button.textContent = '本月奖励已领取';
-      S.toast(`转盘奖励：${segment.label}`, 'ok', 6000);
+      S.toast(cycleNote ? `转盘奖励：${segment.label}；${cycleNote}` : `转盘奖励：${segment.label}`, 'ok', 7000);
     }, 4300);
   }
 
@@ -923,12 +1094,15 @@
     document.body.classList.remove('fusion-open');
   }
 
-  function openFusionScene(preview) {
+  function openFusionScene(preview, pairOverride) {
     const p = profile();
-    const realPair = fusionPairFor(p);
-    if (p.fusion) { S.toast(`已经融合出「${p.fusion.name}」了。`, 'error'); return; }
+    const existingCount = fusionCount(p);
+    const candidate = pairOverride || fusionPairFor(p);
+    const pair = candidate || nextFusionPair(p);
+    if (!pair) { S.toast('能解的组合都已经解开了，去解锁更多神兽吧。', 'error', 6000); return; }
+    const ready = ensurePet(p, pair.a).xp >= 2000 && ensurePet(p, pair.b).xp >= 2000;
+    const realPair = ready ? pair : null;
     if (!realPair && !preview) { S.toast('需要两只精灵都成长到终极形态（2000）才能融合。', 'error', 6000); return; }
-    const pair = realPair || nearestFusionPair(p);
     const locked = !realPair;
     closeFusionScene();
     const a = petSpeciesInfo(pair.a);
@@ -946,7 +1120,7 @@
     overlay.innerHTML =
       `<div class="fusion-veil" data-fusion-cancel></div>` +
       `<div class="fusion-stage${locked ? ' is-preview' : ''}">` +
-        `<p class="fusion-kicker">${locked ? 'FUSION PREVIEW · 因果未合' : 'FUSION · 因果坍缩'}</p>` +
+        `<p class="fusion-kicker">${locked ? 'FUSION PREVIEW · 因果未合' : `FUSION · 第 ${existingCount + 1} 道门`}</p>` +
         `<div class="fusion-void" aria-hidden="true">` +
           `<div class="fusion-hole left"><i class="fusion-disc"></i><i class="fusion-ring r1"></i><i class="fusion-ring r2"></i><i class="fusion-core"></i><b>${S.escapeHtml(a.name)}</b></div>` +
           `<div class="fusion-hole right"><i class="fusion-disc"></i><i class="fusion-ring r1"></i><i class="fusion-ring r2"></i><i class="fusion-core"></i><b>${S.escapeHtml(b.name)}</b></div>` +
@@ -965,7 +1139,7 @@
           `<button class="p-btn fusion-main" type="button" data-fusion-confirm>把手伸进去</button>` +
           `<button class="p-btn ghost" type="button" data-fusion-cancel>${locked ? '关闭' : '再等等'}</button>` +
         `</div>` +
-        `<p class="fusion-note">${locked ? '两只都到 2000 时，问号才会真正打开。' : '两只精灵都会保留，融合后随时可以切回来。'}</p>` +
+        `<p class="fusion-note">${locked ? '两只都到 2000 时，问号才会真正打开。' : existingCount ? `已经解开 ${existingCount} 个答案；这一只也会留在融合图鉴里。` : '两只精灵都会保留，融合后随时可以切回来。'}</p>` +
       `</div>`;
     document.body.appendChild(overlay);
     document.body.classList.add('fusion-open');
@@ -997,7 +1171,7 @@
       }
       overlay.classList.add('is-revealed');
       const name = overlay.querySelector('.fusion-copy');
-      if (name) name.innerHTML = `新的名字是「<b>${S.escapeHtml(pair.name)}</b>」。<br>它睁开了眼睛。`;
+      if (name) name.innerHTML = `${existingCount ? `第 ${existingCount + 1} 个答案的名字是` : '新的名字是'}「<b>${S.escapeHtml(pair.name)}</b>」。<br>它睁开了眼睛。`;
       const title = overlay.querySelector('.fusion-title');
       if (title) title.textContent = '融合完成';
       overlay.querySelectorAll('.fusion-actions button').forEach((button) => { button.disabled = true; });
@@ -1016,26 +1190,49 @@
     openFusionScene();
   }
 
+  function activateFusion(key) {
+    const p = profile();
+    if (!p) return;
+    const fusions = fusionsOf(p);
+    if (!fusions[key]) return;
+    p.activeFusion = key;
+    p.fusion = fusions[key];
+    p.activePet = 'fusion';
+    save();
+    renderPet();
+    S.toast(`已切换为「${p.fusion.name || '融合精灵'}」。`, 'ok');
+  }
+
   function performFusion(pair) {
     const p = profile();
-    if (!p || !pair || p.fusion) return;
+    if (!p || !pair) return;
+    const fusions = fusionsOf(p);
+    const key = pair.key || fusionKey(pair.a, pair.b);
+    if (fusions[key]) { activateFusion(key); return; }
     const a = ensurePet(p, pair.a);
     const b = ensurePet(p, pair.b);
-    p.fusion = {
+    const xp = Math.max(a.xp, b.xp) + 500;
+    const tier = fusionTier(xp);
+    const fused = {
       id: 'fusion',
-      name: pair.name,
-      xp: Math.max(a.xp, b.xp) + 500,
+      key,
+      name: pair.name || fusionDisplayName(pair.a, pair.b),
+      xp,
       snacks: 0,
       fed: 0,
       lastFed: '',
       lastEvolvedStage: 4,
       pair: [pair.a, pair.b],
-      createdAt: S.nowIso()
+      createdAt: S.nowIso(),
+      tierSeen: Array.from({ length: tier.index + 1 }, (_, index) => index)
     };
+    fusions[key] = fused;
+    p.activeFusion = key;
+    p.fusion = fused;
     p.activePet = 'fusion';
     save();
     renderAll();
-    S.toast(`融合成功！「${pair.name}」加入了你的图鉴。`, 'ok', 7000);
+    S.toast(`第 ${Object.keys(fusions).length} 个答案：「${fused.name}」加入了融合图鉴。`, 'ok', 7000);
   }
 
   let petSvgSeq = 0;
@@ -1255,11 +1452,11 @@
     const id = activePetId(p);
     if (id === 'fusion') {
       const fused = ensurePet(p, 'fusion');
-      const info = petStageOf(fused.xp, 'otter');
+      const tier = fusionTier(fused.xp);
       return {
         id: 'fusion',
         name: (p.fusion && p.fusion.name) || '融合精灵',
-        info: { ...info, name: `终极形态 · ${(p.fusion && p.fusion.name) || '融合精灵'}` },
+        info: { stage: 4, name: `共鸣 · ${tier.name}`, min: tier.min, next: tier.next, desc: tier.desc },
         pet: fused,
         fused: true
       };
@@ -1270,11 +1467,40 @@
   }
 
   function addPetXp(amount, speciesId) {
-    const id = speciesId || activePetId(profile());
-    const pet = ensurePet(profile(), id);
-    const before = petStageOf(pet.xp, id === 'fusion' ? 'otter' : id).stage;
+    const p = profile();
+    const id = speciesId || activePetId(p);
+    const pet = ensurePet(p, id);
+    if (id === 'fusion') {
+      const beforeTier = fusionTier(pet.xp);
+      pet.xp = Math.max(0, Math.round(pet.xp + Number(amount || 0)));
+      const afterTier = fusionTier(pet.xp);
+      const seen = Array.isArray(pet.tierSeen) ? pet.tierSeen.slice() : [];
+      const fresh = [];
+      for (let index = 0; index <= afterTier.index; index += 1) {
+        if (seen.indexOf(index) < 0) { seen.push(index); fresh.push(FUSION_TIERS[index]); }
+      }
+      pet.tierSeen = seen;
+      pet.lastEvolvedStage = 4;
+      const parts = [];
+      fresh.forEach((tier) => {
+        if (tier.snacks) { pet.snacks += tier.snacks; parts.push(`小鱼干 ×${tier.snacks}`); }
+        if (tier.title && grantTitle(p, tier.title)) parts.push(`称号「${tier.title}」`);
+      });
+      const evolved = afterTier.index > beforeTier.index;
+      if (evolved) {
+        const scene = $('#pet-scene');
+        if (scene) {
+          scene.classList.add('is-evolve');
+          setTimeout(() => scene.classList.remove('is-evolve'), 1800);
+        }
+        S.toast(`「${pet.name || '融合精灵'}」共鸣提升：${afterTier.name}${parts.length ? ` · ${parts.join(' · ')}` : ''}`, 'ok', 6500);
+      }
+      save();
+      return evolved;
+    }
+    const before = petStageOf(pet.xp, id).stage;
     pet.xp = Math.max(0, Math.round(pet.xp + Number(amount || 0)));
-    const info = petStageOf(pet.xp, id === 'fusion' ? 'otter' : id);
+    const info = petStageOf(pet.xp, id);
     const evolved = info.stage > before;
     if (evolved) {
       pet.lastEvolvedStage = info.stage;
@@ -1283,8 +1509,7 @@
         scene.classList.add('is-evolve');
         setTimeout(() => scene.classList.remove('is-evolve'), 1800);
       }
-      const displayName = id === 'fusion' ? (profile().fusion && profile().fusion.name) || '融合精灵' : petSpeciesInfo(id).name;
-      S.toast(`${displayName}进化成「${info.name}」了！`, 'ok', 6000);
+      S.toast(`${petSpeciesInfo(id).name}进化成「${info.name}」了！`, 'ok', 6000);
     }
     save();
     return evolved;
@@ -1326,7 +1551,7 @@
       const options = Object.keys(PET_SPECIES)
         .filter((id) => petUnlockState(p, id).unlocked)
         .map((id) => `<option value="${id}">${S.escapeHtml(petSpeciesInfo(id).name)} · ${S.escapeHtml(petStageOf(ensurePet(p, id).xp, id).name)}</option>`);
-      if (p.fusion) options.push(`<option value="fusion">${S.escapeHtml((p.fusion && p.fusion.name) || '融合精灵')} · 终极形态</option>`);
+      if (p.fusion) options.push(`<option value="fusion">${S.escapeHtml((p.fusion && p.fusion.name) || '融合精灵')} · 共鸣 ${fusionTier(p.fusion.xp).name}</option>`);
       select.innerHTML = options.join('');
       /* 切换神兽后，分配目标默认跟着当前出战神兽走；只有它不在可选列表时才保留旧选择。 */
       const wanted = [activePetId(p), previous].find((id) => id && Array.from(select.options).some((option) => option.value === id));
@@ -1437,6 +1662,13 @@
     scene.innerHTML = petSVG(info.stage, display.id, display.fused);
     $('#pet-name').textContent = display.name;
     $('#pet-stage-name').textContent = info.name;
+    const titleEl = $('#pet-titles');
+    const titles = titlesOf(p);
+    if (titleEl) {
+      titleEl.hidden = !titles.length;
+      titleEl.innerHTML = titles.slice(-4).map((title) => `<span>${S.escapeHtml(title)}</span>`).join('');
+      titleEl.title = titles.length ? `称号：${titles.join('、')}` : '';
+    }
     const attrEl = $('#pet-attr');
     if (attrEl) {
       const motion = display.fused ? 'storm' : (petSpeciesInfo(display.id).motion || 'earth');
@@ -1444,14 +1676,14 @@
       attrEl.className = `pet-attr pet-attr-${motion}`;
       attrEl.title = `属性：${PET_ATTR_LABELS[motion] || '灵'}`;
     }
-    $('#pet-desc').textContent = display.fused ? '两种终极神兽合为一体，成长没有终点。' : info.desc;
+    $('#pet-desc').textContent = display.fused ? `两股力量合为一体。${info.desc}` : info.desc;
     const span = info.next ? info.next - info.min : 0;
     const ratio = info.next ? Math.min(1, Math.max(0, (pet.xp - info.min) / span)) : 1;
     $('#pet-growth-fill').style.width = `${Math.round(ratio * 100)}%`;
     $('#pet-growth').setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
     $('#pet-growth-text').textContent = info.next
-      ? `成长值 ${pet.xp} / ${info.next}`
-      : `成长值 ${pet.xp} · 已到最高形态`;
+      ? `${display.fused ? '共鸣值' : '成长值'} ${pet.xp} / ${info.next}`
+      : `${display.fused ? '共鸣值' : '成长值'} ${pet.xp} · ${display.fused ? '已到最高共鸣' : '已到最高形态'}`;
     $('#pet-snack-count').textContent = `×${pet.snacks}`;
     $('#pet-feed-btn').disabled = pet.snacks <= 0;
 
@@ -1475,7 +1707,7 @@
     renderFusionBar(p);
     renderWheelEntry(p);
 
-    if (info.stage > (pet.lastEvolvedStage || 1)) {
+    if (!display.fused && info.stage > (pet.lastEvolvedStage || 1)) {
       pet.lastEvolvedStage = info.stage;
       save();
       scene.classList.add('is-evolve');
@@ -1518,17 +1750,21 @@
         `<span><b>${species.name}</b><small>${info.name} · ${pet.xp}</small></span>` +
       `</button>`;
     }).join('');
-    const fusion = p.fusion
-      ? `<button class="pet-chip fusion ${active === 'fusion' ? 'is-active' : ''}" type="button" data-pet-switch="fusion" title="切换融合精灵">` +
-          `<span class="pet-chip-art fusion-chip-art">${petSVG(4, 'fusion', true, { thumb: true })}<i class="pet-chip-mark">?</i></span>` +
-          `<span><b>${S.escapeHtml(p.fusion.name || '融合精灵')}</b><small>终极形态</small></span></button>`
-      : '';
+    const fusions = fusionsOf(p);
+    const fusionCards = Object.keys(fusions).map((key) => {
+      const fused = fusions[key];
+      const tier = fusionTier(fused.xp);
+      const isActive = active === 'fusion' && p.activeFusion === key;
+      return `<button class="pet-chip fusion ${isActive ? 'is-active' : ''}" type="button" data-pet-switch="fusion" data-fusion-key="${S.escapeHtml(key)}" title="切换为 ${S.escapeHtml(fused.name || '融合精灵')}">` +
+        `<span class="pet-chip-art fusion-chip-art">${petSVG(4, 'fusion', true, { thumb: true })}<i class="pet-chip-mark">?</i></span>` +
+        `<span><b>${S.escapeHtml(fused.name || '融合精灵')}</b><small>共鸣 ${tier.name} · ${fused.xp}</small></span></button>`;
+    }).join('');
     box.innerHTML = `<div class="pet-roster-head"><b>精灵图鉴</b><span>每一只单独成长，喂食和打卡都会加到当前出战精灵。</span></div>` +
       `<button class="pet-roster-toggle" type="button" data-pet-roster-toggle aria-expanded="${petRosterOpen ? 'true' : 'false'}">` +
         `<span><b>神兽收藏 · 已解锁 ${unlockedCount} / ${ids.length}</b><small>${petRosterOpen ? '收起图鉴' : '点这里展开，看看还有哪些神兽等你解锁'}</small></span>` +
         `<i aria-hidden="true">${petRosterOpen ? '▴' : '▾'}</i>` +
       `</button>` +
-      `<div class="pet-chips${petRosterOpen ? ' is-open' : ''}"${petRosterOpen ? '' : ' hidden'}>${cards}${fusion}</div>`;
+      `<div class="pet-chips${petRosterOpen ? ' is-open' : ''}"${petRosterOpen ? '' : ' hidden'}>${cards}${fusionCards}</div>`;
     const toggle = box.querySelector('[data-pet-roster-toggle]');
     if (toggle) {
       toggle.onclick = () => {
@@ -1541,23 +1777,47 @@
   function renderFusionBar(p) {
     const box = $('#pet-fusion-bar');
     if (!box) return;
-    if (p.fusion) {
+    const fusions = fusionsOf(p);
+    const count = Object.keys(fusions).length;
+    if (count && p.fusion) {
+      const fused = p.fusion;
+      const tier = fusionTier(fused.xp);
+      const next = nextFusionPair(p);
+      const span = tier.next ? tier.next - tier.min : 0;
+      const ratio = tier.next ? Math.min(1, Math.max(0, (fused.xp - tier.min) / span)) : 1;
+      const nextLine = next
+        ? `<span class="pet-fusion-next">下一道门：${S.escapeHtml(petSpeciesInfo(next.a).name)} ${next.ax} / 2000 · ${S.escapeHtml(petSpeciesInfo(next.b).name)} ${next.bx} / 2000</span>`
+        : '<span class="pet-fusion-next">能解的组合都已经解开了，去解锁更多神兽吧。</span>';
       box.className = 'pet-fusion-bar is-done';
       box.innerHTML =
         `<div class="pet-fusion-orbs is-done" aria-hidden="true"><i class="hole left"></i><span class="ask">?</span><i class="hole right"></i></div>` +
-        `<div class="pet-fusion-copy"><b>融合栏 · 答案已经出现</b><span>「${S.escapeHtml(p.fusion.name || '融合精灵')}」已经加入图鉴，原来的两只都还在。</span></div>` +
-        `<button class="p-btn small ghost" type="button" data-fusion-view="1">看融合神兽</button>`;
+        `<div class="pet-fusion-copy">` +
+          `<b>融合栏 · 已解开 ${count} 个答案</b>` +
+          `<span>「${S.escapeHtml(fused.name || '融合精灵')}」· 共鸣 ${tier.name} · ${fused.xp}${tier.next ? ` / ${tier.next}` : ''}</span>` +
+          `<div class="pet-fusion-meters"><span><i style="width:${Math.round(ratio * 100)}%"></i><em>${tier.name} ${fused.xp}${tier.next ? ` / ${tier.next}` : ''}</em></span></div>` +
+          nextLine +
+        `</div>` +
+        `<div class="pet-fusion-actions">` +
+          `<button class="p-btn small ghost" type="button" data-fusion-view="1">看融合神兽</button>` +
+          (next ? `<button class="p-btn small" type="button" data-fusion-open="${next.ready ? '1' : 'preview'}">${next.ready ? '再开一道门' : '下一道门'}</button>` : '') +
+        `</div>`;
       const view = box.querySelector('[data-fusion-view]');
       if (view) view.onclick = () => switchPet('fusion');
+      const open = box.querySelector('[data-fusion-open]');
+      if (open) open.onclick = () => openFusionScene(!next.ready, next);
       return;
     }
-    const pair = fusionPairFor(p);
-    const nearest = pair || nearestFusionPair(p);
+    const nearest = nextFusionPair(p);
+    if (!nearest) {
+      box.className = 'pet-fusion-bar is-done';
+      box.innerHTML = '融合栏 · 所有能解的组合都解开了。';
+      return;
+    }
     const a = petSpeciesInfo(nearest.a);
     const b = petSpeciesInfo(nearest.b);
-    const ax = ensurePet(p, nearest.a).xp;
-    const bx = ensurePet(p, nearest.b).xp;
-    const ready = Boolean(pair);
+    const ax = nearest.ax;
+    const bx = nearest.bx;
+    const ready = nearest.ready;
     const pct = (xp) => Math.max(2, Math.min(100, Math.round((xp / 2000) * 100)));
     box.className = `pet-fusion-bar${ready ? ' is-ready' : ''}`;
     box.innerHTML =
@@ -1572,16 +1832,25 @@
       `</div>` +
       `<button class="p-btn small ${ready ? '' : 'ghost'}" type="button" data-fusion-open="${ready ? '1' : 'preview'}">${ready ? '打开融合' : '看看还差多少'}</button>`;
     const open = box.querySelector('[data-fusion-open]');
-    if (open) open.onclick = () => openFusionScene(!ready);
+    if (open) open.onclick = () => openFusionScene(!ready, nearest);
   }
 
   function renderWheelEntry(p) {
     const box = $('#pet-wheel-entry');
     if (!box) return;
-    const streak = activityStreak(p);
-    const wheel = p.wheel || {};
-    const canSpin = streak >= 30 && (!wheel.lastSpinAt || S.daysBetween(wheel.lastSpinAt, S.todayIso()) >= 30);
-    box.innerHTML = `<div class="wheel-entry-copy"><b>满月转盘</b><span>连续学习 ${streak} 天${streak < 30 ? `，再坚持 ${30 - streak} 天就能转一次` : canSpin ? '，转盘已经亮起' : '，这次奖励已经领过，下个月再来'}</span></div>` +
+    const state = wheelReady(p);
+    const { streak, canSpin, counters } = state;
+    const moons = MOON_PHASES.map((phase, index) =>
+      `<i class="${index < counters.inCycle ? 'is-lit' : ''}" title="${phase.name}">${index < counters.inCycle ? phase.icon : '·'}</i>`
+    ).join('');
+    const detail = canSpin
+      ? '连续学习满 30 天，转盘已经亮起'
+      : streak < 30
+        ? `连续学习 ${streak} 天，再坚持 ${30 - streak} 天就能转一次`
+        : state.daysLeft > 0
+          ? `连续学习 ${streak} 天，距下次满月还有 ${state.daysLeft} 天`
+          : '转盘正在等你';
+    box.innerHTML = `<div class="wheel-entry-copy"><b>满月转盘 <small>月相 ${counters.inCycle}/4 · 月轮 ${counters.cycles}</small></b><span>${detail}</span><span class="wheel-entry-moons" aria-hidden="true">${moons}</span></div>` +
       `<button class="p-btn small ${canSpin ? '' : 'ghost'}" type="button" id="pet-wheel-btn" ${canSpin ? '' : 'disabled'}>${canSpin ? '转动转盘' : streak >= 30 ? '本月已领取' : '未满 30 天'}</button>`;
   }
 
@@ -3649,6 +3918,9 @@
         unlockedPets: p.unlockedPets || null,
         activePet: p.activePet || '',
         fusion: p.fusion || null,
+        fusions: p.fusions || null,
+        activeFusion: p.activeFusion || '',
+        titles: p.titles || null,
         wheel: p.wheel || null,
         lastDailyReport: p.lastDailyReport || null
       },
@@ -3999,7 +4271,11 @@
     if (petCard) {
       petCard.addEventListener('click', (event) => {
         const switchBtn = event.target.closest('[data-pet-switch]');
-        if (switchBtn) { switchPet(switchBtn.dataset.petSwitch); return; }
+        if (switchBtn) {
+          if (switchBtn.dataset.fusionKey) activateFusion(switchBtn.dataset.fusionKey);
+          else switchPet(switchBtn.dataset.petSwitch);
+          return;
+        }
         const fuseBtn = event.target.closest('[data-fuse]');
         if (fuseBtn) { fusePets(); return; }
         if (event.target.closest('#pet-wheel-btn')) { openWheelDialog(); return; }
