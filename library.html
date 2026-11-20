@@ -1771,7 +1771,7 @@
       margin-top: 18px;
     }
 
-    /* 整卷拆分：粘贴整套试卷，按题型拆开入库 */
+    /* 智能识别：一道题、一份专题卷或一整套试卷，按题型分类入库 */
     .split-paper-card {
       display: flex;
       flex-wrap: wrap;
@@ -2689,12 +2689,12 @@
 
         <div class="split-paper-card">
           <div>
-            <h2>一整套试卷，拆成每天能用的题组</h2>
-            <p>把整卷原文粘贴进来，按单选、完形、阅读、语法、写作等题型拆开入库；可以同时生成可布置的练习卷，教师端「练习卷」里直接选。</p>
+            <h2>一道题、一份专题卷、一整套卷，都能识别入库</h2>
+            <p>把原文粘贴进来，点一次「智能识别入库」：自动判断题型、拆开大题、生成可布置的练习卷。本机先免费识别，拿不准时才问你要不要用 AI。</p>
           </div>
           <button class="btn btn-primary" type="button" id="split-paper-open">
-            <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
-            整卷拆分入库
+            <svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>
+            智能识别入库
           </button>
         </div>
 
@@ -2713,10 +2713,6 @@
           </div>
 
           <div class="upload-secondary">
-            <button class="btn btn-outline" type="button" data-action="paste">
-              <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
-              粘贴文本
-            </button>
             <button class="btn btn-ghost" type="button" data-action="samples">
               <svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>
               载入示例资料
@@ -2880,10 +2876,10 @@
 
           <article class="settings-card">
             <h2><svg class="icon" aria-hidden="true"><use href="#i-database"/></svg>U 盘工作区</h2>
-            <p>把 U 盘插在电脑上，选一次里面的文件夹（例如 D:\顺势工作台）。以后下载 Word、导出备份时，可以自动再存一份到 U 盘。</p>
+            <p>把 U 盘插在电脑上，选一次里面的文件夹（例如 D:\顺势工作台）。以后下载 Word、导出备份时，可以自动再存一份到 U 盘；智能识别的分类结果会追加到 U 盘「分类记录」文件夹。</p>
             <p id="usb-status" class="form-note">尚未选择 U 盘文件夹。</p>
             <div class="check-grid">
-              <label class="check-line"><input id="usb-mirror" type="checkbox"> 下载 Word / 导出备份时同时存到 U 盘</label>
+              <label class="check-line"><input id="usb-mirror" type="checkbox"> 下载 Word、导出备份和分类结果时同时存到 U 盘</label>
             </div>
             <div class="settings-actions">
               <button class="btn btn-outline" type="button" data-action="pick-usb">选择 U 盘文件夹</button>
@@ -3188,14 +3184,14 @@
   <dialog class="app-dialog split-dialog" id="paper-split-dialog">
     <form class="dialog-form" id="paper-split-form" method="dialog">
       <div class="dialog-head">
-        <h2>整卷拆分入库</h2>
+        <h2>智能识别入库</h2>
         <button class="dialog-close" type="submit" value="cancel" aria-label="关闭">×</button>
       </div>
       <div class="split-dialog-body">
-        <p class="split-lead">粘贴一整套试卷。先点「本机拆分」逐题拆开（免费）；如果 OCR 排版混乱或没有大题标题，再用「AI 智能拆分」找边界。AI 只发送题目正文（会先尽量剔除答案区），不含学生信息；记录只留在教师端。</p>
+        <p class="split-lead">一道题、一份专题卷、一整套试卷都可以。粘贴原文后点一次「智能识别」：本机先免费判断题型、拆开大题；没把握时才会问你要不要用 AI 再认一次。AI 只发送题目正文（会先尽量剔除答案区），不含学生信息；记录只留在教师端。</p>
         <div class="form-row">
           <div class="field">
-            <label for="paper-split-title">试卷标题</label>
+            <label for="paper-split-title">标题</label>
             <input class="input" id="paper-split-title" type="text" maxlength="80" placeholder="可留空，自动识别；例如：高一英语期中卷">
           </div>
           <div class="field">
@@ -3209,19 +3205,15 @@
           </div>
         </div>
         <div class="field">
-          <label for="paper-split-text">整卷原文</label>
-          <textarea id="paper-split-text" rows="10" placeholder="把整份试卷粘贴到这里：听力、单选、完形、阅读、语法、写作……答案和解析一起粘贴也可以。"></textarea>
+          <label for="paper-split-text">原文</label>
+          <textarea id="paper-split-text" rows="10" placeholder="把题目、专题卷或整份试卷粘贴到这里：听力、单选、完形、阅读、语法、写作……答案和解析一起粘贴也可以。"></textarea>
         </div>
         <div class="split-toolbar">
-          <button class="btn btn-outline" type="button" id="paper-split-local">
-            <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
-            本机拆分
-          </button>
-          <button class="btn btn-outline" type="button" id="paper-split-ai">
+          <button class="btn btn-primary" type="button" id="paper-split-recognize">
             <svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>
-            AI 智能拆分
+            智能识别
           </button>
-          <span class="split-ai-note" id="paper-split-ai-note">AI 需要先在「设置 → AI 直连」保存 Key；只在你确认后调用。</span>
+          <span class="split-ai-note" id="paper-split-ai-note">本机先免费识别；AI 需要先在「设置 → AI 直连」保存 Key，只在你确认后调用。</span>
         </div>
         <p class="split-status" id="paper-split-status"></p>
         <div class="split-preview" id="paper-split-preview"></div>
@@ -3229,6 +3221,7 @@
           <input type="checkbox" id="paper-split-make-papers" checked>
           <span>同时生成可布置的练习卷：每个题型生成一份，教师端发布中心 →「练习卷」里可以直接选。取消勾选则只入资料库。</span>
         </label>
+        <p class="form-note split-usb-note" id="paper-split-usb-note"></p>
       </div>
       <div class="dialog-actions">
         <button class="btn btn-ghost" type="submit" value="cancel">取消</button>
@@ -3335,8 +3328,8 @@
 
   <script src="vendor/jszip.min.js"></script>
   <script>window.SHUNSHI_TEACHER_AI = true;</script>
-  <script src="portal.js?v=20261120f"></script>
-  <script src="library.js?v=20261120f"></script>
+  <script src="portal.js?v=20261120g"></script>
+  <script src="library.js?v=20261120g"></script>
 <script src="pwa.js" defer></script>
 </body>
 </html>
