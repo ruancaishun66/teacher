@@ -724,6 +724,8 @@
   }
 
   async function aiCall(messages, maxTokens, source) {
+    // 学生端也加载 portal.js，但只在教师端 / 组卷工作台显式打开 AI 开关。
+    if (!window.SHUNSHI_TEACHER_AI) throw new Error('AI 只开放给教师端和组卷工作台。');
     const cfg = aiConfig();
     if (!cfg.key) throw new Error('还没有配置 API Key，请到“设置 → AI 直连”粘贴并保存。');
     const response = await fetch(AI_ENDPOINT, {
@@ -736,7 +738,7 @@
         model: cfg.model,
         messages,
         temperature: 0.3,
-        max_tokens: Math.max(160, Math.min(4000, Number(maxTokens) || 700)),
+        max_tokens: Math.max(160, Math.min(8000, Number(maxTokens) || 700)),
         stream: false,
         thinking: { type: 'disabled' }
       })

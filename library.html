@@ -1771,6 +1771,201 @@
       margin-top: 18px;
     }
 
+    /* 整卷拆分：粘贴整套试卷，按题型拆开入库 */
+    .split-paper-card {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 14px;
+      padding: 18px 20px;
+      border: 1px solid rgba(217, 110, 81, 0.28);
+      border-radius: 18px;
+      background:
+        radial-gradient(circle at 100% 0%, rgba(255, 199, 137, 0.32), transparent 55%),
+        linear-gradient(135deg, #fffaf2, #fff5ec);
+      box-shadow: var(--shadow);
+    }
+
+    .split-paper-card h2 {
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 1.02rem;
+    }
+
+    .split-paper-card p {
+      margin-top: 4px;
+      color: var(--ink-soft);
+      font-size: 0.72rem;
+      line-height: 1.75;
+    }
+
+    .split-dialog {
+      width: min(860px, calc(100% - 24px));
+    }
+
+    .split-dialog .dialog-form {
+      display: flex;
+      flex-direction: column;
+      max-height: min(90vh, 920px);
+    }
+
+    .split-dialog-body {
+      min-height: 0;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .split-lead {
+      margin: -4px 0 12px;
+      padding: 9px 11px;
+      border-radius: 10px;
+      color: #7a5b1b;
+      background: var(--gold-soft);
+      font-size: 0.68rem;
+      line-height: 1.75;
+    }
+
+    .split-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .split-toolbar .btn {
+      min-height: 34px;
+      padding: 6px 12px;
+      font-size: 0.7rem;
+    }
+
+    .split-ai-note {
+      color: var(--ink-soft);
+      font-size: 0.64rem;
+      line-height: 1.6;
+    }
+
+    .split-status {
+      min-height: 1.2em;
+      margin-top: 8px;
+      color: var(--ink-soft);
+      font-size: 0.68rem;
+      line-height: 1.7;
+    }
+
+    .split-status.is-error { color: var(--red-deep); }
+
+    .split-preview {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .split-row {
+      display: grid;
+      grid-template-columns: auto 132px minmax(0, 1fr);
+      align-items: start;
+      gap: 9px;
+      padding: 10px 11px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .split-row.is-off {
+      opacity: 0.5;
+      background: rgba(241, 237, 228, 0.6);
+    }
+
+    .split-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      margin-top: 8px;
+      accent-color: var(--red);
+    }
+
+    .split-row select {
+      min-height: 34px;
+      padding: 5px 7px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      background: #fff;
+      font-size: 0.68rem;
+    }
+
+    .split-row-main b {
+      display: block;
+      color: var(--blue-deep);
+      font-size: 0.76rem;
+      line-height: 1.5;
+    }
+
+    .split-row-main span {
+      color: var(--red-deep);
+      font-size: 0.64rem;
+      font-weight: 700;
+    }
+
+    .split-row-main p {
+      margin-top: 3px;
+      color: var(--ink-soft);
+      font-size: 0.64rem;
+      line-height: 1.65;
+      overflow-wrap: anywhere;
+    }
+
+    .split-empty {
+      padding: 18px;
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      color: var(--ink-soft);
+      text-align: center;
+      font-size: 0.7rem;
+      line-height: 1.8;
+    }
+
+    .split-options-line {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-top: 12px;
+      color: var(--ink-soft);
+      font-size: 0.68rem;
+      line-height: 1.7;
+    }
+
+    .split-options-line input {
+      margin-top: 3px;
+      accent-color: var(--red);
+    }
+
+    @media (max-width: 640px) {
+      .split-paper-card {
+        padding: 15px 16px;
+      }
+
+      .split-paper-card .btn {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .split-row {
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+
+      .split-row select {
+        grid-column: 2;
+        width: 100%;
+      }
+
+      .split-row-main {
+        grid-column: 2;
+      }
+    }
+
     .toast-stack {
       position: fixed;
       right: 18px;
@@ -2492,6 +2687,17 @@
           </div>
         </div>
 
+        <div class="split-paper-card">
+          <div>
+            <h2>一整套试卷，拆成每天能用的题组</h2>
+            <p>把整卷原文粘贴进来，按单选、完形、阅读、语法、写作等题型拆开入库；可以同时生成可布置的练习卷，教师端「练习卷」里直接选。</p>
+          </div>
+          <button class="btn btn-primary" type="button" id="split-paper-open">
+            <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
+            整卷拆分入库
+          </button>
+        </div>
+
         <div class="upload-panel">
           <div class="dropzone" id="dropzone">
             <span class="dropzone-icon" aria-hidden="true">
@@ -2979,6 +3185,58 @@
     </form>
   </dialog>
 
+  <dialog class="app-dialog split-dialog" id="paper-split-dialog">
+    <form class="dialog-form" id="paper-split-form" method="dialog">
+      <div class="dialog-head">
+        <h2>整卷拆分入库</h2>
+        <button class="dialog-close" type="submit" value="cancel" aria-label="关闭">×</button>
+      </div>
+      <div class="split-dialog-body">
+        <p class="split-lead">粘贴一整套试卷。先点「本机拆分」逐题拆开（免费）；如果 OCR 排版混乱或没有大题标题，再用「AI 智能拆分」找边界。AI 只发送题目正文，不含答案和学生信息；记录只留在教师端。</p>
+        <div class="form-row">
+          <div class="field">
+            <label for="paper-split-title">试卷标题</label>
+            <input class="input" id="paper-split-title" type="text" maxlength="80" placeholder="可留空，自动识别；例如：高一英语期中卷">
+          </div>
+          <div class="field">
+            <label for="paper-split-grade">年级</label>
+            <select class="select" id="paper-split-grade">
+              <option value="">未标注</option>
+              <option>七年级</option><option>八年级</option><option>九年级</option>
+              <option>高一</option><option>高二</option><option>高三</option>
+              <option>中考</option><option>高考</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="paper-split-text">整卷原文</label>
+          <textarea id="paper-split-text" rows="10" placeholder="把整份试卷粘贴到这里：听力、单选、完形、阅读、语法、写作……答案和解析一起粘贴也可以。"></textarea>
+        </div>
+        <div class="split-toolbar">
+          <button class="btn btn-outline" type="button" id="paper-split-local">
+            <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
+            本机拆分
+          </button>
+          <button class="btn btn-outline" type="button" id="paper-split-ai">
+            <svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>
+            AI 智能拆分
+          </button>
+          <span class="split-ai-note" id="paper-split-ai-note">AI 需要先在「设置 → AI 直连」保存 Key；只在你确认后调用。</span>
+        </div>
+        <p class="split-status" id="paper-split-status"></p>
+        <div class="split-preview" id="paper-split-preview"></div>
+        <label class="split-options-line">
+          <input type="checkbox" id="paper-split-make-papers" checked>
+          <span>同时生成可布置的练习卷：每个题型生成一份，教师端发布中心 →「练习卷」里可以直接选。取消勾选则只入资料库。</span>
+        </label>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" type="submit" value="cancel">取消</button>
+        <button class="btn btn-primary" type="button" id="paper-split-save" disabled>确认入库</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="app-dialog" id="ai-dialog">
     <form class="dialog-form" id="ai-form" method="dialog">
       <div class="dialog-head">
@@ -3076,8 +3334,9 @@
   <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
 
   <script src="vendor/jszip.min.js"></script>
-  <script src="portal.js"></script>
-  <script src="library.js"></script>
+  <script>window.SHUNSHI_TEACHER_AI = true;</script>
+  <script src="portal.js?v=20261120e"></script>
+  <script src="library.js?v=20261120e"></script>
 <script src="pwa.js" defer></script>
 </body>
 </html>

@@ -236,6 +236,8 @@
     ocrProgress: null,
     aiDialogMode: 'analysis',
     aiSplitId: null,
+    paperSplit: null,
+    paperSplitBusy: false,
     questionEdit: null,
     sectionAliases: [],
     usbHandle: null,
@@ -2131,13 +2133,15 @@
     await txDone(transaction);
   }
 
-  function saveMaterialWithItems(material, items) {
+  function saveMaterialWithItems(material, items, extraPapers = []) {
     return new Promise((resolve, reject) => {
       if (!state.db) {
         reject(new Error('资料库尚未打开。'));
         return;
       }
-      const transaction = state.db.transaction(['materials', 'items'], 'readwrite');
+      const stores = ['materials', 'items'];
+      if (extraPapers.length) stores.push('papers');
+      const transaction = state.db.transaction(stores, 'readwrite');
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error || new Error('保存资料失败。'));
       transaction.onabort = () => reject(transaction.error || new Error('保存资料已取消。'));
@@ -2150,6 +2154,10 @@
         keysRequest.result.forEach((key) => itemStore.delete(key));
         items.forEach((item) => itemStore.put(item));
       };
+      if (extraPapers.length) {
+        const paperStore = transaction.objectStore('papers');
+        extraPapers.forEach((paper) => paperStore.put(paper));
+      }
     });
   }
 
@@ -2341,7 +2349,7 @@
   }
 
   function ensureGradeOptions() {
-    const selects = [$('#edit-grade'), $('#paste-grade'), $('#default-grade')];
+    const selects = [$('#edit-grade'), $('#paste-grade'), $('#default-grade'), $('#paper-split-grade')];
     selects.forEach((select) => {
       if (!select) return;
       GRADE_OPTIONS.forEach((grade) => {
@@ -5948,6 +5956,12 @@
         ? cfg.log.slice(0, 8).map((item) => `<li><span>${escapeHtml(formatDate(item.at, true))} · ${escapeHtml(item.source)}</span><b>${item.tokens} tokens · ${aiCostText(item.cost)}</b></li>`).join('')
         : '<li><span>还没有调用记录。每次 AI 整理都会记在这里。</span></li>';
     }
+    const splitNote = $('#paper-split-ai-note');
+    if (splitNote) {
+      splitNote.textContent = cfg.key
+        ? '已保存 Key。AI 只发送题目正文，不含答案和学生信息；每次调用前先显示预计费用。'
+        : 'AI 需要先在「设置 → AI 直连」保存 Key；只在你确认后调用。';
+    }
   }
 
   function saveLibraryAiKey() {
@@ -6605,6 +6619,529 @@
     } catch (error) {
       console.error(error);
       toast(`保存失败：${error.message || error}`, 'error');
+    }
+  }
+
+  /* ------------------------------------------------------------------------
+     整卷拆分：粘贴一整套试卷，按题型拆开入库
+     ------------------------------------------------------------------------ */
+
+  const SPLIT_AI_MAX_CHARS = 36000;
+
+  function setPaperSplitStatus(message, kind = '') {
+    const node = $('#paper-split-status');
+    if (!node) return;
+    node.textContent = message || '';
+    node.classList.toggle('is-error', kind === 'error');
+  }
+
+  function preparePaperSplitText() {
+    const raw = String(($('#paper-split-text') || {}).value || '');
+    if (raw.trim().length < 20) {
+      toast('先把整套试卷粘贴进来。', 'error');
+      return null;
+    }
+    const cleaned = cleanImportedText(toDisplayText(raw)).text;
+    const normalized = toDisplayText(normalizePaperLayout(cleaned));
+    const split = splitAnswerSection(normalized);
+    const body = toDisplayText(split.body).trim();
+    const answers = toDisplayText(split.answers).trim();
+    if (body.length < 20) {
+      toast('没有识别到题目正文，请检查粘贴的内容。', 'error');
+      return null;
+    }
+    return { text: normalized, body, answers };
+  }
+
+  function paperSplitFillTitleAndGrade(prepared, suggestedTitle, suggestedGrade) {
+    const titleInput = $('#paper-split-title');
+    const gradeSelect = $('#paper-split-grade');
+    const title = String(suggestedTitle || '').trim() || detectExamTitle(prepared.text);
+    if (titleInput && !titleInput.value.trim() && title) titleInput.value = title;
+    let grade = String(suggestedGrade || '').trim();
+    if (!grade) grade = detectGrade(prepared.text) || state.settings.defaultGrade || '';
+    if (grade && gradeSelect) {
+      const has = Array.from(gradeSelect.options).some((option) => option.value === grade);
+      if (has) gradeSelect.value = grade;
+      else grade = gradeSelect.value || '';
+    }
+    return {
+      title: titleInput ? titleInput.value.trim() : title,
+      grade: gradeSelect ? gradeSelect.value : grade
+    };
+  }
+
+  function paperSplitOptions(selected) {
+    const current = normalizeType(selected || 'other');
+    return Object.entries(TYPES)
+      .filter(([key, def]) => key !== 'paper' && !def.legacy)
+      .sort((a, b) => a[1].order - b[1].order)
+      .map(([key, def]) => `<option value="${key}"${key === current ? ' selected' : ''}>${escapeHtml(def.label)}</option>`)
+      .join('');
+  }
+
+  function paperSplitItemQuestionCount(item) {
+    const questions = (item.questions || []).length;
+    const blanks = collectBlankNumbers(item.content || '').length;
+    const answerKeys = Object.keys(item.blankAnswers || {}).length;
+    return Math.max(questions, blanks, answerKeys, 1);
+  }
+
+  function paperSplitSectionStats(section, answerMap, grade) {
+    const items = itemsForSection({
+      id: 'paper-split-preview',
+      grade,
+      band: gradeBand(grade)
+    }, section, answerMap, 1);
+    return {
+      items,
+      questionCount: items.reduce((sum, item) => sum + paperSplitItemQuestionCount(item), 0)
+    };
+  }
+
+  function paperSplitRevealPreview() {
+    const body = document.querySelector('.split-dialog-body');
+    const box = $('#paper-split-preview');
+    if (!body || !box || !state.paperSplit) return;
+    requestAnimationFrame(() => {
+      const bodyRect = body.getBoundingClientRect();
+      const boxRect = box.getBoundingClientRect();
+      const below = boxRect.top > bodyRect.bottom - 120;
+      const above = boxRect.top < bodyRect.top;
+      if (below || above) {
+        body.scrollTo({
+          top: Math.max(0, body.scrollTop + boxRect.top - bodyRect.top - 12),
+          behavior: 'smooth'
+        });
+      }
+    });
+  }
+
+  function renderPaperSplitPreview() {
+    const box = $('#paper-split-preview');
+    const save = $('#paper-split-save');
+    if (!box) return;
+    const split = state.paperSplit;
+    if (!split) {
+      box.innerHTML = '<div class="split-empty">粘贴整卷后，点「本机拆分」或「AI 智能拆分」。这里会列出每个题型、题数和开头，确认后再入库。</div>';
+      if (save) save.disabled = true;
+      return;
+    }
+    const answerMap = parseAnswerKey(split.answers || '');
+    box.innerHTML = split.sections.map((section, index) => {
+      const stats = paperSplitSectionStats(section, answerMap, split.grade);
+      section._itemCount = stats.items.length;
+      section._questionCount = stats.questionCount;
+      const countText = stats.items.length
+        ? `${stats.items.length} 组 · 约 ${stats.questionCount} 题`
+        : (section.type === 'listening' ? '听力依赖录音，不进每日题组' : '没有拆出可布置的题');
+      const excerpt = String(section.content || '').replace(/\s+/g, ' ').trim().slice(0, 110);
+      return `<div class="split-row${section.selected ? '' : ' is-off'}" data-split-index="${index}">
+        <input type="checkbox" data-split-pick${section.selected ? ' checked' : ''} aria-label="包含这个题型">
+        <select data-split-type aria-label="这一大题的题型">${paperSplitOptions(section.type)}</select>
+        <div class="split-row-main">
+          <b>${escapeHtml(section.heading || typeLabel(section.type))}</b>
+          <span>${escapeHtml(countText)}</span>
+          <p>${escapeHtml(excerpt)}${excerpt ? '…' : ''}</p>
+        </div>
+      </div>`;
+    }).join('');
+    if (save) save.disabled = state.paperSplitBusy || !split.sections.some((section) => section.selected);
+  }
+
+  function openPaperSplitDialog() {
+    const dialog = $('#paper-split-dialog');
+    if (!dialog) return;
+    const grade = $('#paper-split-grade');
+    if (grade && !grade.value) grade.value = state.settings.defaultGrade || '';
+    const tool = aiTool();
+    const cfg = tool ? tool.config() : null;
+    const note = $('#paper-split-ai-note');
+    if (note) {
+      note.textContent = cfg && cfg.key
+        ? '已保存 Key。AI 只发送题目正文，不含答案和学生信息；每次调用前先显示预计费用。'
+        : 'AI 需要先在「设置 → AI 直连」保存 Key；只在你确认后调用。';
+    }
+    renderPaperSplitPreview();
+    if (!dialog.open) dialog.showModal();
+  }
+
+  function splitPaperLocally() {
+    const prepared = preparePaperSplitText();
+    if (!prepared) return;
+    const detected = detectExamSections(prepared.body);
+    let sections;
+    if (detected.length >= 2) {
+      sections = detected.map((section) => ({
+        type: normalizeType(section.type),
+        heading: section.heading || typeLabel(section.type),
+        content: section.content,
+        selected: true
+      }));
+    } else {
+      const classified = classifyMaterial('', prepared.body);
+      const type = normalizeType(classified.type === 'paper' ? 'other' : classified.type);
+      sections = [{
+        type,
+        heading: typeLabel(type),
+        content: prepared.body,
+        selected: true
+      }];
+    }
+    const meta = paperSplitFillTitleAndGrade(prepared, '', '');
+    state.paperSplit = {
+      text: prepared.text,
+      body: prepared.body,
+      answers: prepared.answers,
+      title: meta.title,
+      grade: meta.grade,
+      source: 'local',
+      sections
+    };
+    renderPaperSplitPreview();
+    paperSplitRevealPreview();
+    if (detected.length >= 2) {
+      setPaperSplitStatus(`本机识别出 ${sections.length} 个大题。请核对题型和题数；听力只存档，不进每日题组。`);
+    } else {
+      setPaperSplitStatus('本机只识别出 1 个大题，可能是没有大题标题或 OCR 排版混乱。可以手动改题型，也可以改用「AI 智能拆分」找边界。');
+    }
+  }
+
+  function paperSplitFindIndex(body, needle) {
+    const text = String(body || '');
+    const value = String(needle || '').trim();
+    if (!value) return -1;
+    let index = text.indexOf(value);
+    if (index >= 0) return index;
+    const compact = value.replace(/\s+/g, '');
+    if (compact.length >= 6) {
+      const pattern = compact
+        .split('')
+        .map((char) => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('\\s*');
+      try {
+        const match = new RegExp(pattern).exec(text);
+        if (match) return match.index;
+      } catch (error) {
+        // 正则失败时继续用短前缀匹配。
+      }
+    }
+    for (const size of [16, 12, 8]) {
+      if (value.length <= size) continue;
+      index = text.indexOf(value.slice(0, size));
+      if (index >= 0) return index;
+    }
+    return -1;
+  }
+
+  function mergePaperSplitSections(sections) {
+    return sections.reduce((list, section) => {
+      const last = list[list.length - 1];
+      if (last && last.type === section.type) {
+        last.content = `${last.content}\n\n${section.content}`;
+        if (!last.heading) last.heading = section.heading;
+      } else {
+        list.push({ ...section });
+      }
+      return list;
+    }, []);
+  }
+
+  function paperSplitSectionsFromAi(payload, body) {
+    const raw = Array.isArray(payload && payload.sections) ? payload.sections : [];
+    const entries = [];
+    raw.forEach((item) => {
+      if (!item) return;
+      const type = aiTypeKey(item.type || item['题型']);
+      const heading = String(item.heading || item['标题'] || '').trim().slice(0, 120);
+      const start = String(item.start || item['开头'] || '').trim();
+      if (!type || type === 'paper' || !start) return;
+      let index = paperSplitFindIndex(body, start);
+      if (index < 0 && heading) index = paperSplitFindIndex(body, heading);
+      if (index < 0) return;
+      entries.push({ type, heading: heading || typeLabel(type), start: index });
+    });
+    entries.sort((a, b) => a.start - b.start);
+    const kept = [];
+    entries.forEach((entry) => {
+      const last = kept[kept.length - 1];
+      if (last && entry.start <= last.start) return;
+      kept.push(entry);
+    });
+    const sections = kept.map((entry, index) => {
+      const end = index + 1 < kept.length ? kept[index + 1].start : body.length;
+      let content = body.slice(entry.start, end).trim();
+      if (!content) return null;
+      if (entry.heading && !content.startsWith(entry.heading)) {
+        content = `${entry.heading}\n${content}`;
+      }
+      return {
+        type: entry.type,
+        heading: entry.heading,
+        content,
+        selected: true
+      };
+    }).filter(Boolean);
+    return mergePaperSplitSections(sections);
+  }
+
+  function parsePaperSplitJson(raw) {
+    let text = String(raw || '').trim();
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start < 0 || end <= start) {
+      throw new Error('AI 没有返回可识别的 JSON，请再试一次，或改用「本机拆分」。');
+    }
+    try {
+      return JSON.parse(text.slice(start, end + 1));
+    } catch (error) {
+      throw new Error('AI 返回的格式不完整，请再试一次，或改用「本机拆分」。');
+    }
+  }
+
+  function paperSplitAiPrompt(body) {
+    return [
+      '你是英语试卷排版助手。请按题型把下面这份试卷分段，只返回一个 JSON 对象，不要解释，不要 Markdown，不要改写原文。',
+      '返回格式：',
+      '{"title":"试卷标题，没有就空字符串","grade":"高一","sections":[{"type":"single","heading":"这一大题的标题，原文有标题就逐字复制，没有就按题型起名","start":"这一大题正文开头的 12-30 个字，必须逐字复制原文，用来定位"}]}',
+      'type 只能取：single(单项选择)、cloze(完形填空)、reading(阅读理解)、five(五选五/七选五)、grammar(语法填空)、dialogue(情景交际)、picture(看图写话)、writing(书面表达)、listening(听力)、other(其他)。',
+      '规则：',
+      '1. 按原文顺序列出每一道大题；同一大题只列一次。',
+      '2. 阅读理解的 A/B/C 多篇合并成一条 reading。',
+      '3. 答案区、解析区不要算作题型。',
+      '4. start 必须能在原文中找到；不要返回题目正文。',
+      '',
+      '试卷原文：',
+      body
+    ].join('\n');
+  }
+
+  async function runPaperSplitAi(prepared, prompt) {
+    const tool = aiTool();
+    state.paperSplitBusy = true;
+    state.paperSplit = null;
+    const localButton = $('#paper-split-local');
+    const aiButton = $('#paper-split-ai');
+    const textarea = $('#paper-split-text');
+    if (localButton) localButton.disabled = true;
+    if (aiButton) aiButton.disabled = true;
+    if (textarea) textarea.disabled = true;
+    renderPaperSplitPreview();
+    setPaperSplitStatus('AI 正在找题型边界，请稍等…');
+    try {
+      const result = await tool.call([
+        { role: 'system', content: '你只输出一个 JSON 对象，不输出任何解释或其他文字。' },
+        { role: 'user', content: prompt }
+      ], 2000, '资料库 · 整卷拆分');
+      const payload = parsePaperSplitJson(result.text);
+      const sections = paperSplitSectionsFromAi(payload, prepared.body);
+      if (!sections.length) {
+        throw new Error('AI 没有定位到可用的大题边界。请改用「本机拆分」，或检查原文是否包含题目。');
+      }
+      const payloadGrade = String(payload.grade || payload['年级'] || '').trim();
+      const meta = paperSplitFillTitleAndGrade(prepared, payload.title || payload['标题'], payloadGrade);
+      state.paperSplit = {
+        text: prepared.text,
+        body: prepared.body,
+        answers: prepared.answers,
+        title: meta.title,
+        grade: meta.grade,
+        source: 'ai',
+        sections
+      };
+      renderPaperSplitPreview();
+      paperSplitRevealPreview();
+      const more = sections.length === 1 ? ' 只定位出 1 个题型，请核对原文是否还有别的大题。' : '';
+      setPaperSplitStatus(`AI 定位出 ${sections.length} 个题型 · 本次 ${result.tokens} tokens · 约 ${aiCostText(result.cost)}。请核对题型和题数。${more}`);
+      toast('AI 拆分完成，请核对预览后入库。', 'ok', 5000);
+    } catch (error) {
+      console.error(error);
+      setPaperSplitStatus(error.message || 'AI 拆分失败，请改用本机拆分。', 'error');
+      toast(`AI 拆分失败：${error.message || error}`, 'error', 8000);
+    } finally {
+      state.paperSplitBusy = false;
+      if (localButton) localButton.disabled = false;
+      if (aiButton) aiButton.disabled = false;
+      if (textarea) textarea.disabled = false;
+      renderPaperSplitPreview();
+    }
+  }
+
+  function paperSplitWithAi() {
+    if (state.paperSplitBusy) return;
+    const prepared = preparePaperSplitText();
+    if (!prepared) return;
+    const tool = aiTool();
+    if (!tool) {
+      toast('AI 组件没有加载，请刷新页面。', 'error');
+      return;
+    }
+    const cfg = tool.config();
+    if (!cfg.key) {
+      setPaperSplitStatus('还没有保存 API Key。请到「设置 → AI 直连」粘贴并保存，再回来点 AI 拆分。', 'error');
+      toast('还没有保存 API Key，请先到「设置 → AI 直连」保存。', 'error', 7000);
+      return;
+    }
+    const source = prepared.body.slice(0, SPLIT_AI_MAX_CHARS);
+    const truncated = prepared.body.length > source.length;
+    const prompt = paperSplitAiPrompt(source);
+    const estimate = tool.estimate(prompt.length, 2000);
+    openConfirm({
+      title: '用 AI 拆分这份试卷？',
+      message: `会把题目正文约 ${source.length} 字发送给 DeepSeek（不含答案和学生信息）${truncated ? `；原文较长，只发送前 ${SPLIT_AI_MAX_CHARS} 字，后面的题型可能拆不到` : ''}。预计最多约 ${estimate.inputTokens + estimate.maxOutputTokens} tokens，约 ${aiCostText(estimate.cost)}；实际按返回用量记账。只有你点「开始拆分」才会调用。`,
+      confirmText: '开始拆分',
+      danger: false,
+      onConfirm: () => runPaperSplitAi(prepared, prompt)
+    });
+  }
+
+  async function savePaperSplit() {
+    const split = state.paperSplit;
+    if (!split) {
+      toast('还没有可入库的拆分结果。', 'error');
+      return;
+    }
+    if (state.paperSplitBusy) return;
+    const picked = split.sections.filter((section) => section.selected);
+    if (!picked.length) {
+      toast('至少勾选一个题型。', 'error');
+      return;
+    }
+    const titleInput = $('#paper-split-title');
+    const gradeSelect = $('#paper-split-grade');
+    const title = String((titleInput && titleInput.value.trim()) || split.title || detectExamTitle(split.body) || `整卷拆分 · ${todayCn()}`).slice(0, 80);
+    const grade = (gradeSelect && gradeSelect.value) || split.grade || '';
+    const answerMap = parseAnswerKey(split.answers || '');
+    const material = {
+      id: uid(),
+      title,
+      type: picked.length === 1 ? picked[0].type : 'paper',
+      grade,
+      band: gradeBand(grade),
+      tags: unique([...picked.map((section) => typeShort(section.type)), grade, '整卷拆分', split.source === 'ai' ? 'AI 拆分' : '本机拆分'].filter(Boolean)),
+      text: split.text,
+      body: split.body,
+      answers: split.answers,
+      answerMap,
+      sectionTypes: unique(picked.map((section) => section.type)),
+      note: `整卷拆分：原卷 ${split.sections.length} 个题型，已选 ${picked.length} 个（${picked.map((section) => typeShort(section.type)).join('、')}）。${split.source === 'ai' ? '题型边界由 AI 定位，原文只保存在本机。' : '本机规则拆分，未调用 AI。'}`,
+      sourceName: `整卷拆分（${split.source === 'ai' ? 'AI 定位' : '本机'}）`,
+      sourceType: 'text/plain',
+      sourceExtension: 'txt',
+      originalBlob: null,
+      originalSize: 0,
+      processedBlob: null,
+      processedSize: 0,
+      confidence: split.source === 'ai' ? 82 : 88,
+      autoType: 'paper',
+      createdAt: nowIso(),
+      updatedAt: nowIso()
+    };
+    const allItems = [];
+    const groups = new Map();
+    let order = 1;
+    const emptySections = [];
+    picked.forEach((section) => {
+      const sourceSection = {
+        type: section.type,
+        heading: section.heading,
+        content: section.content
+      };
+      const items = itemsForSection(material, sourceSection, answerMap, order);
+      if (!items.length) {
+        emptySections.push(section.heading || typeShort(section.type));
+        return;
+      }
+      order += items.length;
+      allItems.push(...items);
+      if (!groups.has(section.type)) groups.set(section.type, []);
+      groups.get(section.type).push(...items);
+    });
+    if (!allItems.length) {
+      const labels = unique(emptySections);
+      setPaperSplitStatus(`勾选的题型都没有拆出题目${labels.length ? `（${labels.join('、')}）` : ''}，请检查原文或改用 AI 拆分。`, 'error');
+      toast('没有可入库的题目。', 'error', 7000);
+      return;
+    }
+    const usedTypes = Array.from(groups.keys());
+    material.type = usedTypes.length === 1 ? usedTypes[0] : 'paper';
+    material.sectionTypes = usedTypes;
+    material.tags = unique([...usedTypes.map((type) => typeShort(type)), grade, '整卷拆分', split.source === 'ai' ? 'AI 拆分' : '本机拆分'].filter(Boolean));
+    material.note = `整卷拆分：原卷 ${split.sections.length} 个题型，已入库 ${usedTypes.length} 个（${usedTypes.map((type) => typeShort(type)).join('、')}）。${split.source === 'ai' ? '题型边界由 AI 定位，原文只保存在本机。' : '本机规则拆分，未调用 AI。'}`;
+    material.questionCount = allItems.length;
+    material.processedBlob = makeMaterialBlob(material);
+    material.processedSize = material.processedBlob ? material.processedBlob.size : 0;
+    const makePapers = $('#paper-split-make-papers') ? $('#paper-split-make-papers').checked : true;
+    const paperRecords = [];
+    if (makePapers) {
+      const date = todayIsoDate();
+      const examName = (state.settings.examTitle || DEFAULT_SETTINGS.examTitle).trim() || DEFAULT_SETTINGS.examTitle;
+      for (const [type, items] of groups) {
+        const sections = [{
+          type,
+          requested: items.length,
+          unit: typeUnit(type),
+          items: items.map(snapshotItem)
+        }];
+        const questionTotal = assignPaperNumbers(sections);
+        const paper = {
+          id: uid(),
+          title: `${title} · ${typeShort(type)}`,
+          examName,
+          date,
+          weekday: cnWeekday(date),
+          createdAt: nowIso(),
+          command: '整卷拆分',
+          grade,
+          band: gradeBand(grade),
+          level: null,
+          sections,
+          warnings: [],
+          total: items.length,
+          questionTotal,
+          itemIds: unique(items.map((item) => item.id)),
+          materialIds: [material.id],
+          aiAnalysis: '',
+          aiVocab: []
+        };
+        paper.vocab = buildPaperVocabulary(paper);
+        paperRecords.push(paper);
+      }
+    }
+    const saveButton = $('#paper-split-save');
+    const oldText = saveButton ? saveButton.textContent : '';
+    const splitTextarea = $('#paper-split-text');
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.textContent = '正在入库…';
+    }
+    if (splitTextarea) splitTextarea.disabled = true;
+    try {
+      // 资料、题组、练习卷一次性写入；中途失败就整体回滚，避免老师重试时出现半份数据。
+      await saveMaterialWithItems(material, allItems, paperRecords);
+      const paperCount = paperRecords.length;
+      await learnSectionAliases(picked);
+      state.paperSplit = null;
+      const form = $('#paper-split-form');
+      if (form) form.reset();
+      const preview = $('#paper-split-preview');
+      if (preview) preview.innerHTML = '';
+      if ($('#paper-split-dialog')) $('#paper-split-dialog').close();
+      await reloadAndRender();
+      go('library');
+      const emptyNote = emptySections.length ? `；${unique(emptySections).join('、')}没有拆出题目，已跳过` : '';
+      toast(`已入库：${usedTypes.length} 个题型、${allItems.length} 组题${paperCount ? `；生成 ${paperCount} 份练习卷，可在教师端「发布中心 → 练习卷」布置` : ''}${emptyNote}。`, 'ok', 10000);
+    } catch (error) {
+      console.error(error);
+      setPaperSplitStatus(`入库失败：${error.message || error}`, 'error');
+      toast(`入库失败：${error.message || error}`, 'error', 8000);
+    } finally {
+      if (splitTextarea) splitTextarea.disabled = false;
+      if (saveButton) {
+        saveButton.textContent = oldText || '确认入库';
+        saveButton.disabled = !state.paperSplit;
+      }
     }
   }
 
@@ -7363,6 +7900,63 @@ Li Hua`,
         // 表单通过 method=dialog 关闭；保存逻辑在 close 事件里统一处理。
       });
     }
+
+    const splitPaperOpen = $('#split-paper-open');
+    if (splitPaperOpen) {
+      splitPaperOpen.addEventListener('click', openPaperSplitDialog);
+    }
+    const splitPaperLocal = $('#paper-split-local');
+    if (splitPaperLocal) {
+      splitPaperLocal.addEventListener('click', splitPaperLocally);
+    }
+    const splitPaperAi = $('#paper-split-ai');
+    if (splitPaperAi) {
+      splitPaperAi.addEventListener('click', paperSplitWithAi);
+    }
+    const splitPaperSave = $('#paper-split-save');
+    if (splitPaperSave) {
+      splitPaperSave.addEventListener('click', savePaperSplit);
+    }
+    const splitPaperPreview = $('#paper-split-preview');
+    if (splitPaperPreview) {
+      splitPaperPreview.addEventListener('change', (event) => {
+        const row = event.target.closest('[data-split-index]');
+        if (!row || !state.paperSplit) return;
+        const section = state.paperSplit.sections[Number(row.dataset.splitIndex)];
+        if (!section) return;
+        if (event.target.matches('[data-split-pick]')) {
+          section.selected = event.target.checked;
+        } else if (event.target.matches('[data-split-type]')) {
+          section.type = normalizeType(event.target.value);
+        } else {
+          return;
+        }
+        renderPaperSplitPreview();
+      });
+    }
+    const splitPaperText = $('#paper-split-text');
+    if (splitPaperText) {
+      splitPaperText.addEventListener('input', () => {
+        if (!state.paperSplit) return;
+        // 原文改动后旧的拆分位置就不可信了，必须重新拆，避免把旧内容存进库。
+        state.paperSplit = null;
+        const preview = $('#paper-split-preview');
+        if (preview) {
+          preview.innerHTML = '<div class="split-empty">原文有改动，请重新点「本机拆分」或「AI 智能拆分」。</div>';
+        }
+        const save = $('#paper-split-save');
+        if (save) save.disabled = true;
+        setPaperSplitStatus('原文已修改，请重新拆分。');
+      });
+    }
+    const splitPaperDialog = $('#paper-split-dialog');
+    if (splitPaperDialog) {
+      splitPaperDialog.addEventListener('close', () => {
+        if (state.paperSplitBusy) return;
+        // 取消关闭时保留原文，方便老师改完再拆；只清掉预览按钮状态。
+        renderPaperSplitPreview();
+      });
+    }
   }
 
   async function handleGlobalAction(event) {
@@ -7548,6 +8142,18 @@ Li Hua`,
       applyRouteFromHash();
       renderAll();
       await updateStorage();
+      const params = new URLSearchParams(location.search);
+      if (params.get('split') === '1') {
+        go('upload', false);
+        window.setTimeout(() => {
+          openPaperSplitDialog();
+          const input = $('#paper-split-text');
+          if (input) input.focus();
+        }, 120);
+        params.delete('split');
+        const query = params.toString();
+        window.history.replaceState(null, '', `${location.pathname}${query ? `?${query}` : ''}${location.hash}`);
+      }
     } catch (error) {
       console.error(error);
       toast(`资料库初始化失败：${error.message || error}`, 'error', 9000);
