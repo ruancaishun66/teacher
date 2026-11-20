@@ -3192,7 +3192,7 @@
         <button class="dialog-close" type="submit" value="cancel" aria-label="关闭">×</button>
       </div>
       <div class="split-dialog-body">
-        <p class="split-lead">粘贴一整套试卷。先点「本机拆分」逐题拆开（免费）；如果 OCR 排版混乱或没有大题标题，再用「AI 智能拆分」找边界。AI 只发送题目正文，不含答案和学生信息；记录只留在教师端。</p>
+        <p class="split-lead">粘贴一整套试卷。先点「本机拆分」逐题拆开（免费）；如果 OCR 排版混乱或没有大题标题，再用「AI 智能拆分」找边界。AI 只发送题目正文（会先尽量剔除答案区），不含学生信息；记录只留在教师端。</p>
         <div class="form-row">
           <div class="field">
             <label for="paper-split-title">试卷标题</label>
@@ -3335,8 +3335,8 @@
 
   <script src="vendor/jszip.min.js"></script>
   <script>window.SHUNSHI_TEACHER_AI = true;</script>
-  <script src="portal.js?v=20261120e"></script>
-  <script src="library.js?v=20261120e"></script>
+  <script src="portal.js?v=20261120f"></script>
+  <script src="library.js?v=20261120f"></script>
 <script src="pwa.js" defer></script>
 </body>
 </html>

@@ -5959,7 +5959,7 @@
     const splitNote = $('#paper-split-ai-note');
     if (splitNote) {
       splitNote.textContent = cfg.key
-        ? '已保存 Key。AI 只发送题目正文，不含答案和学生信息；每次调用前先显示预计费用。'
+        ? '已保存 Key。AI 只发送题目正文（会先尽量剔除答案区），不含学生信息；每次调用前先显示预计费用。'
         : 'AI 需要先在「设置 → AI 直连」保存 Key；只在你确认后调用。';
     }
   }
@@ -6759,7 +6759,7 @@
     const note = $('#paper-split-ai-note');
     if (note) {
       note.textContent = cfg && cfg.key
-        ? '已保存 Key。AI 只发送题目正文，不含答案和学生信息；每次调用前先显示预计费用。'
+        ? '已保存 Key。AI 只发送题目正文（会先尽量剔除答案区），不含学生信息；每次调用前先显示预计费用。'
         : 'AI 需要先在「设置 → AI 直连」保存 Key；只在你确认后调用。';
     }
     renderPaperSplitPreview();
@@ -6989,7 +6989,7 @@
     const estimate = tool.estimate(prompt.length, 2000);
     openConfirm({
       title: '用 AI 拆分这份试卷？',
-      message: `会把题目正文约 ${source.length} 字发送给 DeepSeek（不含答案和学生信息）${truncated ? `；原文较长，只发送前 ${SPLIT_AI_MAX_CHARS} 字，后面的题型可能拆不到` : ''}。预计最多约 ${estimate.inputTokens + estimate.maxOutputTokens} tokens，约 ${aiCostText(estimate.cost)}；实际按返回用量记账。只有你点「开始拆分」才会调用。`,
+      message: `会把题目正文约 ${source.length} 字发送给 DeepSeek（会先尽量剔除答案区，不含学生信息）${truncated ? `；原文较长，只发送前 ${SPLIT_AI_MAX_CHARS} 字，后面的题型可能拆不到` : ''}。预计最多约 ${estimate.inputTokens + estimate.maxOutputTokens} tokens，约 ${aiCostText(estimate.cost)}；实际按返回用量记账。只有你点「开始拆分」才会调用。`,
       confirmText: '开始拆分',
       danger: false,
       onConfirm: () => runPaperSplitAi(prepared, prompt)
