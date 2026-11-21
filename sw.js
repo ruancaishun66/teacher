@@ -1,5 +1,5 @@
-/* 顺势 · 离线缓存：联网时永远取最新，断网时用上次看过的版本。 */
-const CACHE = 'shunshi-pwa-v38';
+/* 顺势 · 离线缓存：先用上次看过的版本立即打开，再在后台更新。 */
+const CACHE = 'shunshi-pwa-v39';
 const CORE = [
   './',
   './index.html',
@@ -112,7 +112,9 @@ self.addEventListener('fetch', (event) => {
   if (/\/vendor\/(tesseract|pdf)/.test(url.pathname)) return;
 
   event.respondWith((async () => {
-    const cached = await caches.match(request, { ignoreSearch: true });
+    // 先找完全相同的地址，再退回忽略查询参数的旧缓存；
+    // 否则新版本号会被旧的无参数文件一直挡住。
+    const cached = (await caches.match(request)) || (await caches.match(request, { ignoreSearch: true }));
     const network = fetchWithTimeout(request, 8000)
       .then((response) => {
         if (response && response.ok) {
