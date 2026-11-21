@@ -1,5 +1,5 @@
 /* 顺势 · 离线缓存：联网时永远取最新，断网时用上次看过的版本。 */
-const CACHE = 'shunshi-pwa-v32';
+const CACHE = 'shunshi-pwa-v33';
 const CORE = [
   './',
   './index.html',

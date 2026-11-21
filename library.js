@@ -6673,7 +6673,9 @@
         passageHtml +
         groupQuestions +
         visualHtml +
-        `<div class="bank-item-meta">${meta}</div>` +
+        `<div class="bank-item-meta">${meta}` +
+          `<button class="bank-edit-btn" type="button" data-bank-edit="${escapeAttr(item.id)}" title="修改这道题的题干、选项或答案">编辑</button>` +
+        `</div>` +
       `</div>` +
       `</label>`;
   }
@@ -8547,6 +8549,10 @@
   function questionEditorSections() {
     const edit = state.questionEdit;
     if (!edit) return [];
+    const focusId = String(edit.itemId || '');
+    const keep = (items) => (focusId
+      ? (items || []).filter((item) => item && item.id === focusId)
+      : (items || []));
     if (edit.kind === 'paper') {
       const paper = findPaper(edit.id);
       if (!paper) return [];
@@ -8554,13 +8560,13 @@
         key: `s${si}`,
         type: normalizeType(section.type),
         title: typeLabel(section.type),
-        items: section.items || [],
+        items: keep(section.items),
         sectionIndex: si
-      }));
+      })).filter((section) => section.items.length);
     }
     const material = findMaterial(edit.id);
     if (!material) return [];
-    const items = state.items.filter((item) => item.materialId === material.id);
+    const items = keep(state.items.filter((item) => item.materialId === material.id));
     return [{
       key: 'm0',
       type: normalizeType(material.type),
@@ -8633,6 +8639,27 @@
     `</div>`;
   }
 
+  function questionItemFieldsHtml(item, section) {
+    const type = normalizeType(item.type || section.type);
+    const isWriting = type === 'writing';
+    const bodyValue = isWriting ? (item.content || '') : (item.passage || '');
+    const showBody = item.kind === 'set' || isWriting || String(item.passage || '').trim().length > 0;
+    const titleField = item.kind === 'set'
+      ? `<label>题组名称<input data-item-field="title" type="text" value="${escapeAttr(item.title || '')}" placeholder="例如：阅读理解 A"></label>`
+      : '';
+    const bodyField = showBody
+      ? `<label class="q-field-wide">${isWriting ? '作文题目 / 要求' : '原文（阅读、完形等大题）'}` +
+        `<textarea data-item-field="body" data-item-body="${isWriting ? 'content' : 'passage'}" rows="${isWriting ? 5 : 8}">${escapeHtml(bodyValue)}</textarea>` +
+        `</label>`
+      : '';
+    if (!titleField && !bodyField) return '';
+    const visuals = Array.isArray(item.visuals) ? item.visuals.filter((visual) => visual && visual.url) : [];
+    const visualNote = visuals.length
+      ? `<p class="form-note q-field-wide">这道题还有 ${visuals.length} 张原题图片。改文字不会改图片；图片本身不对时，请回资料卡重新生成原题图片。</p>`
+      : '';
+    return `<div class="q-editor-fields q-editor-item-fields">${titleField}${bodyField}${visualNote}</div>`;
+  }
+
   function renderQuestionEditor() {
     const edit = state.questionEdit;
     const body = $('#question-editor-body');
@@ -8642,18 +8669,22 @@
     const sections = questionEditorSections();
     let total = 0;
     let html = '';
+    let focusItem = null;
     sections.forEach((section) => {
       const itemHtml = (section.items || []).map((item, itemIndex) => {
-        const qi = `${section.sectionIndex}:${itemIndex}`;
+        const qi = item.id || `${section.sectionIndex}:${itemIndex}`;
+        if (edit.itemId && item.id === edit.itemId) focusItem = item;
         const questions = Array.isArray(item.questions) ? item.questions : [];
         const blanks = item.blankAnswers ? Object.keys(item.blankAnswers).sort((a, b) => Number(a) - Number(b)) : [];
-        if (!questions.length && !blanks.length) return '';
-        total += questions.length + blanks.length;
+        const fieldsHtml = questionItemFieldsHtml(item, section);
+        if (!questions.length && !blanks.length && !fieldsHtml) return '';
+        const itemTotal = questions.length + blanks.length;
+        total += itemTotal;
         const rows = questions.map((question, qj) => questionRowHtml(item, qi, qj, question, section.type)).join('') +
           blanks.map((number) => blankRowHtml(item, qi, number)).join('');
-        return `<details class="q-editor-item" open>` +
-          `<summary><b>${escapeHtml(item.title || section.title)}</b><span>${questions.length + blanks.length} 题</span></summary>` +
-          `<div class="q-editor-item-body">${rows}</div>` +
+        return `<details class="q-editor-item" open data-qitem="${escapeAttr(qi)}">` +
+          `<summary><b>${escapeHtml(item.title || section.title)}</b><span>${itemTotal ? `${itemTotal} 题` : '原文 / 要求'}</span></summary>` +
+          `<div class="q-editor-item-body">${fieldsHtml}${rows}</div>` +
         `</details>`;
       }).join('');
       if (itemHtml) {
@@ -8661,18 +8692,37 @@
       }
     });
     body.innerHTML = html || `<div class="q-editor-empty">这份资料还没有识别出可编辑的题目。可以先在卡片上点“修改信息”，补充正文后保存，保存后会重新分题。</div>`;
+    const focused = !!edit.itemId;
     const count = $('#question-editor-count');
-    if (count) count.textContent = `${total} 道/空 · ${edit.kind === 'paper' ? '练习卷' : '资料库'}`;
+    if (count) {
+      let name = focused && focusItem ? (String(focusItem.title || '').trim() || bankStemOf(focusItem)) : '';
+      name = String(name || '').replace(/\s+/g, ' ').trim();
+      if (name.length > 32) name = `${name.slice(0, 32)}…`;
+      count.textContent = focused
+        ? `${total ? `${total} 道/空` : '原文'} · ${name || '这道题'}`
+        : `${total} 道/空 · ${edit.kind === 'paper' ? '练习卷' : '资料库'}`;
+    }
     const title = $('#question-editor-title');
-    if (title) title.textContent = edit.kind === 'paper' ? '逐题编辑 · 练习卷' : '逐题编辑 · 资料题目';
+    if (title) title.textContent = focused ? '编辑这道题' : (edit.kind === 'paper' ? '逐题编辑 · 练习卷' : '逐题编辑 · 资料题目');
     const sub = $('#question-editor-sub');
-    if (sub) sub.textContent = `${source.title || '未命名'}。修改会保存到本机资料库；练习卷是快照，改资料不会自动改已生成的练习卷。`;
+    if (sub) {
+      sub.textContent = focused
+        ? `${source.title || '未命名'}。这里是题库里的单独一道题，改完点“保存全部修改”。文字会改，原题图片不会变。`
+        : `${source.title || '未命名'}。修改会保存到本机资料库；练习卷是快照，改资料不会自动改已生成的练习卷。`;
+    }
   }
 
-  function openQuestionEditor(kind, id) {
+  function openQuestionEditor(kind, id, itemId = '') {
     const source = kind === 'paper' ? findPaper(id) : findMaterial(id);
     if (!source) { toast('找不到这份资料。', 'error'); return; }
-    state.questionEdit = { kind, id };
+    let focusId = String(itemId || '');
+    if (focusId) {
+      const exists = kind === 'paper'
+        ? (source.sections || []).some((section) => (section.items || []).some((item) => item && item.id === focusId))
+        : state.items.some((item) => item.id === focusId && item.materialId === id);
+      if (!exists) focusId = '';
+    }
+    state.questionEdit = { kind, id, itemId: focusId };
     renderQuestionEditor();
     const dialog = $('#question-editor-dialog');
     if (dialog && !dialog.open) dialog.showModal();
@@ -8687,14 +8737,25 @@
   function itemAtKey(key) {
     const edit = state.questionEdit;
     if (!edit) return null;
-    const [si, ii] = String(key || '').split(':').map(Number);
+    const token = String(key || '');
     if (edit.kind === 'paper') {
       const paper = findPaper(edit.id);
+      let found = null;
+      ((paper && paper.sections) || []).forEach((section) => {
+        if (found) return;
+        found = (section.items || []).find((item) => item && item.id === token) || null;
+      });
+      if (found) return found;
+      // 旧练习卷的题目没有 id，仍按“节:序号”找回。
+      const [si, ii] = token.split(':').map(Number);
       const section = paper && paper.sections && paper.sections[si];
       return section && section.items ? section.items[ii] : null;
     }
     const material = findMaterial(edit.id);
     const items = state.items.filter((item) => item.materialId === (material && material.id));
+    const found = items.find((item) => item && item.id === token);
+    if (found) return found;
+    const [, ii] = token.split(':').map(Number);
     return items[ii] || null;
   }
 
@@ -8741,6 +8802,22 @@
     question.explanation = String(fields.explanation || '').trim();
   }
 
+  function applyItemMetaFields() {
+    $$('#question-editor-body [data-qitem]').forEach((node) => {
+      const item = itemAtKey(node.dataset.qitem);
+      if (!item) return;
+      const titleField = node.querySelector('[data-item-field="title"]');
+      if (titleField) item.title = String(titleField.value || '').trim();
+      const bodyField = node.querySelector('[data-item-field="body"]');
+      if (bodyField) {
+        const text = String(bodyField.value || '').replace(/\r\n?/g, '\n').trim();
+        const target = bodyField.dataset.itemBody === 'content' ? 'content' : 'passage';
+        item[target] = text;
+      }
+      item.updatedAt = nowIso();
+    });
+  }
+
   function removeMarkedRows(removed) {
     const grouped = new Map();
     Array.from(removed).forEach((key) => {
@@ -8771,6 +8848,7 @@
       if (row.dataset.removed === '1') removed.add(`${row.dataset.qi}|${row.dataset.blank || `q${row.dataset.qj}`}`);
       else applyRowToModel(row);
     });
+    applyItemMetaFields();
     try {
       if (edit.kind === 'paper') {
         const paper = findPaper(edit.id);
@@ -10961,6 +11039,16 @@ Li Hua`,
     }
     const bankList = $('#bank-list');
     if (bankList) {
+      bankList.addEventListener('click', (event) => {
+        const editButton = event.target.closest('[data-bank-edit]');
+        if (!editButton) return;
+        // 卡片外层是勾选用的 label，点“编辑”要拦住勾选动作。
+        event.preventDefault();
+        event.stopPropagation();
+        const item = state.items.find((entry) => entry.id === editButton.dataset.bankEdit);
+        if (!item) { toast('找不到这道题，可能已被删除。', 'error'); return; }
+        openQuestionEditor('material', item.materialId, item.id);
+      });
       bankList.addEventListener('change', (event) => {
         const input = event.target.closest('[data-bank-pick]');
         if (!input) return;
