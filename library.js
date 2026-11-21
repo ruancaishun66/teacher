@@ -244,6 +244,7 @@
     paperSplitQueue: [],
     paperSplitTotal: 0,
     paperSplitSource: null,
+    paperSplitOcr: false,
     paperSplitAiText: '',
     questionEdit: null,
     sectionAliases: [],
@@ -7020,6 +7021,7 @@
     state.paperSplit = null;
     state.paperSplitAiText = '';
     state.paperSplitSource = null;
+    state.paperSplitOcr = false;
     renderPaperSplitPreview();
     setPaperSplitFileInfo(
       total > 1 ? `第 ${index}/${total} 份 · ${file.name}` : file.name,
@@ -7050,6 +7052,8 @@
         extension: material.sourceExtension || (file.name.split('.').pop() || '').toLowerCase(),
         blob: file
       };
+      // 扫描件走的是本机 OCR，排版最容易粘连；识别后提示可以再用 AI 重排。
+      state.paperSplitOcr = /OCR|扫描/.test(material.note || '');
       const titleInput = $('#paper-split-title');
       const gradeSelect = $('#paper-split-grade');
       if (titleInput) titleInput.value = material.title || '';
@@ -7096,6 +7100,7 @@
     if (form) form.reset();
     state.paperSplit = null;
     state.paperSplitSource = null;
+    state.paperSplitOcr = false;
     state.paperSplitAiText = '';
     state.paperSplitQueue = files.slice();
     state.paperSplitTotal = files.length;
@@ -7223,6 +7228,7 @@
       state.paperSplitQueue = [];
       state.paperSplitTotal = 0;
       state.paperSplitSource = null;
+      state.paperSplitOcr = false;
       state.paperSplitAiText = '';
       const form = $('#paper-split-form');
       if (form) form.reset();
@@ -7347,10 +7353,13 @@
       setPaperSplitStatus(`${local.reason}。已按本机规则先填好，请核对下拉框；到「设置 → AI 直连」保存 Key 后，可以让 AI 精准识别。`);
       return;
     }
+    const ocrHint = state.paperSplitOcr
+      ? ' 扫描件的题号、选项如果粘在一起，可点「AI 重新编排」整理后再入库。'
+      : '';
     if (local.state.sections.length > 1) {
-      setPaperSplitStatus(`本机识别出 ${local.state.sections.length} 个题型（未保存 AI Key）。请核对题型和题数；听力只存档，不进每日题组。`);
+      setPaperSplitStatus(`本机识别出 ${local.state.sections.length} 个题型（未保存 AI Key）。请核对题型和题数；听力只存档，不进每日题组。${ocrHint}`);
     } else {
-      setPaperSplitStatus(`本机识别为「${typeLabel(local.state.sections[0].type)}」（未保存 AI Key）。请核对题型和题数，没问题就确认入库。`);
+      setPaperSplitStatus(`本机识别为「${typeLabel(local.state.sections[0].type)}」（未保存 AI Key）。请核对题型和题数，没问题就确认入库。${ocrHint}`);
     }
   }
 
@@ -7690,7 +7699,10 @@
       renderPaperSplitPreview();
       paperSplitRevealPreview();
       const more = sections.length === 1 ? ' 只定位出 1 个题型，请核对原文是否还有别的大题。' : '';
-      setPaperSplitStatus(`AI 识别出 ${sections.length} 个题型 · 本次 ${result.tokens} tokens · 约 ${aiCostText(result.cost)}。请核对题型和题数。${more}`);
+      const ocrHint = state.paperSplitOcr
+        ? ' 扫描件如果题号、选项粘连，可点「AI 重新编排」。'
+        : '';
+      setPaperSplitStatus(`AI 识别出 ${sections.length} 个题型 · 本次 ${result.tokens} tokens · 约 ${aiCostText(result.cost)}。请核对题型和题数。${more}${ocrHint}`);
       toast('AI 识别完成，请核对预览后入库。', 'ok', 5000);
     } catch (error) {
       console.error(error);
@@ -7937,6 +7949,7 @@
       const message = `${doneNote}${usedTypes.length} 个题型、${allItems.length} 组题${paperCount ? `；生成 ${paperCount} 份练习卷，可在教师端「发布中心 → 练习卷」布置` : ''}${usbNote}${emptyNote}。`;
       state.paperSplit = null;
       state.paperSplitSource = null;
+      state.paperSplitOcr = false;
       state.paperSplitAiText = '';
       const form = $('#paper-split-form');
       if (form) form.reset();
@@ -8866,6 +8879,7 @@ Li Hua`,
       splitPaperText.addEventListener('input', () => {
         // 手动改过文字后，原文件就不能再当作这次入库的来源。
         state.paperSplitSource = null;
+        state.paperSplitOcr = false;
         state.paperSplitAiText = '';
         state.paperSplitQueue = [];
         state.paperSplitTotal = 0;
