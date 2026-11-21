@@ -5,6 +5,8 @@
    ========================================================================== */
 (() => {
   'use strict';
+  // 给页面上的启动提示用：脚本已经跑到这里，说明 library.js 没有卡在加载中。
+  window.__shunshiLibraryBooted = true;
 
   /* ------------------------------------------------------------------------
      常量
@@ -12097,6 +12099,7 @@ Li Hua`,
       applyRouteFromHash();
       renderAll();
       await updateStorage();
+      window.__shunshiLibraryReady = true;
       const params = new URLSearchParams(location.search);
       if (params.get('split') === '1') {
         go('upload', false);
@@ -12110,6 +12113,7 @@ Li Hua`,
         window.history.replaceState(null, '', `${location.pathname}${query ? `?${query}` : ''}${location.hash}`);
       }
     } catch (error) {
+      window.__shunshiLibraryFailed = true;
       console.error(error);
       toast(`资料库初始化失败：${error.message || error}`, 'error', 9000);
       const list = $('#material-list');

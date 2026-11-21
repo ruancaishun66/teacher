@@ -1,5 +1,5 @@
 /* 顺势 · 离线缓存：联网时永远取最新，断网时用上次看过的版本。 */
-const CACHE = 'shunshi-pwa-v35';
+const CACHE = 'shunshi-pwa-v36';
 const CORE = [
   './',
   './index.html',
@@ -53,7 +53,12 @@ const CORE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
-      .then((cache) => cache.addAll(CORE))
+      // 逐个下载并限时；某个文件卡住时不让整个新缓存安装失败。
+      .then((cache) => Promise.all(CORE.map((url) =>
+        fetchWithTimeout(url, 8000)
+          .then((response) => (response && response.ok ? cache.put(url, response) : null))
+          .catch(() => null)
+      )))
       .then(() => self.skipWaiting())
       .catch(() => self.skipWaiting())
   );
@@ -67,6 +72,32 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+/* 网络偶尔会卡住不返回；最多等 8 秒，超时就先用上次缓存，别让页面一直转圈。 */
+function fetchWithTimeout(request, ms) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error('network timeout'));
+    }, ms);
+    fetch(request).then(
+      (response) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(response);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;
@@ -76,7 +107,7 @@ self.addEventListener('fetch', (event) => {
   if (/\/vendor\/(tesseract|pdf)/.test(url.pathname)) return;
 
   event.respondWith(
-    fetch(request)
+    fetchWithTimeout(request, 8000)
       .then((response) => {
         if (response && response.ok) {
           const copy = response.clone();
