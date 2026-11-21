@@ -12,7 +12,8 @@
   const $$ = S.$$;
   const STORAGE_KEY = 'shunshi.teacher.v1';
   const DB_NAME = 'rcs-teacher-library';
-  const DB_VERSION = 1;
+  // 和工作台共用同一个库；v2 增加 books / bookWords，教师端打开时不能把版本降回去。
+  const DB_VERSION = 2;
 
   const TYPE_LABELS = {
     single: '单项选择',
@@ -55,6 +56,8 @@
   let lastEnroll = null;
   let pendingReportLink = '';
   let reportLinkStarted = false;
+  let pendingWordBookPick = null;
+  let wordBookPickStarted = false;
   let editingInsightId = null;
   let glossaryPromise = null;
   let wordMaterials = [];
@@ -188,6 +191,7 @@
     $('#teacher-user').hidden = false;
     renderAll();
     setTimeout(maybeImportReportLink, 500);
+    setTimeout(maybeTakeWordBookPick, 760);
   }
 
   function takeReportLink() {
@@ -207,6 +211,52 @@
     if (!box) return;
     box.value = code;
     setTimeout(() => { importReportCode(); }, 320);
+  }
+
+  function takeWordBookPick() {
+    const params = new URLSearchParams(location.search);
+    if (params.get('bookpick') === '1') {
+      params.delete('bookpick');
+      const query = params.toString();
+      try {
+        history.replaceState(null, '', `${location.pathname}${query ? `?${query}` : ''}${location.hash}`);
+      } catch (error) { /* ignore */ }
+    }
+    let raw = '';
+    try { raw = window.localStorage.getItem('shunshi.wordbook.pick.v1') || ''; } catch (error) { raw = ''; }
+    if (!raw) return;
+    try {
+      const pick = JSON.parse(raw);
+      if (!pick || !Array.isArray(pick.words) || !pick.words.length) return;
+      pendingWordBookPick = pick;
+    } catch (error) {
+      pendingWordBookPick = null;
+    }
+  }
+
+  function maybeTakeWordBookPick() {
+    if (!pendingWordBookPick || !data || !sessionPin || wordBookPickStarted) return;
+    wordBookPickStarted = true;
+    const pick = pendingWordBookPick;
+    pendingWordBookPick = null;
+    try { window.localStorage.removeItem('shunshi.wordbook.pick.v1'); } catch (error) { /* ignore */ }
+    switchTab('book');
+    window.setTimeout(() => {
+      openWordDialog(null);
+      const title = $('#word-title');
+      if (title) title.value = pick.title || '词汇书选词打卡';
+      const input = $('#word-input');
+      if (input) {
+        input.value = pick.words.map((word) => {
+          const parts = [word.w, word.zh || '', word.ex || '', word.exZh || ''];
+          while (parts.length > 2 && !parts[parts.length - 1]) parts.pop();
+          return parts.join(' | ');
+        }).join('\n');
+      }
+      buildWordPreview();
+      const count = pick.count || pick.words.length;
+      S.toast(`已从词汇书带入 ${count} 个词。核对释义后就能生成单词任务码。`, 'ok', 7000);
+    }, 240);
   }
 
   async function setupTeacher() {
@@ -277,8 +327,21 @@
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'key' });
         }
+        if (!db.objectStoreNames.contains('books')) {
+          const books = db.createObjectStore('books', { keyPath: 'id' });
+          books.createIndex('createdAt', 'createdAt', { unique: false });
+          books.createIndex('title', 'title', { unique: false });
+        }
+        if (!db.objectStoreNames.contains('bookWords')) {
+          const bookWords = db.createObjectStore('bookWords', { keyPath: 'id' });
+          bookWords.createIndex('bookId', 'bookId', { unique: false });
+        }
       };
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = () => {
+        const db = request.result;
+        db.onversionchange = () => db.close();
+        resolve(db);
+      };
       request.onerror = () => reject(request.error || new Error('无法打开本机资料库。'));
       request.onblocked = () => reject(new Error('资料库被工作台占用，请先关闭工作台页面再试。'));
     });
@@ -672,7 +735,8 @@
         zh: meaning ? (meaningCount >= 4 ? S.meaningFor(word.toLowerCase(), meaning) : S.simplifyMeaning(meaning)) : '',
         kk: '', pos: '', ex: example, exZh: exampleZh
       });
-      if (list.length >= 2000) return;
+      // 整本词汇书可能有几千个词；这里放宽，周编排再按学生分天。
+      if (list.length >= 8000) return;
     });
     return list;
   }
@@ -4409,7 +4473,7 @@
     const ranks = ensureGlossaryRanks(glossary);
     let skipped = 0;
     const words = [];
-    parsed.slice(0, 1500).forEach((word) => {
+    parsed.slice(0, 8000).forEach((word) => {
       const key = String(word.w || '').toLowerCase();
       if (!key) return;
       const entry = glossary[key] || {};
@@ -4437,7 +4501,7 @@
       status.textContent = `已解析 ${words.length} 个词：高频 ${bands.high} · 中频 ${bands.mid} · 低频 ${bands.low}；${withExample} 个带语境例句。` +
         (skipped ? ` 有 ${skipped} 个词没有中文释义，已跳过。` : '');
     }
-    if (parsed.length > 1500) S.toast('词汇书超过 1500 行，只取前 1500 个词。', 'error', 5000);
+    if (parsed.length > 8000) S.toast('词汇书超过 8000 行，只取前 8000 个词；其余可在工作台词汇书里分批使用。', 'error', 6000);
     renderBookPreview();
     updateBookFoot();
     S.toast(`词汇书解析完成，共 ${words.length} 个可用词。`, 'ok', 4000);
@@ -6723,6 +6787,7 @@
 
   function init() {
     takeReportLink();
+    takeWordBookPick();
     bindEvents();
     showAuth();
   }

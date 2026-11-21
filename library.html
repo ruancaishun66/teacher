@@ -404,6 +404,13 @@
       font-size: 0.82rem;
     }
 
+    .view-head-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      justify-content: flex-end;
+    }
+
     .btn {
       display: inline-flex;
       align-items: center;
@@ -2185,6 +2192,11 @@
         align-self: flex-start;
       }
 
+      .view-head-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+
       .stats {
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 8px;
@@ -2541,6 +2553,820 @@
         gap: 4px;
       }
     }
+    /* 题库：按题型分组，逐题查看、勾选、进候选栏 */
+    .bank-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin: 14px 0 10px;
+    }
+
+    .bank-toolbar .search-box {
+      flex: 1 1 240px;
+    }
+
+    .bank-toolbar .select {
+      /* 全局 .select 是 width:100%，在这里必须收回，否则每个筛选框各占一整行。 */
+      width: auto;
+      flex: 0 1 156px;
+      min-width: 118px;
+    }
+
+    .bank-toolbar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-left: auto;
+    }
+
+    .bank-summary {
+      margin-bottom: 12px;
+      color: var(--ink-soft);
+      font-size: 0.7rem;
+    }
+
+    .bank-list {
+      display: grid;
+      gap: 16px;
+      padding-bottom: 86px;
+    }
+
+    .bank-group {
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .bank-group-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 6px 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .bank-group-head h2 {
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 1rem;
+    }
+
+    .bank-group-head span {
+      color: var(--ink-soft);
+      font-size: 0.66rem;
+    }
+
+    .bank-items {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .bank-item {
+      display: grid;
+      grid-template-columns: auto auto minmax(0, 1fr);
+      align-items: start;
+      gap: 10px;
+      padding: 11px 12px;
+      border: 1px solid rgba(49, 95, 140, 0.12);
+      border-radius: 12px;
+      background: #fffdf8;
+      cursor: pointer;
+      transition: 0.18s ease;
+    }
+
+    .bank-item:hover {
+      border-color: rgba(49, 95, 140, 0.3);
+    }
+
+    .bank-item.is-checked {
+      border-color: var(--blue);
+      background: var(--blue-pale);
+      box-shadow: inset 3px 0 0 var(--blue);
+    }
+
+    .bank-item input[type="checkbox"],
+    .book-word-row input[type="checkbox"] {
+      width: 17px;
+      height: 17px;
+      margin-top: 3px;
+      accent-color: var(--blue);
+      cursor: pointer;
+    }
+
+    .bank-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      padding: 3px 6px;
+      border-radius: 7px;
+      color: var(--blue-deep);
+      background: var(--blue-soft);
+      font-size: 0.68rem;
+      font-weight: 700;
+    }
+
+    .bank-body {
+      min-width: 0;
+    }
+
+    .bank-stem {
+      display: -webkit-box;
+      overflow: hidden;
+      color: var(--ink);
+      font-size: 0.78rem;
+      line-height: 1.65;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    .bank-options {
+      display: -webkit-box;
+      overflow: hidden;
+      margin-top: 3px;
+      color: var(--ink-soft);
+      font-size: 0.68rem;
+      line-height: 1.6;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    .bank-question-list {
+      display: grid;
+      gap: 3px;
+      max-height: 220px;
+      margin-top: 7px;
+      padding-top: 7px;
+      border-top: 1px dashed rgba(49, 95, 140, 0.18);
+      overflow: auto;
+    }
+
+    .bank-question-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 7px;
+      color: var(--ink-soft);
+      font-size: 0.68rem;
+      line-height: 1.6;
+    }
+
+    .bank-question-row b {
+      color: var(--blue-deep);
+      font-size: 0.66rem;
+    }
+
+    .bank-question-options {
+      display: block;
+      margin-top: 2px;
+      color: var(--ink-faint, var(--ink-soft));
+      font-size: 0.64rem;
+      font-style: normal;
+      line-height: 1.55;
+    }
+
+    .bank-item-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 9px;
+      margin-top: 5px;
+      color: var(--ink-soft);
+      font-size: 0.62rem;
+    }
+
+    .bank-item-meta .dot {
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.45;
+    }
+
+    .bank-pickbar {
+      position: sticky;
+      bottom: 12px;
+      z-index: 18;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px 14px;
+      margin-top: 4px;
+      padding: 12px 16px;
+      border-radius: 16px;
+      color: #fff;
+      background: var(--blue-deep);
+      box-shadow: 0 18px 38px -22px rgba(27, 52, 77, 0.8);
+    }
+
+    .bank-pickbar[hidden] {
+      display: none;
+    }
+
+    .bank-pickbar-text {
+      display: grid;
+      gap: 1px;
+    }
+
+    .bank-pickbar-text strong {
+      font-family: var(--round);
+      font-size: 0.9rem;
+    }
+
+    .bank-pickbar-text span {
+      color: rgba(255, 255, 255, 0.75);
+      font-size: 0.65rem;
+    }
+
+    .bank-pickbar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .bank-pickbar .btn-ghost {
+      color: rgba(255, 255, 255, 0.82);
+    }
+
+    .bank-pickbar .btn-ghost:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    /* 词汇书：书架封面 + 整本单词详情 */
+    .book-dropzone {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px 20px;
+      margin: 14px 0;
+      padding: 18px 20px;
+      border: 1.5px dashed rgba(49, 95, 140, 0.3);
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(218, 232, 242, 0.65), rgba(255, 250, 242, 0.9));
+      transition: 0.18s ease;
+    }
+
+    .book-dropzone.is-dragging {
+      border-color: var(--blue);
+      background: var(--blue-pale);
+    }
+
+    .book-dropzone-text {
+      flex: 1 1 300px;
+    }
+
+    .book-dropzone-text strong {
+      display: block;
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 1rem;
+    }
+
+    .book-dropzone-text p {
+      margin-top: 3px;
+      color: var(--ink-soft);
+      font-size: 0.68rem;
+      line-height: 1.7;
+    }
+
+    .bookshelf-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      margin-bottom: 8px;
+      color: var(--ink-soft);
+      font-size: 0.68rem;
+    }
+
+    .bookshelf-stats b {
+      color: var(--blue-deep);
+      font-family: var(--latin);
+      font-size: 0.82rem;
+    }
+
+    .bookshelf-tip {
+      opacity: 0.78;
+    }
+
+    .book-shelf {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      align-items: start;
+      gap: 22px 18px;
+      padding: 12px 4px 40px;
+    }
+
+    .book-card {
+      display: grid;
+      gap: 8px;
+      padding: 0;
+      border: 0;
+      color: inherit;
+      background: none;
+      text-align: left;
+    }
+
+    .book-cover {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      aspect-ratio: 3 / 4;
+      padding: 18px 15px 15px 20px;
+      border-radius: 4px 10px 10px 4px;
+      color: #fff;
+      background:
+        radial-gradient(circle at 82% 16%, rgba(255, 255, 255, 0.2) 0 18%, transparent 19%),
+        linear-gradient(150deg, hsl(var(--hue, 210) 44% 43%), hsl(var(--hue, 210) 52% 24%));
+      box-shadow: 0 18px 30px -20px rgba(27, 52, 77, 0.65);
+      overflow: hidden;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .book-cover::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 7px;
+      background: linear-gradient(90deg, rgba(0, 0, 0, 0.28), rgba(255, 255, 255, 0.08));
+    }
+
+    .book-cover::after {
+      content: "";
+      position: absolute;
+      right: -26px;
+      bottom: -30px;
+      width: 110px;
+      height: 110px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 50%;
+    }
+
+    .book-card:hover .book-cover {
+      transform: translateY(-4px) rotate(-0.5deg);
+      box-shadow: 0 24px 38px -20px rgba(27, 52, 77, 0.75);
+    }
+
+    .book-cover-kicker {
+      position: relative;
+      z-index: 1;
+      color: rgba(255, 255, 255, 0.72);
+      font-family: var(--latin);
+      font-size: 0.55rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .book-cover-title {
+      position: relative;
+      z-index: 1;
+      display: -webkit-box;
+      overflow: hidden;
+      font-family: var(--old);
+      font-size: 1.02rem;
+      font-weight: 700;
+      line-height: 1.45;
+      text-wrap: balance;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 4;
+    }
+
+    .book-cover-foot {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.28);
+      color: rgba(255, 255, 255, 0.86);
+      font-size: 0.6rem;
+    }
+
+    .book-card-title {
+      overflow: hidden;
+      color: var(--blue-deep);
+      font-size: 0.76rem;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .book-card-meta {
+      color: var(--ink-soft);
+      font-size: 0.62rem;
+    }
+
+    .book-shelf-empty {
+      grid-column: 1 / -1;
+      padding: 40px 20px;
+      border: 1px dashed var(--line);
+      border-radius: 18px;
+      color: var(--ink-soft);
+      background: rgba(255, 250, 242, 0.6);
+      text-align: center;
+    }
+
+    .book-shelf-empty strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 0.96rem;
+    }
+
+    .book-shelf-empty p {
+      font-size: 0.68rem;
+    }
+
+    .book-import-dialog {
+      width: min(760px, calc(100% - 24px));
+    }
+
+    .book-import-status {
+      margin-top: 12px;
+      color: var(--ink-soft);
+      font-size: 0.68rem;
+      line-height: 1.7;
+    }
+
+    .book-import-progress {
+      height: 6px;
+      margin-top: 8px;
+      border-radius: 999px;
+      background: rgba(49, 95, 140, 0.12);
+      overflow: hidden;
+    }
+
+    .book-import-progress div {
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--blue), var(--sage));
+      transition: width 0.2s ease;
+    }
+
+    .book-import-summary {
+      margin-top: 10px;
+      padding: 9px 11px;
+      border-radius: 10px;
+      color: #4f5a34;
+      background: var(--sage-soft);
+      font-size: 0.68rem;
+      line-height: 1.75;
+    }
+
+    .book-import-summary[hidden] {
+      display: none;
+    }
+
+    .book-import-preview {
+      display: grid;
+      gap: 3px;
+      max-height: 230px;
+      margin-top: 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fffdf8;
+      overflow: auto;
+    }
+
+    .book-import-preview .row {
+      display: grid;
+      grid-template-columns: 120px 90px minmax(0, 1fr);
+      gap: 8px;
+      padding: 3px 0;
+      border-bottom: 1px dashed rgba(49, 95, 140, 0.1);
+      font-size: 0.68rem;
+      line-height: 1.55;
+    }
+
+    .book-import-preview .row:last-child {
+      border-bottom: 0;
+    }
+
+    .book-import-preview b {
+      color: var(--blue-deep);
+    }
+
+    .book-import-preview small {
+      color: var(--ink-soft);
+    }
+
+    .book-detail-dialog {
+      width: min(980px, calc(100% - 20px));
+    }
+
+    .book-detail-dialog .dialog-form {
+      display: flex;
+      flex-direction: column;
+      max-height: min(92vh, 920px);
+    }
+
+    .book-detail-head {
+      margin-bottom: 10px;
+    }
+
+    .book-detail-id {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .book-mini-cover {
+      flex: none;
+      width: 44px;
+      height: 60px;
+      border-radius: 3px 7px 7px 3px;
+      background: linear-gradient(150deg, hsl(var(--hue, 210) 44% 43%), hsl(var(--hue, 210) 52% 24%));
+      box-shadow: inset 4px 0 0 rgba(0, 0, 0, 0.18);
+    }
+
+    .book-detail-id h2 {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .book-detail-id p {
+      margin-top: 2px;
+      color: var(--ink-soft);
+      font-size: 0.66rem;
+    }
+
+    .book-detail-head-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .book-delete-btn {
+      color: var(--red-deep);
+      font-size: 0.68rem;
+    }
+
+    .book-detail-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .book-detail-toolbar .search-box {
+      flex: 1 1 230px;
+    }
+
+    .book-word-filter-count {
+      margin-left: auto;
+      color: var(--ink-soft);
+      font-size: 0.64rem;
+    }
+
+    .book-word-list {
+      flex: 1;
+      min-height: 220px;
+      padding: 6px 2px 7px;
+      overflow: auto;
+    }
+
+    .book-word-row {
+      display: grid;
+      grid-template-columns: auto minmax(120px, 0.34fr) minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 10px;
+      padding: 8px 9px;
+      border-bottom: 1px dashed rgba(49, 95, 140, 0.13);
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .book-word-row:hover {
+      background: var(--blue-pale);
+    }
+
+    .book-word-row.is-checked {
+      background: var(--blue-pale);
+      box-shadow: inset 3px 0 0 var(--blue);
+    }
+
+    .book-word-head {
+      min-width: 0;
+    }
+
+    .book-word-head b {
+      display: block;
+      overflow: hidden;
+      color: var(--blue-deep);
+      font-family: var(--latin);
+      font-size: 0.82rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .book-word-phon {
+      color: var(--ink-soft);
+      font-size: 0.62rem;
+    }
+
+    .book-word-meaning {
+      color: var(--ink);
+      font-size: 0.72rem;
+      line-height: 1.6;
+    }
+
+    .book-word-meaning em {
+      margin-right: 4px;
+      color: var(--sage);
+      font-style: normal;
+      font-weight: 700;
+    }
+
+    .book-word-example {
+      display: block;
+      margin-top: 2px;
+      color: var(--ink-soft);
+      font-size: 0.64rem;
+      line-height: 1.55;
+    }
+
+    .book-word-index {
+      color: var(--ink-soft);
+      font-family: var(--latin);
+      font-size: 0.6rem;
+    }
+
+    .book-word-pager {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 7px 0 3px;
+    }
+
+    .book-word-pager button {
+      min-width: 34px;
+      padding: 4px 9px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--ink-soft);
+      background: #fff;
+      font-size: 0.66rem;
+    }
+
+    .book-word-pager button.is-active {
+      color: #fff;
+      border-color: var(--blue);
+      background: var(--blue);
+    }
+
+    .book-word-pager button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    .book-word-pager span {
+      color: var(--ink-soft);
+      font-size: 0.64rem;
+    }
+
+    .book-pickbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px 14px;
+      margin-top: 8px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+    }
+
+    .book-pickbar-text {
+      display: grid;
+      gap: 1px;
+    }
+
+    .book-pickbar-text strong {
+      color: var(--blue-deep);
+      font-family: var(--round);
+      font-size: 0.86rem;
+    }
+
+    .book-pickbar-text span {
+      color: var(--ink-soft);
+      font-size: 0.62rem;
+    }
+
+    .book-pickbar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .book-word-empty {
+      padding: 30px 16px;
+      color: var(--ink-soft);
+      font-size: 0.72rem;
+      text-align: center;
+    }
+
+    @media (max-width: 720px) {
+      .bank-toolbar-actions {
+        width: 100%;
+        margin-left: 0;
+      }
+
+      .bank-toolbar .select {
+        flex: 1 1 138px;
+      }
+
+      .bank-item {
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+
+      .bank-item .bank-number {
+        display: none;
+      }
+
+      .bank-pickbar {
+        position: static;
+      }
+
+      .book-shelf {
+        grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+        gap: 18px 12px;
+      }
+
+      .book-cover {
+        padding: 13px 11px 11px 16px;
+      }
+
+      .book-cover-title {
+        font-size: 0.88rem;
+      }
+
+      .book-import-preview .row {
+        grid-template-columns: 90px minmax(0, 1fr);
+      }
+
+      .book-import-preview .row small {
+        display: none;
+      }
+
+      .book-detail-head {
+        align-items: flex-start;
+      }
+
+      .book-delete-btn {
+        display: none;
+      }
+
+      .book-word-row {
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+
+      .book-word-meaning {
+        grid-column: 2;
+      }
+
+      .book-word-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0 7px;
+      }
+
+      .book-word-head b {
+        white-space: normal;
+      }
+
+      .book-word-index {
+        display: none;
+      }
+
+      .book-pickbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .book-pickbar-actions {
+        justify-content: flex-end;
+      }
+    }
   </style>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -2666,6 +3492,16 @@
         资料库
         <span class="nav-count" data-count="materials">0</span>
       </button>
+      <button type="button" data-view="bank">
+        <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
+        题库
+        <span class="nav-count" data-count="bank">0</span>
+      </button>
+      <button type="button" data-view="books">
+        <svg class="icon" aria-hidden="true"><use href="#i-library"/></svg>
+        词汇书
+        <span class="nav-count" data-count="books">0</span>
+      </button>
       <button type="button" data-view="upload">
         <svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg>
         上传资料
@@ -2693,10 +3529,20 @@
             <h1 id="library-title">把资料，收进一个地方。</h1>
             <p>按题型和年级整理，随时检索、下载；生成的练习卷也会保存在这里。</p>
           </div>
-          <button class="btn btn-primary" type="button" data-view="upload">
-            <svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg>
-            上传资料
-          </button>
+          <div class="view-head-actions">
+            <button class="btn btn-outline" type="button" data-view="bank">
+              <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
+              浏览题库
+            </button>
+            <button class="btn btn-outline" type="button" data-view="books">
+              <svg class="icon" aria-hidden="true"><use href="#i-library"/></svg>
+              词汇书
+            </button>
+            <button class="btn btn-primary" type="button" data-view="upload">
+              <svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg>
+              上传资料
+            </button>
+          </div>
         </div>
 
         <div class="stats">
@@ -2744,6 +3590,88 @@
           <span id="paper-count-label">0 份</span>
         </div>
         <div id="paper-history" class="paper-history" aria-live="polite"></div>
+      </section>
+
+      <section class="view" id="view-bank" aria-labelledby="bank-title">
+        <div class="view-head">
+          <div>
+            <p class="eyebrow">Question Bank <span>/ 题库</span></p>
+            <h1 id="bank-title">拆好的题，一道一道摆出来。</h1>
+            <p>入库时按题型拆开的题目都在这里。像翻题库一样逐题查看，勾选进候选栏，凑齐后一次生成练习卷。</p>
+          </div>
+        </div>
+
+        <div class="bank-toolbar">
+          <div class="search-box">
+            <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+            <input class="input" id="bank-search" type="search" placeholder="搜索题干、选项或资料名…" aria-label="搜索题库">
+          </div>
+          <select class="select" id="bank-type" aria-label="按题型筛选">
+            <option value="">全部题型</option>
+          </select>
+          <select class="select" id="bank-grade" aria-label="按年级筛选">
+            <option value="">全部年级</option>
+          </select>
+          <select class="select" id="bank-material" aria-label="按资料筛选">
+            <option value="">全部资料</option>
+          </select>
+          <div class="bank-toolbar-actions">
+            <button class="btn btn-outline" type="button" data-action="bank-select-visible">全选当前</button>
+            <button class="btn btn-ghost" type="button" data-action="bank-clear">清空勾选</button>
+            <button class="btn btn-blue" type="button" data-action="bank-save-usb" title="按题型分别保存到 U 盘的「题库」文件夹，Excel 也能打开">
+              <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
+              题库存到 U 盘
+            </button>
+          </div>
+        </div>
+
+        <div class="bank-summary" id="bank-summary">资料库里还没有拆好的题目。</div>
+        <div class="bank-list" id="bank-list" aria-live="polite"></div>
+
+        <div class="bank-pickbar" id="bank-pickbar" hidden>
+          <div class="bank-pickbar-text">
+            <strong id="bank-pick-count">已选 0 组</strong>
+            <span id="bank-pick-detail">勾选题目后会出现在这里，凑齐再组卷。</span>
+          </div>
+          <div class="bank-pickbar-actions">
+            <button class="btn btn-ghost" type="button" data-action="bank-clear">清空</button>
+            <button class="btn btn-outline" type="button" data-action="bank-save-usb-picked">所选存 U 盘</button>
+            <button class="btn btn-primary" type="button" data-action="bank-compose">
+              <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
+              生成练习卷
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-books" aria-labelledby="books-title">
+        <div class="view-head">
+          <div>
+            <p class="eyebrow">Word Books <span>/ 词汇书</span></p>
+            <h1 id="books-title">整本词汇书，放上书架。</h1>
+            <p>一次上传整本 PDF、Word 或 TXT，自动提取全书单词、音标和释义。平时看到的是书架封面，点开一本书就能翻看全部单词，勾选要用的词。</p>
+          </div>
+        </div>
+
+        <div class="book-dropzone" id="book-dropzone">
+          <div class="book-dropzone-text">
+            <strong>上传整本词汇书</strong>
+            <p>支持 .pdf、.docx、.txt、.md。几百页的词汇书也可以整本读；扫描版会自动走本机 OCR，页数多时请让电脑保持开机。</p>
+          </div>
+          <button class="btn btn-primary" type="button" id="book-pick">
+            <svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg>
+            选择词汇书
+          </button>
+          <input class="visually-hidden" id="book-file" type="file" accept=".docx,.pdf,.txt,.md">
+        </div>
+
+        <div class="bookshelf-stats">
+          <span>书架 <b data-stat="books">0</b> 本</span>
+          <span>收录 <b data-stat="bookWords">0</b> 个词</span>
+          <span class="bookshelf-tip">词书只保存在这台电脑的浏览器里，不上传网络。</span>
+        </div>
+
+        <div class="book-shelf" id="book-shelf" aria-live="polite"></div>
       </section>
 
       <section class="view" id="view-upload" aria-labelledby="upload-title">
@@ -3033,11 +3961,24 @@
                 </select>
               </div>
               <div class="field">
-                <label for="ocr-pages">扫描 PDF 最多识别页数</label>
-                <input class="input" id="ocr-pages" type="number" min="1" max="40" step="1" value="20">
+                <label for="ocr-range-mode">扫描 PDF 识别范围</label>
+                <select class="select" id="ocr-range-mode">
+                  <option value="all" selected>整本全部页（推荐）</option>
+                  <option value="range">只识别指定页码</option>
+                </select>
               </div>
             </div>
-            <p class="form-note">默认识别前 20 页，整份 12 页的扫描卷也能一次读完（后面的五选五、短文填词、作文不会再漏）。100 多页的整本书建议先拆分；页数越多，识别越慢。</p>
+            <div class="form-row" id="ocr-range-pages" hidden>
+              <div class="field">
+                <label for="ocr-page-from">从第几页开始</label>
+                <input class="input" id="ocr-page-from" type="number" min="1" max="2000" step="1" value="1">
+              </div>
+              <div class="field">
+                <label for="ocr-page-to">到第几页结束 <span class="field-note">留空或 0 = 最后一页</span></label>
+                <input class="input" id="ocr-page-to" type="number" min="0" max="2000" step="1" value="0">
+              </div>
+            </div>
+            <p class="form-note">默认整本全部页，几百页的词汇书或整本练习册都会从头读到尾。扫描件页数越多越慢，识别时请让电脑保持开机。只想整理其中一段时，选“只识别指定页码”。</p>
             <div class="settings-actions">
               <button class="btn btn-blue" type="button" data-action="save-settings">保存设置</button>
             </div>
@@ -3080,7 +4021,7 @@
             <ul>
               <li>有文字层的 PDF 会直接提取文字；扫描版 PDF 和图片会自动走本地 OCR。</li>
               <li>入库前会自动清理重复页眉页脚、页码、题库网址、扫描软件水印和符号噪点，生成练习时还会再清一次。清理不彻底时，可在资料编辑里手动删掉那几行。</li>
-              <li>整本一百多页的扫描卷不建议一次上传。先在设置里把「扫描 PDF 最多识别页数」设为 8–12 页，或把需要用的几页截图后上传。</li>
+              <li>扫描版现在默认读整本全部页，几百页的整本练习册也能一次入库；页数越多越慢，识别时电脑别休眠。只想先处理其中一段时，到设置里把「扫描 PDF 识别范围」改成「只识别指定页码」，填上从第几页到第几页即可。</li>
               <li>OCR 是机器识别，题号、引号和易混字母（l/I、0/O）可能出错。入库后点资料卡上的「修改」核对一遍，准确率会高很多。</li>
               <li>如果提取出来题号、选项、大题标题粘成一团，点资料卡上的「豆包精排」图标：复制提示词给豆包，让它只调整换行和分段，再把整理稿整段粘回来，系统会按新稿一道一道重新拆题。</li>
               <li>旧版 .doc 会完整存档，但不能自动提取文字；用 Word 另存为 .docx 最稳。</li>
@@ -3100,7 +4041,29 @@
           </article>
 
           <article class="guide-card">
-            <h2><span class="num">3</span>生成每日练习：一句指令就够</h2>
+            <h2><span class="num">3</span>题库：逐题勾选，凑齐再组卷</h2>
+            <p>资料确认入库后，拆好的题目会按题型进入「题库」。这里可以把每一组题、每一道小题都翻出来看，不必先想好整卷要哪些。</p>
+            <ul>
+              <li>顶部能按题型、年级、资料筛选，也能搜题干、选项或资料名；筛选后可以「全选当前」。</li>
+              <li>单选直接列题干和选项；阅读、完形等共用一篇材料的大题，会先显示篇名或原文开头，下面逐条列小题和选项。勾选任意一题会整组带进候选栏，材料不会拆散。</li>
+              <li>勾选后底部出现候选栏，显示“几组·几题”；点「生成练习卷」进入排版预览，确认后「存入练习卷」，再去教师端布置。</li>
+              <li>点「题库存到 U 盘」会按题型分别写入 U 盘「题库」文件夹：一份 JSON 保留完整结构，一份 CSV 可直接用 Excel 打开。</li>
+            </ul>
+          </article>
+
+          <article class="guide-card">
+            <h2><span class="num">4</span>词汇书：整本上书架，点开再选词</h2>
+            <p>点左侧「词汇书」→「选择词汇书」，可以一次上传整本 .pdf、.docx、.txt 或 .md。几百页的词汇书也能整本读，扫描版会自动走本机 OCR。</p>
+            <ul>
+              <li>平时看到的是书架封面；点开一本书，才会读取并显示全书单词，按每页 60 个翻看，也能搜索单词或释义。</li>
+              <li>可以勾选本页、全选筛选结果或逐条勾选；候选栏支持导出 CSV / TXT、存到 U 盘「词汇书」，或「带到教师端」自动填入单词任务。</li>
+              <li>教师端一次单词任务最多带 80 个词；超过时先带前 80 个，其余留在书里分批再选。</li>
+              <li>词汇书只保存文字和单词，不重复保存原文件；原书请自己留好。换电脑或清理浏览器数据前，先导出备份。</li>
+            </ul>
+          </article>
+
+          <article class="guide-card">
+            <h2><span class="num">5</span>生成每日练习：一句指令就够</h2>
             <p>进入「每日练习」，先选「全部 / 初中 / 高中」题库，再在指令框里写年级、题型、数量和难度。指令里写「初中」「高中」「高一」等字眼时，会自动切换到对应题库。例如：</p>
             <span class="guide-code">今日练习 单选5道 阅读理解1篇 语法填空1篇 难度5-7
 高中 完形填空1篇 阅读理解2篇 难度6
@@ -3118,7 +4081,7 @@
           </article>
 
           <article class="guide-card">
-            <h2><span class="num">4</span>豆包解析与词表：把详细讲解补到范本水平</h2>
+            <h2><span class="num">6</span>豆包解析与词表：把详细讲解补到范本水平</h2>
             <p>本地规则能给出答案、考点、难度和基础答题思路，但范本里那种「语篇导读 + 逐项排除 + 长难句分析 + 熟词生义」需要更强的语言模型。工作台用「复制提示词 → 豆包生成 → 粘贴回来」的方式接入豆包，不需要把 API Key 放在网页里。</p>
             <ol>
               <li>生成练习后，点「豆包解析」，再点「复制提示词」。</li>
@@ -3130,7 +4093,7 @@
           </article>
 
           <article class="guide-card">
-            <h2><span class="num">5</span>词汇表与默写表：每次生成都会一起出</h2>
+            <h2><span class="num">7</span>词汇表与默写表：每次生成都会一起出</h2>
             <p>生成练习时，系统会从文章和所有选项中按出现顺序抽取单词，去重后生成：</p>
             <ul>
               <li>词汇背诵表：三列「英文 / KK 音标 / 中文」，短语和固定搭配单独一张表。</li>
@@ -3141,7 +4104,7 @@
           </article>
 
           <article class="guide-card">
-            <h2><span class="num">6</span>保存、备份与换设备</h2>
+            <h2><span class="num">8</span>保存、备份与换设备</h2>
             <ul>
               <li>资料只保存在当前浏览器里，不会上传到任何网站或服务器。</li>
               <li>换电脑、换浏览器、清理浏览器数据，资料都会消失。请在「设置」里每周导出一次 ZIP 备份。</li>
@@ -3153,9 +4116,9 @@
           </article>
 
           <article class="guide-card">
-            <h2><span class="num">7</span>常见问题</h2>
+            <h2><span class="num">9</span>常见问题</h2>
             <ul>
-              <li><strong>扫描 PDF 识别很慢？</strong> OCR 在浏览器里跑，第一页要加载语言包。把页数限制调小，或只上传需要用的几页。</li>
+              <li><strong>扫描 PDF 识别很慢？</strong> OCR 在浏览器里跑，第一页要加载语言包。默认读整本全部页；赶时间时到「设置 → 扫描 PDF 识别范围」选「只识别指定页码」，先处理需要的那一段。</li>
               <li><strong>题目被拆错？</strong> 先点资料卡上的「豆包精排」，让豆包只整理换行和分段；实在不行再打开资料编辑，手动把正文整理成「题号 + 题干 + 选项」，保存后会重新拆题。</li>
               <li><strong>豆包精排会改题目内容吗？</strong> 提示词明确要求只动换行和分段，不改写、不增删。应用后仍建议扫一眼；原始文件一直保留，可随时下载。</li>
               <li><strong>答案区显示「—」？</strong> 说明原资料没有附答案，或答案不在同一份文件里。用「豆包解析」补齐即可。</li>
@@ -3400,6 +4363,79 @@
     </div>
   </dialog>
 
+  <dialog class="app-dialog book-import-dialog" id="book-import-dialog">
+    <div class="dialog-form">
+      <div class="dialog-head">
+        <div>
+          <h2>导入整本词汇书</h2>
+          <p class="form-note" id="book-import-file">正在准备…</p>
+        </div>
+        <button class="dialog-close" type="button" data-book-close aria-label="关闭">×</button>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="book-import-title">书名</label>
+          <input class="input" id="book-import-title" type="text" placeholder="例如：初中英语词汇 3500">
+        </div>
+        <div class="field">
+          <label for="book-import-grade">年级</label>
+          <select class="select" id="book-import-grade">
+            <option value="">不标注</option>
+          </select>
+        </div>
+      </div>
+      <div class="book-import-status" id="book-import-status">正在提取文字…</div>
+      <div class="book-import-progress"><div id="book-import-bar"></div></div>
+      <div class="book-import-summary" id="book-import-summary"></div>
+      <div class="book-import-preview" id="book-import-preview"></div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" type="button" data-book-close>取消</button>
+        <button class="btn btn-primary" type="button" id="book-import-save" disabled>保存到书架</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="app-dialog book-detail-dialog" id="book-detail-dialog">
+    <div class="dialog-form">
+      <div class="dialog-head book-detail-head">
+        <div class="book-detail-id">
+          <span class="book-mini-cover" id="book-detail-cover" aria-hidden="true"></span>
+          <div>
+            <h2 id="book-detail-title">词汇书</h2>
+            <p id="book-detail-meta"></p>
+          </div>
+        </div>
+        <div class="book-detail-head-actions">
+          <button class="btn btn-ghost book-delete-btn" type="button" id="book-detail-delete">删除这本书</button>
+          <button class="dialog-close" type="button" data-book-close aria-label="关闭">×</button>
+        </div>
+      </div>
+      <div class="book-detail-toolbar">
+        <div class="search-box">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+          <input class="input" id="book-word-search" type="search" placeholder="在这本书里找单词或释义…" aria-label="搜索这本书里的单词">
+        </div>
+        <button class="btn btn-outline" type="button" id="book-select-page">勾选本页</button>
+        <button class="btn btn-outline" type="button" id="book-select-all">全选筛选结果</button>
+        <button class="btn btn-ghost" type="button" id="book-select-none">清空</button>
+        <span class="book-word-filter-count" id="book-word-filter-count"></span>
+      </div>
+      <div class="book-word-list" id="book-word-list" aria-live="polite"></div>
+      <div class="book-word-pager" id="book-word-pager"></div>
+      <div class="book-pickbar" id="book-pickbar">
+        <div class="book-pickbar-text">
+          <strong id="book-pick-count">已选 0 个词</strong>
+          <span id="book-pick-hint">勾选后可以导出词表、存 U 盘，或带到教师端做单词任务。</span>
+        </div>
+        <div class="book-pickbar-actions">
+          <button class="btn btn-outline" type="button" data-action="book-export-picked">导出词表</button>
+          <button class="btn btn-blue" type="button" data-action="book-usb-picked">存 U 盘</button>
+          <button class="btn btn-primary" type="button" data-action="book-teacher-picked">带到教师端</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
   <dialog class="app-dialog" id="confirm-dialog">
     <form class="dialog-form" method="dialog">
       <div class="dialog-head">
@@ -3420,7 +4456,7 @@
   <script>window.SHUNSHI_TEACHER_AI = true;</script>
   <script src="portal.js?v=20261121d"></script>
   <script src="question-visual.js?v=20261121d"></script>
-  <script src="library.js?v=20261121f"></script>
+  <script src="library.js?v=20261121h"></script>
 <script src="pwa.js" defer></script>
 </body>
 </html>
