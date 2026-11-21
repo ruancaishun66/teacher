@@ -3978,17 +3978,49 @@
 
   function listeningSectionsForAi(text) {
     const source = String(text || '').replace(/\r\n?/g, '\n');
-    return detectExamSections(source)
-      .filter((section) => section.type === 'listening' && String(section.content || '').trim())
-      .map((section) => ({
-        type: 'listening',
-        heading: section.heading || '听力理解',
-        // raw 保留原文前后的换行，接回去时不会把下一大题标题粘在听力最后一行后面。
-        raw: source.slice(section.start, section.end),
-        content: String(section.content || '').trim(),
-        start: section.start,
-        end: section.end
-      }));
+    const sections = detectExamSections(source)
+      .filter((section) => section.type === 'listening' && String(section.content || '').trim());
+    if (!sections.length) {
+      // 只有一段听力、后面没有第二个能认出的题型标题时，detectExamSections 会返回空。
+      // 这里按行单独找第一个听力标题，切到文末或下一个题型标题，照样不把听力发给 AI。
+      const lines = source.split('\n');
+      let offset = 0;
+      let found = null;
+      for (const line of lines) {
+        const type = sectionTypeFromLine(line);
+        if (!found) {
+          if (type === 'listening') found = { heading: line.trim(), start: offset };
+        } else if (type) {
+          found.end = offset;
+          break;
+        }
+        offset += line.length + 1;
+      }
+      if (found) {
+        const end = Number.isFinite(found.end) ? found.end : source.length;
+        const raw = source.slice(found.start, end);
+        if (raw.trim()) {
+          return [{
+            type: 'listening',
+            heading: found.heading || '听力理解',
+            raw,
+            content: raw.trim(),
+            start: found.start,
+            end
+          }];
+        }
+      }
+      return [];
+    }
+    return sections.map((section) => ({
+      type: 'listening',
+      heading: section.heading || '听力理解',
+      // raw 保留原文前后的换行，接回去时不会把下一大题标题粘在听力最后一行后面。
+      raw: source.slice(section.start, section.end),
+      content: String(section.content || '').trim(),
+      start: section.start,
+      end: section.end
+    }));
   }
 
   function textWithoutListeningForAi(text) {
@@ -4036,7 +4068,9 @@
       // AI 把占位行删掉时，宁可把听力原文放到最前面，也不能丢。
       out = [...list.slice(index).map(bodyOf), out].filter(Boolean).join('\n\n');
     }
-    return out;
+    // 听力原文自带的分段换行加上占位行前后的换行，偶尔会叠成三四个空行；
+    // 统一压成一个空行，和发给 AI 前的正文保持一致。
+    return out.replace(/\n{3,}/g, '\n\n');
   }
 
   function splitReadingPassages(sectionText, type) {
@@ -8802,6 +8836,10 @@
     const tool = aiTool();
     if (!tool) { toast('AI 模块没有加载，请刷新页面。', 'error'); return; }
     const skip = textWithoutListeningForAi(text);
+    if (!skip.text.split(AI_LISTENING_MARKER).join('').trim()) {
+      toast(`这份资料只有听力原文（${skip.removedChars} 字），已经留在本机；不发送 AI，也不产生费用。`, 'ok', 9000);
+      return;
+    }
     const source = skip.text.slice(0, 5000);
     const cut = skip.text.length > 5000;
     const listeningNote = skip.removed.length
@@ -10237,6 +10275,10 @@
       return;
     }
     const skip = textWithoutListeningForAi(prepared.body);
+    if (!skip.text.split(AI_LISTENING_MARKER).join('').trim()) {
+      toast(`这份资料只有听力原文（${skip.removedChars} 字），已经留在本机，不发送 AI，也不产生费用。`, 'ok', 9000);
+      return;
+    }
     const chunks = splitReflowChunks(skip.text);
     if (!chunks.length) {
       toast('没有可整理的正文，请先上传文件或粘贴题目。', 'error');
@@ -10330,6 +10372,10 @@
     const tool = aiTool();
     if (!tool) return;
     const skip = textWithoutListeningForAi(prepared.body);
+    if (!skip.text.split(AI_LISTENING_MARKER).join('').trim()) {
+      setPaperSplitStatus(`这份资料只有听力原文（${skip.removedChars} 字），已经留在本机，不发送 AI；请直接核对本机识别结果。`);
+      return;
+    }
     const source = skip.text.slice(0, SPLIT_AI_MAX_CHARS);
     const truncated = skip.text.length > source.length;
     const prompt = paperSplitAiPrompt(source);
