@@ -5981,7 +5981,7 @@
     cfg.key = key;
     tool.save(cfg);
     renderAiSettings();
-    toast('Key 已保存在这台电脑的浏览器里，不进入备份，也不会写进网页源码。', 'ok', 6000);
+    toast('Key 已保存在这台电脑的浏览器里，不会出现在网页或备份里。', 'ok', 6000);
   }
 
   async function testLibraryAiKey() {

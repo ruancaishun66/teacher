@@ -5947,7 +5947,7 @@
     cfg.key = key;
     saveAiConfig(cfg);
     updateAiSettingsUI();
-    S.toast('Key 已保存在这台电脑的浏览器里，不进入备份码，也不会写进网页源码。', 'ok', 6500);
+    S.toast('Key 已保存在这台电脑的浏览器里，不会出现在网页或备份码里。', 'ok', 6500);
   }
 
   function clearAiKey() {

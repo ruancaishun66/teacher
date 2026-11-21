@@ -83,7 +83,7 @@
       <div class="teacher-hero-copy">
         <p class="hero-greet">顺势 · 教师控制台</p>
         <h1>因势利导，<em>看见每一个学生。</em></h1>
-        <p class="hero-tip">把资料库里的练习卷拆成任务码，发给学生；学生回传汇报码后，这里会自动生成学情总览与认知画像。所有数据只在本机。</p>
+        <p class="hero-tip">把资料库里的练习卷拆成任务码，发给学生；学生回传汇报码后，这里会自动生成学情总览与认知画像。所有数据只保存在这台电脑。</p>
         <div class="hero-actions">
           <button class="p-btn" type="button" id="hero-words">发布任务</button>
           <button class="p-btn ghost" type="button" id="hero-assign">布置练习任务</button>
@@ -698,7 +698,7 @@
             <h2 class="p-card-title">AI 直连 <small>DEEPSEEK · 可选</small></h2>
             <span class="confidence-chip" id="ai-key-state">未配置</span>
           </div>
-          <p class="hint" style="text-align:left;margin-top:0;">用于“认知画像”里的一键分析。只有你点按钮时才会调用，按量计费；Key 只保存在这台电脑的浏览器里，不进入备份码，也不会写进网页源码。不配置也完全不影响其他功能，原来的“复制提示词”仍然免费可用。</p>
+          <p class="hint" style="text-align:left;margin-top:0;">用于“认知画像”里的一键分析。只有你点按钮时才会调用，按量计费；Key 只保存在这台电脑的浏览器里，不会出现在网页或备份码里。不配置也完全不影响其他功能，原来的“复制提示词”仍然免费可用。</p>
           <div class="field">
             <label for="ai-key-input">DeepSeek API Key</label>
             <input class="input" id="ai-key-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-... 只存本机">
@@ -714,20 +714,22 @@
           <p class="hint" style="text-align:left;">这里的统计汇总教师端、组卷工作台和单词例句补全的全部 AI 调用；按来源分栏显示。Key 和记录都只在这台电脑的浏览器里，不会上传。</p>
           <p class="hint" style="text-align:left;margin:8px 0 0;">费用按 DeepSeek Flash 高峰价估算（输入 ¥2.2 / 百万 tokens，输出 ¥8.6 / 百万 tokens），实际以 DeepSeek 账单为准。</p>
         </section>
-        <section class="p-card p-col-12">
-          <div class="p-card-head"><h2 class="p-card-title">正向反馈设计依据 <small>ENGAGEMENT NOTES</small></h2></div>
-          <p class="hint" style="text-align:left;margin-top:0;">学生端的精灵成长、连击、满月转盘和即时反馈，参考了以下公开研究与案例。它们解释的是“怎样让好习惯更容易坚持”，不是鼓励无节制上瘾；所有奖励都只在本机、只用于学习行为，不涉及充值或抽卡付费。</p>
-          <div class="research-grid">
-            <div><b>《Hooked》</b><span>Nir Eyal, 2014</span><p>触发 → 行动 → 可变奖励 → 投入。对应：每日任务入口、完成后的随机成长/小鱼干、精灵图鉴沉淀。</p></div>
-            <div><b>《The Power of Habit》</b><span>Charles Duhigg, 2012</span><p>线索 → 惯常行为 → 奖励。对应：固定打卡按钮、单词闯关、结算页的即时正反馈。</p></div>
-            <div><b>《Atomic Habits》</b><span>James Clear, 2018</span><p>让行为“有吸引力、容易做、令人满足”。对应：一天一个小任务、错词自动回炉、完成即得 EXP。</p></div>
-            <div><b>《Tiny Habits》</b><span>B.J. Fogg, 2019</span><p>微小行为后立刻庆祝，情绪会强化习惯回路。对应：答对一题精灵就长大一点、连击火焰。</p></div>
-            <div><b>自我决定理论</b><span>Deci &amp; Ryan, 2000</span><p>胜任感、自主感、归属感是内在动机的三大支柱。对应：难度档、可选“多学一天”、精灵陪伴。</p></div>
-            <div><b>目标梯度 / 预置进度</b><span>Kivetz et al., 2006</span><p>看得见的进度会加速坚持。对应：7 天周计划进度点、成长条、满月转盘倒计时。</p></div>
-            <div><b>《Flow》</b><span>Csikszentmihalyi, 1990</span><p>挑战与能力匹配时最容易进入心流。对应：按学生水平自动拆题，测试后自动升降档。</p></div>
-            <div><b>《The Social Dilemma》</b><span>Netflix, 2020</span><p>反面提醒：可变奖励和连续记录也可能变成操控。对应：不设付费抽卡、不公开排名、允许随时退出并保留记录。</p></div>
+        <details class="p-card p-col-12">
+          <summary class="p-card-title" style="cursor:pointer;">正向反馈设计依据 <small>ENGAGEMENT NOTES · 可选阅读</small></summary>
+          <div style="margin-top:14px;">
+            <p class="hint" style="text-align:left;margin-top:0;">学生端的精灵成长、连击、满月转盘和即时反馈，参考了以下公开研究与案例。它们解释的是“怎样让好习惯更容易坚持”，不是鼓励无节制上瘾；所有奖励都只在本机、只用于学习行为，不涉及充值或抽卡付费。</p>
+            <div class="research-grid">
+              <div><b>《Hooked》</b><span>Nir Eyal, 2014</span><p>触发 → 行动 → 可变奖励 → 投入。对应：每日任务入口、完成后的随机成长/小鱼干、精灵图鉴沉淀。</p></div>
+              <div><b>《The Power of Habit》</b><span>Charles Duhigg, 2012</span><p>线索 → 惯常行为 → 奖励。对应：固定打卡按钮、单词闯关、结算页的即时正反馈。</p></div>
+              <div><b>《Atomic Habits》</b><span>James Clear, 2018</span><p>让行为“有吸引力、容易做、令人满足”。对应：一天一个小任务、错词自动回炉、完成即得 EXP。</p></div>
+              <div><b>《Tiny Habits》</b><span>B.J. Fogg, 2019</span><p>微小行为后立刻庆祝，情绪会强化习惯回路。对应：答对一题精灵就长大一点、连击火焰。</p></div>
+              <div><b>自我决定理论</b><span>Deci &amp; Ryan, 2000</span><p>胜任感、自主感、归属感是内在动机的三大支柱。对应：难度档、可选“多学一天”、精灵陪伴。</p></div>
+              <div><b>目标梯度 / 预置进度</b><span>Kivetz et al., 2006</span><p>看得见的进度会加速坚持。对应：7 天周计划进度点、成长条、满月转盘倒计时。</p></div>
+              <div><b>《Flow》</b><span>Csikszentmihalyi, 1990</span><p>挑战与能力匹配时最容易进入心流。对应：按学生水平自动拆题，测试后自动升降档。</p></div>
+              <div><b>《The Social Dilemma》</b><span>Netflix, 2020</span><p>反面提醒：可变奖励和连续记录也可能变成操控。对应：不设付费抽卡、不公开排名、允许随时退出并保留记录。</p></div>
+            </div>
           </div>
-        </section>
+        </details>
         <section class="p-card p-col-12">
           <div class="p-card-head"><h2 class="p-card-title">这个平台怎么运转 <small>HOW IT WORKS</small></h2></div>
           <div class="flow-grid">
@@ -1369,9 +1371,9 @@
 <script src="insights-core.js"></script>
 <script src="insights.js"></script>
 <script>window.SHUNSHI_TEACHER_AI = true;</script>
-<script src="portal.js?v=20261120h"></script>
+<script src="portal.js?v=20261121a"></script>
 <script src="word-examples.js"></script>
-<script src="teacher.js"></script>
+<script src="teacher.js?v=20261121a"></script>
 <script src="pwa.js" defer></script>
 </body>
 </html>

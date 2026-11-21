@@ -825,7 +825,7 @@
     return null;
   }
 
-  /* 融合栏常驻：展示下一道门最近的两只神兽、各自成长和还差多少。 */
+  /* 融合栏常驻：展示下一组最近的两只神兽、各自成长和还差多少。 */
   function nextFusionPair(p) {
     const fusions = fusionsOf(p);
     const made = new Set(Object.keys(fusions));
@@ -1099,7 +1099,7 @@
     const existingCount = fusionCount(p);
     const candidate = pairOverride || fusionPairFor(p);
     const pair = candidate || nextFusionPair(p);
-    if (!pair) { S.toast('能解的组合都已经解开了，去解锁更多神兽吧。', 'error', 6000); return; }
+    if (!pair) { S.toast('能融合的组合都已经完成了，去解锁更多神兽吧。', 'error', 6000); return; }
     const ready = ensurePet(p, pair.a).xp >= 2000 && ensurePet(p, pair.b).xp >= 2000;
     const realPair = ready ? pair : null;
     if (!realPair && !preview) { S.toast('需要两只精灵都成长到终极形态（2000）才能融合。', 'error', 6000); return; }
@@ -1120,7 +1120,7 @@
     overlay.innerHTML =
       `<div class="fusion-veil" data-fusion-cancel></div>` +
       `<div class="fusion-stage${locked ? ' is-preview' : ''}">` +
-        `<p class="fusion-kicker">${locked ? 'FUSION PREVIEW · 因果未合' : `FUSION · 第 ${existingCount + 1} 道门`}</p>` +
+        `<p class="fusion-kicker">${locked ? '融合预览' : `融合 · 第 ${existingCount + 1} 次`}</p>` +
         `<div class="fusion-void" aria-hidden="true">` +
           `<div class="fusion-hole left"><i class="fusion-disc"></i><i class="fusion-ring r1"></i><i class="fusion-ring r2"></i><i class="fusion-core"></i><b>${S.escapeHtml(a.name)}</b></div>` +
           `<div class="fusion-hole right"><i class="fusion-disc"></i><i class="fusion-ring r1"></i><i class="fusion-ring r2"></i><i class="fusion-core"></i><b>${S.escapeHtml(b.name)}</b></div>` +
@@ -1131,15 +1131,15 @@
           `<div class="fusion-question" aria-hidden="true">?</div>` +
           `<div class="fusion-reveal" aria-hidden="true">${petSVG(4, 'fusion', true)}</div>` +
         `</div>` +
-        `<h2 class="fusion-title">${locked ? '两个黑洞，还在等一个答案' : '两股力量正在向内旋转'}</h2>` +
+        `<h2 class="fusion-title">${locked ? '融合条件还没满足' : '可以融合了'}</h2>` +
         `<p class="fusion-copy">${locked
           ? `${S.escapeHtml(a.name)}与${S.escapeHtml(b.name)}还没有同时到终极形态。<br>还差 ${gapA} 与 ${gapB} 点成长。`
-          : `${S.escapeHtml(a.name)}与${S.escapeHtml(b.name)}的因果被卷进同一个奇点。<br>黑洞相加，会得到一个答案，还是一个更大的问号？`}</p>` +
+          : `${S.escapeHtml(a.name)}与${S.escapeHtml(b.name)}都到终极形态了。<br>融合后两只都会保留，可随时切换。`}</p>` +
         `<div class="fusion-actions">` +
-          `<button class="p-btn fusion-main" type="button" data-fusion-confirm>把手伸进去</button>` +
+          `<button class="p-btn fusion-main" type="button" data-fusion-confirm>${locked ? '继续攒成长' : '开始融合'}</button>` +
           `<button class="p-btn ghost" type="button" data-fusion-cancel>${locked ? '关闭' : '再等等'}</button>` +
         `</div>` +
-        `<p class="fusion-note">${locked ? '两只都到 2000 时，问号才会真正打开。' : existingCount ? `已经解开 ${existingCount} 个答案；这一只也会留在融合图鉴里。` : '两只精灵都会保留，融合后随时可以切回来。'}</p>` +
+        `<p class="fusion-note">${locked ? '两只都到 2000 成长值后即可融合。' : existingCount ? `已经融合 ${existingCount} 只；这一只也会留在融合图鉴里。` : '两只精灵都会保留，融合后随时可以切回来。'}</p>` +
       `</div>`;
     document.body.appendChild(overlay);
     document.body.classList.add('fusion-open');
@@ -1148,15 +1148,15 @@
       overlay.classList.add('is-collapsing');
       const title = overlay.querySelector('.fusion-title');
       const copy = overlay.querySelector('.fusion-copy');
-      if (title) title.textContent = locked ? '它们在中间停住了' : '它们在中间消失了';
+      if (title) title.textContent = locked ? '还差一点' : '融合中';
       if (copy) copy.innerHTML = locked
-        ? '还差一点。<br>两只都到 2000，问号才会打开。'
-        : '没有声音，没有光。<br>只剩一个问号，悬在你面前。';
+        ? '两只都到 2000 成长值后才能融合。'
+        : '正在融合两只神兽…';
       fusionSceneTimer = setTimeout(() => {
         overlay.classList.remove('is-collapsing');
         overlay.classList.add('is-question');
         const main = overlay.querySelector('[data-fusion-confirm]');
-        if (main) main.textContent = locked ? '先攒成长' : '揭开答案';
+        if (main) main.textContent = locked ? '继续攒成长' : '完成融合';
       }, 1500);
     }, 2100);
     overlay.onclick = (event) => {
@@ -1166,12 +1166,12 @@
       if (!overlay.classList.contains('is-question')) return;
       if (locked) {
         closeFusionScene();
-        S.toast('两只神兽都到 2000 时，再来把这个问号揭开。', 'ok', 5200);
+        S.toast('两只神兽都到 2000 成长值后，再回来融合。', 'ok', 5200);
         return;
       }
       overlay.classList.add('is-revealed');
       const name = overlay.querySelector('.fusion-copy');
-      if (name) name.innerHTML = `${existingCount ? `第 ${existingCount + 1} 个答案的名字是` : '新的名字是'}「<b>${S.escapeHtml(pair.name)}</b>」。<br>它睁开了眼睛。`;
+      if (name) name.innerHTML = `${existingCount ? `第 ${existingCount + 1} 只融合神兽是` : '新的融合神兽是'}「<b>${S.escapeHtml(pair.name)}</b>」。`;
       const title = overlay.querySelector('.fusion-title');
       if (title) title.textContent = '融合完成';
       overlay.querySelectorAll('.fusion-actions button').forEach((button) => { button.disabled = true; });
@@ -1232,7 +1232,7 @@
     p.activePet = 'fusion';
     save();
     renderAll();
-    S.toast(`第 ${Object.keys(fusions).length} 个答案：「${fused.name}」加入了融合图鉴。`, 'ok', 7000);
+    S.toast(`第 ${Object.keys(fusions).length} 只融合神兽「${fused.name}」加入了融合图鉴。`, 'ok', 7000);
   }
 
   let petSvgSeq = 0;
@@ -1761,7 +1761,7 @@
     }).join('');
     box.innerHTML = `<div class="pet-roster-head"><b>精灵图鉴</b><span>每一只单独成长，喂食和打卡都会加到当前出战精灵。</span></div>` +
       `<button class="pet-roster-toggle" type="button" data-pet-roster-toggle aria-expanded="${petRosterOpen ? 'true' : 'false'}">` +
-        `<span><b>神兽收藏 · 已解锁 ${unlockedCount} / ${ids.length}</b><small>${petRosterOpen ? '收起图鉴' : '点这里展开，看看还有哪些神兽等你解锁'}</small></span>` +
+        `<span><b>神兽收藏 · 已解锁 ${unlockedCount} / ${ids.length}</b><small>${petRosterOpen ? '收起图鉴' : '展开图鉴'}</small></span>` +
         `<i aria-hidden="true">${petRosterOpen ? '▴' : '▾'}</i>` +
       `</button>` +
       `<div class="pet-chips${petRosterOpen ? ' is-open' : ''}"${petRosterOpen ? '' : ' hidden'}>${cards}${fusionCards}</div>`;
@@ -1786,20 +1786,20 @@
       const span = tier.next ? tier.next - tier.min : 0;
       const ratio = tier.next ? Math.min(1, Math.max(0, (fused.xp - tier.min) / span)) : 1;
       const nextLine = next
-        ? `<span class="pet-fusion-next">下一道门：${S.escapeHtml(petSpeciesInfo(next.a).name)} ${next.ax} / 2000 · ${S.escapeHtml(petSpeciesInfo(next.b).name)} ${next.bx} / 2000</span>`
-        : '<span class="pet-fusion-next">能解的组合都已经解开了，去解锁更多神兽吧。</span>';
+        ? `<span class="pet-fusion-next">下一组：${S.escapeHtml(petSpeciesInfo(next.a).name)} ${next.ax} / 2000 · ${S.escapeHtml(petSpeciesInfo(next.b).name)} ${next.bx} / 2000</span>`
+        : '<span class="pet-fusion-next">能融合的组合都已经完成了，去解锁更多神兽吧。</span>';
       box.className = 'pet-fusion-bar is-done';
       box.innerHTML =
         `<div class="pet-fusion-orbs is-done" aria-hidden="true"><i class="hole left"></i><span class="ask">?</span><i class="hole right"></i></div>` +
         `<div class="pet-fusion-copy">` +
-          `<b>融合栏 · 已解开 ${count} 个答案</b>` +
+          `<b>融合栏 · 已融合 ${count} 只</b>` +
           `<span>「${S.escapeHtml(fused.name || '融合精灵')}」· 共鸣 ${tier.name} · ${fused.xp}${tier.next ? ` / ${tier.next}` : ''}</span>` +
           `<div class="pet-fusion-meters"><span><i style="width:${Math.round(ratio * 100)}%"></i><em>${tier.name} ${fused.xp}${tier.next ? ` / ${tier.next}` : ''}</em></span></div>` +
           nextLine +
         `</div>` +
         `<div class="pet-fusion-actions">` +
           `<button class="p-btn small ghost" type="button" data-fusion-view="1">看融合神兽</button>` +
-          (next ? `<button class="p-btn small" type="button" data-fusion-open="${next.ready ? '1' : 'preview'}">${next.ready ? '再开一道门' : '下一道门'}</button>` : '') +
+          (next ? `<button class="p-btn small" type="button" data-fusion-open="${next.ready ? '1' : 'preview'}">${next.ready ? '再融合一组' : '下一组'}</button>` : '') +
         `</div>`;
       const view = box.querySelector('[data-fusion-view]');
       if (view) view.onclick = () => switchPet('fusion');
@@ -1810,7 +1810,7 @@
     const nearest = nextFusionPair(p);
     if (!nearest) {
       box.className = 'pet-fusion-bar is-done';
-      box.innerHTML = '融合栏 · 所有能解的组合都解开了。';
+      box.innerHTML = '融合栏 · 所有能融合的组合都完成了。';
       return;
     }
     const a = petSpeciesInfo(nearest.a);
@@ -1823,8 +1823,8 @@
     box.innerHTML =
       `<div class="pet-fusion-orbs" aria-hidden="true"><i class="hole left"></i><span class="ask">?</span><i class="hole right"></i></div>` +
       `<div class="pet-fusion-copy">` +
-        `<b>融合栏 · 两个黑洞，一个问号</b>` +
-        `<span>${ready ? '两只神兽都到终极形态了。要不要把手伸进去？' : '两只神兽都到终极形态（2000）后，问号才会打开。'}</span>` +
+        `<b>融合栏</b>` +
+        `<span>${ready ? '两只神兽都到终极形态了，可以融合。' : '两只神兽都到终极形态（2000）后即可融合。'}</span>` +
         `<div class="pet-fusion-meters">` +
           `<span><i style="width:${pct(ax)}%"></i><em>${S.escapeHtml(a.name)} ${ax} / 2000</em></span>` +
           `<span><i style="width:${pct(bx)}%"></i><em>${S.escapeHtml(b.name)} ${bx} / 2000</em></span>` +
