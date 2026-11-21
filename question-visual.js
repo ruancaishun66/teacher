@@ -107,7 +107,79 @@
     return line.replace(/[ \t]+/g, ' ').trim();
   }
 
-  function groupPdfLines(items, viewport) {
+  // 试卷 PDF 常把一页排成两栏。若按整页同一基线拼行，左栏的阅读原文会和
+  // 右栏的题目拼成一行，原题图片就会从错误的位置切开。这里先找整页的竖向
+  // 空白缝，再按“左栏从上到下、右栏从上到下”的顺序读；找不到缝就照旧单栏读。
+  function splitPdfColumns(items) {
+    var boxes = [];
+    (items || []).forEach(function (item) {
+      var text = item && item.str;
+      if (!text || !text.trim()) return;
+      var transform = item.transform || [];
+      var x = Number(transform[4]);
+      var y = Number(transform[5]);
+      var width = Number(item.width) || 0;
+      if (!Number.isFinite(x) || !Number.isFinite(y) || width <= 0) return;
+      boxes.push({ item: item, x: x, y: y, width: width });
+    });
+    if (boxes.length < 8) return [items];
+    var minX = Math.min.apply(null, boxes.map(function (box) { return box.x; }));
+    var maxX = Math.max.apply(null, boxes.map(function (box) { return box.x + box.width; }));
+    var minY = Math.min.apply(null, boxes.map(function (box) { return box.y; }));
+    var maxY = Math.max.apply(null, boxes.map(function (box) { return box.y; }));
+    var pageWidth = maxX - minX;
+    var pageHeight = maxY - minY;
+    if (!(pageWidth > 60)) return [items];
+    var narrow = boxes.filter(function (box) {
+      if (box.width >= pageWidth * 0.5) return false;
+      if (pageHeight > 20 && (box.y < minY + pageHeight * 0.08 || box.y > maxY - pageHeight * 0.05)) return false;
+      var text = String(box.item.str || '').trim();
+      if (text.length >= 6) {
+        var meaningful = (text.match(/[A-Za-z0-9㐀-鿿]/g) || []).length;
+        if (meaningful / text.length < 0.5) return false;
+      }
+      return true;
+    });
+    if (narrow.length < 6) return [items];
+    var cover = new Uint16Array(Math.ceil(maxX) + 2);
+    narrow.forEach(function (box) {
+      var from = Math.max(0, Math.floor(box.x));
+      var to = Math.min(cover.length - 1, Math.ceil(box.x + box.width));
+      for (var x = from; x <= to; x += 1) cover[x] += 1;
+    });
+    var gutters = [];
+    var start = null;
+    for (var x = Math.floor(minX); x <= Math.ceil(maxX); x += 1) {
+      if (cover[x] === 0) {
+        if (start === null) start = x;
+      } else if (start !== null) {
+        var end = x;
+        var mid = (start + end) / 2;
+        if (end - start >= 8 && mid > minX + pageWidth * 0.16 && mid < maxX - pageWidth * 0.16) {
+          gutters.push([start, end]);
+        }
+        start = null;
+      }
+    }
+    if (!gutters.length) return [items];
+    var boundaries = gutters
+      .sort(function (a, b) { return (b[1] - b[0]) - (a[1] - a[0]); })
+      .slice(0, 2)
+      .map(function (gutter) { return (gutter[0] + gutter[1]) / 2; })
+      .sort(function (a, b) { return a - b; });
+    var buckets = [];
+    for (var b = 0; b < boundaries.length + 1; b += 1) buckets.push([]);
+    boxes.forEach(function (box) {
+      var center = box.x + box.width / 2;
+      var index = 0;
+      while (index < boundaries.length && center >= boundaries[index]) index += 1;
+      buckets[index].push(box.item);
+    });
+    var kept = buckets.filter(function (bucket) { return bucket.length >= Math.max(4, boxes.length * 0.08); });
+    return kept.length >= 2 ? kept : [items];
+  }
+
+  function groupPdfRows(items, viewport) {
     var rows = [];
     (items || []).forEach(function (item) {
       var text = item && item.str;
@@ -159,6 +231,15 @@
         page: row.page
       };
     }).filter(function (line) { return line.text; });
+  }
+
+  function groupPdfLines(items, viewport) {
+    var groups = splitPdfColumns(items);
+    var lines = [];
+    groups.forEach(function (group) {
+      lines = lines.concat(groupPdfRows(group, viewport));
+    });
+    return lines;
   }
 
   async function readPdf(blob, onProgress) {
@@ -449,12 +530,89 @@
     };
   }
 
-  async function buildPdfVisuals(blob, items, onProgress) {
+  // 扫描版 PDF 没有文字层，原题图片只能靠 OCR 给出的每行坐标来切。
+  // Tesseract 返回的行序在分栏页面上不一定可靠，这里按空白竖缝恢复阅读顺序。
+  function ocrPageLines(ocrPage, pageNumber) {
+    var source = (ocrPage && ocrPage.lines || []).filter(function (line) {
+      var box = line && line.bbox;
+      return line && line.text && box && [box.x0, box.y0, box.x1, box.y1].every(Number.isFinite);
+    });
+    if (!source.length) return [];
+    var scale = Number(ocrPage.scale) > 0 ? Number(ocrPage.scale) : 1;
+    var width = Number(ocrPage.width) || 0;
+
+    function centerX(line) { return (line.bbox.x0 + line.bbox.x1) / 2; }
+    function centerY(line) { return (line.bbox.y0 + line.bbox.y1) / 2; }
+    function sortRows(list) {
+      return list.slice().sort(function (a, b) {
+        return a.bbox.y0 - b.bbox.y0 || a.bbox.x0 - b.bbox.x0;
+      });
+    }
+    function findGutter(list) {
+      if (!(width > 40) || list.length < 4) return null;
+      var cover = new Uint16Array(Math.ceil(width) + 2);
+      list.forEach(function (line) {
+        var x0 = Math.max(0, Math.floor(line.bbox.x0));
+        var x1 = Math.min(cover.length - 1, Math.ceil(line.bbox.x1));
+        for (var x = x0; x <= x1; x += 1) cover[x] += 1;
+      });
+      var best = null;
+      var start = null;
+      for (var x = 0; x <= width; x += 1) {
+        if (x < width && cover[x] === 0) {
+          if (start === null) start = x;
+        } else if (start !== null) {
+          var end = x;
+          var mid = (start + end) / 2;
+          var left = list.some(function (line) { return centerX(line) < mid; });
+          var right = list.some(function (line) { return centerX(line) >= mid; });
+          if (end - start >= 18 && left && right && (!best || end - start > best[1] - best[0])) {
+            best = [start, end];
+          }
+          start = null;
+        }
+      }
+      return best;
+    }
+    function order(list, depth) {
+      if (list.length <= 1 || depth > 8) return sortRows(list);
+      var gutter = findGutter(list);
+      if (gutter) {
+        var mid = (gutter[0] + gutter[1]) / 2;
+        var left = list.filter(function (line) { return centerX(line) < mid; });
+        var right = list.filter(function (line) { return centerX(line) >= mid; });
+        if (left.length && right.length) return order(left, depth + 1).concat(order(right, depth + 1));
+      }
+      return sortRows(list);
+    }
+
+    return order(source, 0).map(function (line) {
+      var box = line.bbox;
+      return {
+        text: String(line.text || '').replace(/[ \t]+/g, ' ').trim(),
+        top: box.y0 / scale,
+        bottom: box.y1 / scale,
+        xMin: box.x0 / scale,
+        xMax: box.x1 / scale,
+        page: pageNumber
+      };
+    }).filter(function (line) { return line.text; });
+  }
+
+  async function buildPdfVisuals(blob, items, onProgress, ocrPages) {
     report(onProgress, '正在读取原 PDF 的版面…', 0.02);
     var pdfInfo = await readPdf(blob, onProgress);
+    var ocrByPage = {};
+    (ocrPages || []).forEach(function (page) { ocrByPage[Number(page.page)] = page; });
     var lines = [];
     var pagesByNumber = {};
     pdfInfo.pages.forEach(function (page) {
+      var pageTextLength = page.lines.reduce(function (sum, line) { return sum + String(line.text || '').length; }, 0);
+      var ocrPage = ocrByPage[page.number];
+      if (ocrPage && pageTextLength < 40) {
+        var recovered = ocrPageLines(ocrPage, page.number);
+        if (recovered.length) page.lines = recovered;
+      }
       pagesByNumber[page.number] = page;
       page.lines.forEach(function (line) { lines.push(line); });
     });
@@ -745,13 +903,13 @@
     if (!blob || !items.length) {
       return { attached: 0, total: items.length, mode: '', note: '' };
     }
-    if (extension === 'pdf') return buildPdfVisuals(blob, items, options.onProgress);
+    if (extension === 'pdf') return buildPdfVisuals(blob, items, options.onProgress, options.ocrPages);
     if (extension === 'docx') return buildDocxVisuals(blob, items, options.onProgress);
     return { attached: 0, total: items.length, mode: '', note: '' };
   }
 
   window.ShunshiVisual = {
     build: build,
-    version: '20261121d'
+    version: '20261121e'
   };
 })();

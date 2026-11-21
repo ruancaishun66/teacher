@@ -3774,6 +3774,37 @@
         justify-content: flex-end;
       }
     }
+
+    /* 教师端用 iframe 打开词汇书架时，只保留书架本身，不要外层导航和头图。 */
+    body.embed-books .app-header,
+    body.embed-books .app-notice,
+    body.embed-books .app-nav {
+      display: none !important;
+    }
+
+    body.embed-books .app-shell {
+      display: block;
+      padding-top: 10px;
+      padding-bottom: 24px;
+    }
+
+    body.embed-books .container {
+      max-width: none;
+      padding-left: 16px;
+      padding-right: 16px;
+    }
+
+    body.embed-books .app-main {
+      min-width: 0;
+    }
+
+    body.embed-books .view-head {
+      margin-bottom: 16px;
+    }
+
+    body.embed-books .view-head h1 {
+      font-size: clamp(24px, 3vw, 34px);
+    }
   </style>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -3904,11 +3935,6 @@
         题库
         <span class="nav-count" data-count="bank">0</span>
       </button>
-      <button type="button" data-view="books">
-        <svg class="icon" aria-hidden="true"><use href="#i-library"/></svg>
-        词汇书
-        <span class="nav-count" data-count="books">0</span>
-      </button>
       <button type="button" data-view="upload">
         <svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg>
         上传资料
@@ -3940,10 +3966,6 @@
             <button class="btn btn-outline" type="button" data-view="bank">
               <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
               浏览题库
-            </button>
-            <button class="btn btn-outline" type="button" data-view="books">
-              <svg class="icon" aria-hidden="true"><use href="#i-library"/></svg>
-              词汇书
             </button>
             <button class="btn btn-primary" type="button" data-view="upload">
               <svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg>
@@ -4435,6 +4457,7 @@
             <p>进入「上传资料」，把文件拖进虚线框，或点「选择文件」。支持 .docx、.pdf、.txt、.md、.png、.jpg、.jpeg。一次可以选多份。</p>
             <ul>
               <li>有文字层的 PDF 会直接提取文字；扫描版 PDF 和图片会自动走本地 OCR。</li>
+              <li><strong>上传整卷或专题卷后，工作台会先用本机规则排一版，再用已保存的 AI Key 自动精准拆分题型</strong>（阅读、完形、五选五、语法填空等）。听力原文留在本机，不发送给 AI；费用按实际用量显示。没有 Key 时会直接用本机结果。</li>
               <li>入库前会自动清理重复页眉页脚、页码、题库网址、扫描软件水印和符号噪点，生成练习时还会再清一次。清理不彻底时，可在资料编辑里手动删掉那几行。</li>
               <li>扫描版现在默认读整本全部页，几百页的整本练习册也能一次入库；页数越多越慢，识别时电脑别休眠。只想先处理其中一段时，到设置里把「扫描 PDF 识别范围」改成「只识别指定页码」，填上从第几页到第几页即可。</li>
               <li>OCR 是机器识别，题号、引号和易混字母（l/I、0/O）可能出错。入库后点资料卡上的「修改」核对一遍，准确率会高很多。</li>
@@ -4467,11 +4490,12 @@
           </article>
 
           <article class="guide-card">
-            <h2><span class="num">4</span>词汇书：整本上书架，点开再选词</h2>
-            <p>点左侧「词汇书」→「选择词汇书」，可以一次上传整本 .pdf、.docx、.txt 或 .md。几百页的词汇书也能整本读，扫描版会自动走本机 OCR。</p>
+            <h2><span class="num">4</span>词汇书：已经挪到教师端</h2>
+            <p>组卷台只保留上传资料、拆卷和题库。词汇书请到「教师端 → 发布任务 → A 单词书打卡 → 打开词汇书架」使用。</p>
             <ul>
+              <li>在书架里可以一次上传整本 .pdf、.docx、.txt 或 .md；几百页也能整本读，扫描版会自动走本机 OCR。</li>
               <li>平时看到的是书架封面；点开一本书，才会读取并显示全书单词，按每页 60 个翻看，也能搜索单词或释义。</li>
-              <li>可以勾选本页、全选筛选结果或逐条勾选；候选栏支持导出 CSV / TXT、存到 U 盘「词汇书」，或「带到教师端」自动填入单词任务。</li>
+              <li>勾选本页、全选筛选结果或逐条勾选后，点「带到教师端」会直接把词填进单词任务，不用另外开窗口。</li>
               <li>教师端一次单词任务最多带 80 个词；超过时先带前 80 个，其余留在书里分批再选。</li>
               <li>词汇书只保存文字和单词，不重复保存原文件；原书请自己留好。换电脑或清理浏览器数据前，先导出备份。</li>
             </ul>
@@ -4907,8 +4931,8 @@
   <script src="vendor/jszip.min.js"></script>
   <script>window.SHUNSHI_TEACHER_AI = true;</script>
   <script src="portal.js?v=20261121d"></script>
-  <script src="question-visual.js?v=20261121d"></script>
-  <script src="library.js?v=20261121w"></script>
+  <script src="question-visual.js?v=20261122a"></script>
+  <script src="library.js?v=20261122a"></script>
 <script src="pwa.js?v=20261121b" defer></script>
 </body>
 </html>

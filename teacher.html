@@ -9,7 +9,7 @@
 <title>顺势 · 教师端｜因势利导，循循善诱</title>
 <link rel="icon" href="logo.svg?v=20261118c" type="image/svg+xml">
 <link rel="stylesheet" href="portal.css?v=20261120d">
-<link rel="stylesheet" href="teacher.css?v=20261121c">
+<link rel="stylesheet" href="teacher.css?v=20261122a">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
 </head>
@@ -299,6 +299,22 @@
       <div class="word-dash" id="word-stats"></div>
       <div class="assignment-list" id="word-list"></div>
         </section>
+
+        <!-- 学生单词书进度（对照学生练习记录） -->
+        <section class="publish-block" data-publish-block="word-book-progress">
+          <div class="roster-toolbar">
+            <div>
+              <h2 class="pane-title">学生单词书进度 <small>BOOK PROGRESS</small></h2>
+              <p class="pane-sub">勾选学生，对照每个人在每本词汇书里练到哪、累计练了多少词次、最近一次打卡。数据来自学生交回的单词汇报；只在本机显示。</p>
+            </div>
+            <div class="toolbar-actions">
+              <button class="p-btn small" type="button" id="word-book-shelf-open">打开词汇书架</button>
+              <button class="p-btn small ghost" type="button" id="word-book-stats-refresh">刷新</button>
+            </div>
+          </div>
+          <div class="wb-student-chips" id="word-book-student-chips"></div>
+          <div class="wb-progress-list" id="word-book-progress"></div>
+        </section>
       </div>
 
       <!-- B 阅读联动（核心） -->
@@ -452,6 +468,15 @@
             <h3 class="p-card-title">已生成的语法小营 <small>PACKS</small></h3>
           </div>
           <div class="grammar-pack-list" id="grammar-list"></div>
+        </section>
+        <section class="p-card p-col-12 grammar-progress-card">
+          <div class="p-card-head">
+            <h3 class="p-card-title">学生语法打卡进度 <small>STUDENT PROGRESS</small></h3>
+            <span class="hint" id="grammar-progress-count">—</span>
+          </div>
+          <p class="hint" style="text-align:left;margin-top:0;">勾选学生，对照每个人 60 天走到第几天、最近有没有打卡、本周发的 7 天完成了几课。只读本机汇报，不上传。</p>
+          <div class="wb-student-chips" id="grammar-progress-chips"></div>
+          <div class="wb-progress-list" id="grammar-progress-list"></div>
         </section>
         <section class="p-card p-col-12 grammar-evidence-card">
           <details class="grammar-evidence">
@@ -1193,6 +1218,22 @@
   </div>
 </dialog>
 
+<!-- 词汇书架（从组卷台移到教师端） -->
+<dialog class="p-dialog bookshelf-dialog" id="bookshelf-dialog">
+  <div class="p-dialog-inner bookshelf-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>词汇书架</h2>
+        <p>整本上传 PDF / Word / TXT，自动提取单词、音标和释义。书架只存在这台电脑的浏览器里，不上传网络。</p>
+      </div>
+      <button class="p-close" type="button" data-shelf-close aria-label="关闭">×</button>
+    </div>
+    <div class="bookshelf-frame-wrap">
+      <iframe id="bookshelf-frame" title="词汇书架" src="about:blank"></iframe>
+    </div>
+  </div>
+</dialog>
+
 <!-- 单词任务学情 -->
 <dialog class="p-dialog" id="word-detail-dialog" style="width:min(820px,calc(100% - 20px));">
   <div class="p-dialog-inner">
@@ -1373,7 +1414,7 @@
 <script>window.SHUNSHI_TEACHER_AI = true;</script>
 <script src="portal.js?v=20261121a"></script>
 <script src="word-examples.js"></script>
-<script src="teacher.js?v=20261121c"></script>
+<script src="teacher.js?v=20261122a"></script>
 <script src="pwa.js?v=20261121b" defer></script>
 </body>
 </html>

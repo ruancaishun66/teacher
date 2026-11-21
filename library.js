@@ -29,6 +29,9 @@
   // 指定页码模式的下限回退值；真正读多少页由“识别范围”决定。
   const OCR_PDF_PAGE_LIMIT = 20;
   const VIEWS = new Set(['library', 'bank', 'books', 'upload', 'practice', 'settings', 'guide']);
+  // 教师端把词汇书架嵌进对话框时带 ?embed=books；这种模式只显示书架，
+  // 不显示资料库的头部导航，选完词直接发回教师端，不再另开窗口。
+  const EMBED_BOOKS = new URLSearchParams(location.search).get('embed') === 'books';
   // 整本词汇书可能收几千个词；上限留足，避免几百页的书被截断。
   const BOOK_WORD_CAP = 20000;
   const BOOK_PAGE_SIZE = 60;
@@ -269,6 +272,7 @@
     paperSplitTotal: 0,
     paperSplitSource: null,
     paperSplitOcr: false,
+    paperSplitOcrPages: null,
     paperSplitAiText: '',
     questionEdit: null,
     sectionAliases: [],
@@ -279,6 +283,9 @@
     ocrWorkerLang: '',
     ocrWorkerPromise: null
   };
+
+  // 扫描版 PDF 的 OCR 行坐标只在本次拆分里用，不写进资料库，避免备份膨胀。
+  const paperOcrPagesCache = new Map();
 
   /* ------------------------------------------------------------------------
      小工具
@@ -979,9 +986,18 @@
 
   function splitPassageAndQuestions(content, type = '') {
     const source = String(content || '').replace(/\r\n?/g, '\n').trim();
-    const blocks = parseQuestionBlocks(source, { reading: normalizeType(type) === 'reading' });
+    const normalized = normalizeType(type);
+    // 五选五的题号嵌在短文里；语法填空/短文填词整篇就是题目。
+    // 若照普通选择题在第一个“21.”处切开，短文会被腰斩，后半篇变成题目。
+    if (['five', 'grammar', 'shortblank'].includes(normalized)) {
+      return { passage: source, questions: [] };
+    }
+    const blocks = parseQuestionBlocks(source, { reading: normalized === 'reading' });
     if (!blocks.length) return { passage: source, questions: [] };
-    let first = blocks.find((block) => block.stem || block.options.length);
+    // 完形的短文里也常有行首的“16.”空格编号。真正的题目从带 A/B/C/D
+    // 选项的那一行才开始；先找有选项的块，找不到再退回有题干的块。
+    let first = blocks.find((block) => block.options.length >= 2)
+      || blocks.find((block) => block.stem);
     if (!first) return { passage: source, questions: [] };
     const passage = source.slice(0, first.start).trim();
     return { passage, questions: blocks };
@@ -1109,7 +1125,7 @@
     return min === max ? String(min) : `${min}–${max}`;
   }
 
-  function collectBlankNumbers(text) {
+  function collectBlankNumbers(text, options = {}) {
     const source = String(text || '');
     const numbers = [];
     const seen = new Set();
@@ -1138,6 +1154,23 @@
         match = pattern.exec(source);
       }
     });
+    if (options.fillGaps) {
+      // 语法填空的 44–53 是连号。OCR 或文字层有时会把“50 losing”的
+      // 下划线吃掉，只剩一个普通数字；只要已经有至少 3 个空，就把
+      // 首尾之间漏掉的连号补回来，避免 10 空只算成 8 题。
+      const sorted = numbers.slice().sort((a, b) => a - b);
+      if (sorted.length >= 3) {
+        const min = sorted[0];
+        const max = sorted[sorted.length - 1];
+        const pattern = /(?:^|[\s,.;:!?])(\d{1,3})(?=[\s,.;:!?)]|$)/g;
+        let match = pattern.exec(source);
+        while (match) {
+          const number = Number(match[1]);
+          if (number > min && number < max && !seen.has(number)) add(number);
+          match = pattern.exec(source);
+        }
+      }
+    }
     return numbers.sort((a, b) => a - b);
   }
 
@@ -2848,13 +2881,16 @@
 
   async function buildMaterialFromFile(file, onProgress) {
     const extension = (file.name.split('.').pop() || '').toLowerCase();
+    const id = uid();
     let text = '';
     let extractionNote = '';
+    let ocrPages = null;
 
     try {
       const result = await extractFileText(file, extension, onProgress);
       text = result.text || '';
       extractionNote = result.note || '';
+      ocrPages = Array.isArray(result.ocrPages) && result.ocrPages.length ? result.ocrPages : null;
     } catch (error) {
       extractionNote = `未能自动提取文字：${error.message || error}。原文件已完整保存。`;
       text = '';
@@ -2890,7 +2926,12 @@
     if (!isPaper && classified.confidence < 45) noteParts.push('自动识别把握不高，建议核对题型。');
     if (isPaper) noteParts.push(`已按试卷结构识别出 ${sections.length} 个部分，可分别抽取组卷。`);
 
-    const id = uid();
+    if (ocrPages) {
+      paperOcrPagesCache.set(id, ocrPages);
+      while (paperOcrPagesCache.size > 6) {
+        paperOcrPagesCache.delete(paperOcrPagesCache.keys().next().value);
+      }
+    }
     return {
       id,
       title: isPaper ? (detectExamTitle(body || text) || cleanTitle(file.name.replace(/\.[^.]+$/, ''), 'paper')) : classified.title,
@@ -2972,7 +3013,12 @@
         const pageNote = ocr.to < ocr.total
           ? `PDF 共 ${ocr.total} 页，已 OCR 第 ${ocr.from}–${ocr.to} 页；可在设置里改成整本全部页。`
           : `已对 ${ocr.pages} 页扫描内容做本地 OCR，识别后请核对文字。`;
-        return { text, note: pageNote, pageCount: result.pageCount || ocr.total || 0 };
+        return {
+          text,
+          note: pageNote,
+          pageCount: result.pageCount || ocr.total || 0,
+          ocrPages: ocr.ocrPages || []
+        };
       } catch (error) {
         return {
           text: result.text || '',
@@ -3293,7 +3339,10 @@
 
   function groupPdfTextItems(items, options = {}) {
     if (!Array.isArray(items) || !items.length) return [];
-    const groups = options.bookMode ? splitPdfColumns(items) : [items];
+    // 试卷和词汇书一样，常把一页排成两栏。按整页同一基线拼行会把左栏的
+    // 阅读原文和右栏的题目、选项混在一起，拆出来的题目顺序全乱。
+    // splitPdfColumns 找不到清楚的竖向空白缝时会原样返回，单栏试卷不受影响。
+    const groups = splitPdfColumns(items);
     return groups.flatMap((group) => groupPdfRows(group));
   }
 
@@ -3793,15 +3842,25 @@
     return canvas;
   }
 
-  async function recognizeOcrCanvas(worker, canvas, onProgress) {
+  async function recognizeOcrCanvasDetail(worker, canvas, onProgress) {
     state.ocrProgress = onProgress || null;
     const result = await worker.recognize(canvas, {}, { text: true, blocks: true });
-    const text = ocrTextFromResult(result && result.data, canvas.width);
+    const data = result && result.data;
+    return {
+      text: ocrTextFromResult(data, canvas.width),
+      // 保留每行在页面上的位置。扫描版 PDF 没有文字层，原题图片只能靠这些
+      // OCR 坐标来切；否则扫描件入库后只能显示重新排版的文字，版式全丢。
+      lines: ocrLinesFromResult(data)
+    };
+  }
+
+  async function recognizeOcrCanvas(worker, canvas, onProgress) {
+    const detail = await recognizeOcrCanvasDetail(worker, canvas, onProgress);
     if (canvas.width > 2600 && canvas.height > 2600) {
       canvas.width = 1;
       canvas.height = 1;
     }
-    return text;
+    return detail.text;
   }
 
   async function ocrImageFile(file, onProgress) {
@@ -3818,6 +3877,7 @@
     const pdfjs = await loadPdfLibrary();
     let pdf = null;
     const pages = [];
+    const ocrPages = [];
     const pageTotal = bounds.to - bounds.from + 1;
     try {
       const data = new Uint8Array(await file.arrayBuffer());
@@ -3841,15 +3901,29 @@
         context.fillStyle = '#fff';
         context.fillRect(0, 0, canvas.width, canvas.height);
         await page.render({ canvasContext: context, viewport }).promise;
-        const text = await recognizeOcrCanvas(worker, canvas, onProgress);
-        if (text) pages.push(text);
+        const detail = await recognizeOcrCanvasDetail(worker, canvas, onProgress);
+        if (detail.text) pages.push(detail.text);
+        if (detail.lines.length) {
+          ocrPages.push({
+            page: pageNumber,
+            width: base.width,
+            height: base.height,
+            scale,
+            lines: detail.lines
+          });
+        }
+        if (canvas.width > 2600 && canvas.height > 2600) {
+          canvas.width = 1;
+          canvas.height = 1;
+        }
       }
       return {
         text: cleanPageTexts(pages).join('\n\n'),
         pages: pageTotal,
         from: bounds.from,
         to: bounds.to,
-        total: bounds.total
+        total: bounds.total,
+        ocrPages
       };
     } finally {
       if (pdf) {
@@ -3909,6 +3983,9 @@
       if (body.startsWith(entry.alias) || head.startsWith(entry.alias)) return entry.type;
     }
     if (/阅读下面短文[，,]?\s*从短文后所给的(?:五个|七个)选项/.test(head)) return 'five';
+    // 不少卷子不写“五选五/七选五”四个字，只写“根据短文内容，从短文后的
+    // 选项中选出……选项中有两项为多余选项”。漏掉这句会把整篇并进阅读。
+    if (/从短文后的选项中选出|选项中有两项(?:是)?多余选项/.test(text.slice(0, 80))) return 'five';
     if (/阅读下面短文[，,]?\s*在空白处填入/.test(head)) return 'grammar';
     if (/根据每题所提供的图画情景/.test(head)) return 'picture';
     if (/根据情景[，,]?\s*用恰当的/.test(head)) return 'dialogue';
@@ -4460,9 +4537,9 @@
     };
   }
 
-  function blankAnswerMap(content, answerMap) {
+  function blankAnswerMap(content, answerMap, type = '') {
     const map = {};
-    collectBlankNumbers(content).forEach((number) => {
+    collectBlankNumbers(content, { fillGaps: normalizeType(type) === 'grammar' }).forEach((number) => {
       const source = answerMap && answerMap[number];
       if (source && (source.answer || source.explanation)) {
         map[number] = { answer: source.answer || '', explanation: source.explanation || '' };
@@ -4474,7 +4551,7 @@
   function blankDifficultyMap(content, answerMap, type, passage, grade) {
     const map = {};
     const passageLevel = passage ? difficultyForText(passage, { type, grade }).level : 0;
-    collectBlankNumbers(content).forEach((number) => {
+    collectBlankNumbers(content, { fillGaps: normalizeType(type) === 'grammar' }).forEach((number) => {
       const sentence = blankSentence(content, number) || content;
       const answer = answerMap && answerMap[number] ? answerMap[number].answer || '' : '';
       const own = difficultyForText(`${sentence} ${answer}`, { type, grade });
@@ -4517,12 +4594,15 @@
     }
     const difficulty = difficultyForText(cleaned, { type, grade: material.grade });
     const levels = questions.map((question) => question.difficulty);
-    const blanks = blankAnswerMap(cleaned, answerMap);
+    const blanks = blankAnswerMap(cleaned, answerMap, type);
     const blankDifficulties = blankDifficultyMap(cleaned, answerMap, type, passage, material.grade);
     Object.entries(blankDifficulties).forEach(([number, level]) => {
       if (!questions.some((question) => Number(question.number) === Number(number))) levels.push(level);
     });
-    const blankNumbers = Object.keys(blanks).map(Number).sort((a, b) => a - b);
+    const blankNumbers = unique([
+      ...collectBlankNumbers(cleaned, { fillGaps: normalizedType === 'grammar' }),
+      ...Object.keys(blanks).map(Number)
+    ]).sort((a, b) => a - b);
     return {
       id: uid(),
       materialId: material.id,
@@ -4979,6 +5059,28 @@
     return !!(item && Array.isArray(item.visuals) && item.visuals.length);
   }
 
+  function itemFirstSourceNumber(item) {
+    const list = Array.isArray(item && item.sourceNumbers) ? item.sourceNumbers : [];
+    for (const value of list) {
+      const number = Number(value);
+      if (Number.isFinite(number) && number > 0) return number;
+    }
+    return null;
+  }
+
+  function sortItemsBySourceNumber(items) {
+    const list = Array.isArray(items) ? items.slice() : [];
+    // 扫描件的 OCR 有时会先读到右边的题，题号顺序会变成 54、53、55。
+    // 只要这一组题都有原卷题号，就按题号排回去；没有题号的题保持原顺序。
+    const keyed = list.map((item, index) => ({ item, index, number: itemFirstSourceNumber(item) }));
+    if (keyed.filter((row) => row.number != null).length < 2) return list;
+    keyed.sort((a, b) => {
+      if (a.number == null || b.number == null) return a.index - b.index;
+      return a.number - b.number || a.index - b.index;
+    });
+    return keyed.map((row) => row.item);
+  }
+
   function paperSourceNumberSequence(sections) {
     const numbers = [];
     (Array.isArray(sections) ? sections : []).forEach((section) => {
@@ -4995,7 +5097,7 @@
         const questionNumbers = questionList
           .map((question) => Number(question && question.number))
           .filter(Number.isFinite);
-        const blankNumbers = collectBlankNumbers(item.content || '');
+        const blankNumbers = collectBlankNumbers(item.content || '', { fillGaps: type === 'grammar' });
         unique([...questionNumbers, ...blankNumbers])
           .sort((a, b) => a - b)
           .forEach((number) => numbers.push(number));
@@ -5025,16 +5127,29 @@
     });
   }
 
+  function paperSourceNumbersSequential(sections) {
+    // 整卷拆出来的单个大题常常是 21–30 这种“不从 1 开始、但连续”的题号。
+    // 只要原图上的题号和我们显示的题号一一对应，就可以放心用原图版式；
+    // 真正不能混用原图的是缺号、重号或跨卷拼起来的题号。
+    const numbers = paperSourceNumberSequence(sections);
+    if (!numbers.length) return false;
+    for (let index = 1; index < numbers.length; index += 1) {
+      if (numbers[index] !== numbers[index - 1] + 1) return false;
+    }
+    return true;
+  }
+
   function paperVisualFields(items, sections) {
     const list = Array.isArray(items) ? items : [];
     const count = list.filter(itemHasOriginalVisual).length;
     const available = list.length > 0 && count === list.length;
     const renumbered = Array.isArray(sections) ? paperNeedsRenumber(sections) : false;
+    const sequential = Array.isArray(sections) ? paperSourceNumbersSequential(sections) : false;
     return {
       visualAvailable: available,
-      // 原图里印着原卷题号，和重新编号冲突；重新拼的卷子默认走文字版，
-      // 老师仍可点“切回原图”自己选。
-      visualMode: available && !renumbered ? 'original' : 'text',
+      // 原图里印着原卷题号。题号连续时（1–20 或 21–30 都行）原图和题号对得上；
+      // 缺号、重号或重新拼卷时才默认走文字版，老师仍可手动“切回原图”。
+      visualMode: available && sequential ? 'original' : 'text',
       visualCount: count,
       renumbered
     };
@@ -5056,7 +5171,8 @@
       const result = await window.ShunshiVisual.build(source.blob, {
         extension,
         items: list,
-        onProgress
+        onProgress,
+        ocrPages: Array.isArray(source.ocrPages) ? source.ocrPages : null
       });
       return result || { attached: 0, total: list.length, note: '' };
     } catch (error) {
@@ -5255,7 +5371,7 @@
       section.items.forEach((item) => {
         item.numberMap = {};
         const questionNumbers = (item.questions || []).map((question) => Number(question.number)).filter(Number.isFinite);
-        const blankNumbers = collectBlankNumbers(item.content || '');
+        const blankNumbers = collectBlankNumbers(item.content || '', { fillGaps: normalizeType(item.type) === 'grammar' });
         const sourceNumbers = unique([...questionNumbers, ...blankNumbers]).sort((a, b) => a - b);
         const isWriting = normalizeType(section.type) === 'writing';
         if (isWriting) {
@@ -5701,7 +5817,7 @@
       } else if (section.type === 'writing') {
         count += 1;
       } else if (['grammar', 'shortblank', 'cloze', 'five'].includes(section.type)) {
-        count += collectBlankNumbers(item.content || '').length || 1;
+        count += collectBlankNumbers(item.content || '', { fillGaps: normalizeType(section.type) === 'grammar' }).length || 1;
       } else {
         count += section.items.length ? 1 : 0;
       }
@@ -8257,24 +8373,32 @@
       return;
     }
     const take = words.slice(0, TEACHER_WORD_PICK_CAP);
+    const pick = {
+      v: 1,
+      at: nowIso(),
+      bookId: book.id,
+      title: `${book.title} · 选词打卡`,
+      total: words.length,
+      count: take.length,
+      words: take.map((word) => ({
+        w: word.word,
+        zh: word.meaning,
+        kk: word.phonetic,
+        pos: word.pos,
+        ex: word.example,
+        exZh: word.exampleZh
+      }))
+    };
     const openTeacher = () => {
+      // 教师端用 iframe 打开书架时，直接把选中的词发回父窗口；
+      // 不写 localStorage、不弹新窗口，老师核对完就能生成任务码。
+      if (EMBED_BOOKS && window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'shunshi-book-pick', pick }, location.origin);
+        toast(`已把 ${take.length} 个词交给教师端，核对后生成单词任务。`, 'ok', 6000);
+        return;
+      }
       try {
-        window.localStorage.setItem('shunshi.wordbook.pick.v1', JSON.stringify({
-          v: 1,
-          at: nowIso(),
-          bookId: book.id,
-          title: `${book.title} · 选词打卡`,
-          total: words.length,
-          count: take.length,
-          words: take.map((word) => ({
-            w: word.word,
-            zh: word.meaning,
-            kk: word.phonetic,
-            pos: word.pos,
-            ex: word.example,
-            exZh: word.exampleZh
-          }))
-        }));
+        window.localStorage.setItem('shunshi.wordbook.pick.v1', JSON.stringify(pick));
       } catch (error) {
         console.error(error);
         toast('浏览器本地存储已满，不能自动带到教师端。可以先导出词表再粘贴。', 'error', 7000);
@@ -9571,6 +9695,7 @@
     state.paperSplitAiText = '';
     state.paperSplitSource = null;
     state.paperSplitOcr = false;
+    state.paperSplitOcrPages = null;
     renderPaperSplitPreview();
     setPaperSplitFileInfo(
       total > 1 ? `第 ${index}/${total} 份 · ${file.name}` : file.name,
@@ -9601,6 +9726,7 @@
         extension: material.sourceExtension || (file.name.split('.').pop() || '').toLowerCase(),
         blob: file
       };
+      state.paperSplitOcrPages = paperOcrPagesCache.get(material.id) || null;
       // 扫描件走的是本机 OCR，排版最容易粘连；识别后提示可以再用 AI 重排。
       state.paperSplitOcr = /OCR|扫描/.test(material.note || '');
       const titleInput = $('#paper-split-title');
@@ -9650,6 +9776,7 @@
     state.paperSplit = null;
     state.paperSplitSource = null;
     state.paperSplitOcr = false;
+    state.paperSplitOcrPages = null;
     state.paperSplitAiText = '';
     state.paperSplitQueue = files.slice();
     state.paperSplitTotal = files.length;
@@ -9702,7 +9829,7 @@
 
   function paperSplitItemQuestionCount(item) {
     const questions = (item.questions || []).length;
-    const blanks = collectBlankNumbers(item.content || '').length;
+    const blanks = collectBlankNumbers(item.content || '', { fillGaps: normalizeType(item.type) === 'grammar' }).length;
     const answerKeys = Object.keys(item.blankAnswers || {}).length;
     return Math.max(questions, blanks, answerKeys, 1);
   }
@@ -9796,8 +9923,8 @@
     const note = $('#paper-split-ai-note');
     if (note) {
       note.textContent = cfg && cfg.key
-        ? '已保存 AI Key：上传后先显示预计费用，你确认后才调用；排版乱时可点「AI 重新编排」。'
-        : '还没保存 AI Key：本次用本机规则识别；到「设置 → AI 直连」保存 Key 后，可以让 AI 精准识别或重新编排。';
+        ? '已保存 AI Key：上传整卷后会立即自动拆分题型，并显示本次费用；排版仍乱时可点「AI 重新编排」。'
+        : '还没保存 AI Key：本次用本机规则识别；到「设置 → AI 直连」保存 Key 后，上传时会自动用 AI 精准拆分。';
     }
     const usbNote = $('#paper-split-usb-note');
     if (usbNote) {
@@ -9894,8 +10021,12 @@
       const head = local.uncertain
         ? `${local.reason}。已先按本机规则填好；`
         : `本机已先拆出 ${local.state.sections.length} 个题型；`;
-      setPaperSplitStatus(`${head}正在准备 AI 精准识别…`);
-      offerPaperSplitAi(prepared, local.state, local.uncertain ? local.reason : '');
+      setPaperSplitStatus(`${head}${options.fromFile ? '正在用 AI 精准拆分…' : '正在准备 AI 精准识别…'}`);
+      // 上传整卷/专题卷时，老师已经主动选了文件，直接用已保存的 Key 拆分，
+      // 不再多弹一次确认；手动点“智能识别”时仍保留确认框和费用预估。
+      offerPaperSplitAi(prepared, local.state, local.uncertain ? local.reason : '', {
+        auto: Boolean(options.fromFile)
+      });
       return;
     }
     if (local.uncertain) {
@@ -10376,7 +10507,7 @@
     }
   }
 
-  function offerPaperSplitAi(prepared, fallbackState, reason = '') {
+  function offerPaperSplitAi(prepared, fallbackState, reason = '', options = {}) {
     if (state.paperSplitBusy || state.paperSplitPreparing) return;
     const tool = aiTool();
     if (!tool) return;
@@ -10395,6 +10526,11 @@
     const listeningNote = skip.removed.length
       ? `；听力部分 ${skip.removedChars} 字已在本机保留，不会发送`
       : '';
+    if (options.auto) {
+      setPaperSplitStatus(`正在用 AI 拆分${fileName}的题型${listeningNote}；预计最多约 ${estimate.inputTokens + estimate.maxOutputTokens} tokens，约 ${aiCostText(estimate.cost)}，实际按返回用量记账。`);
+      runPaperSplitAi(prepared, prompt, fallbackState, skip.removed);
+      return;
+    }
     openConfirm({
       title: reason ? '本机拿不准，用 AI 精准识别？' : '用 AI 精准识别这份资料？',
       message: `会把${fileName}的题目正文约 ${source.length} 字发送给 DeepSeek（会先尽量剔除答案区${listeningNote}，不含学生信息）${truncated ? `；原文较长，只发送前 ${SPLIT_AI_MAX_CHARS} 字，后面的内容可能认不到` : ''}。预计最多约 ${estimate.inputTokens + estimate.maxOutputTokens} tokens，约 ${aiCostText(estimate.cost)}；实际按返回用量记账。点「取消」就继续用本机识别结果。`,
@@ -10460,7 +10596,7 @@
         heading: section.heading,
         content: section.content
       };
-      const items = itemsForSection(material, sourceSection, answerMap, order);
+      const items = sortItemsBySourceNumber(itemsForSection(material, sourceSection, answerMap, order));
       if (!items.length) {
         emptySections.push(section.heading || typeShort(section.type));
         return;
@@ -10485,7 +10621,10 @@
       const visualButton = $('#paper-split-save');
       if (visualButton) visualButton.textContent = '正在生成原图…';
       setPaperSplitStatus('正在按原文件把题目切成图片（只在本机处理，不上传）…');
-      const visual = await attachOriginalVisuals(splitSource, allItems, (message) => {
+      const visual = await attachOriginalVisuals({
+        ...splitSource,
+        ocrPages: state.paperSplitOcrPages || null
+      }, allItems, (message) => {
         if (!message) return;
         if (typeof message === 'string') {
           setPaperSplitStatus(message);
@@ -12083,6 +12222,7 @@ Li Hua`,
      ------------------------------------------------------------------------ */
 
   async function init() {
+    if (EMBED_BOOKS) document.body.classList.add('embed-books');
     ensureGradeOptions();
     populateTypeSelects();
     bindEvents();
@@ -12098,6 +12238,7 @@ Li Hua`,
       hydrateSettingsUI();
       applyRouteFromHash();
       renderAll();
+      if (EMBED_BOOKS) go('books', false);
       await updateStorage();
       window.__shunshiLibraryReady = true;
       const params = new URLSearchParams(location.search);

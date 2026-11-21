@@ -75,6 +75,11 @@
   let planRequestStudentId = null;
   let trialRequestPayload = null;
   let grammarStudentIds = null;
+  let wordBookStatsIds = null;
+  let grammarStatsIds = null;
+  let bookshelfBooks = [];
+  let bookshelfWordsByBook = new Map();
+  let bookshelfLoadPromise = null;
   let readingState = null;
   let readingSourceId = '';
   let readingPapersLoaded = false;
@@ -234,12 +239,12 @@
     }
   }
 
-  function maybeTakeWordBookPick() {
-    if (!pendingWordBookPick || !data || !sessionPin || wordBookPickStarted) return;
-    wordBookPickStarted = true;
-    const pick = pendingWordBookPick;
-    pendingWordBookPick = null;
-    try { window.localStorage.removeItem('shunshi.wordbook.pick.v1'); } catch (error) { /* ignore */ }
+  function applyWordBookPick(pick) {
+    if (!pick || !Array.isArray(pick.words) || !pick.words.length) return false;
+    if (!data || !sessionPin) {
+      pendingWordBookPick = pick;
+      return false;
+    }
     switchTab('book');
     window.setTimeout(() => {
       openWordDialog(null);
@@ -257,6 +262,16 @@
       const count = pick.count || pick.words.length;
       S.toast(`已从词汇书带入 ${count} 个词。核对释义后就能生成单词任务码。`, 'ok', 7000);
     }, 240);
+    return true;
+  }
+
+  function maybeTakeWordBookPick() {
+    if (!pendingWordBookPick || !data || !sessionPin || wordBookPickStarted) return;
+    wordBookPickStarted = true;
+    const pick = pendingWordBookPick;
+    pendingWordBookPick = null;
+    try { window.localStorage.removeItem('shunshi.wordbook.pick.v1'); } catch (error) { /* ignore */ }
+    applyWordBookPick(pick);
   }
 
   async function setupTeacher() {
@@ -3708,6 +3723,7 @@
     renderGrammarMap();
     renderGrammarStudents();
     renderGrammarList();
+    renderGrammarProgress();
     const start = $('#grammar-week-start');
     if (start && !start.value) start.value = S.todayIso();
   }
@@ -3926,6 +3942,7 @@
   function renderWords() {
     const listEl = $('#word-list');
     if (!listEl) return;
+    renderWordBookProgress();
     const list = wordAssignments().slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     const allStats = list.map((assignment) => ({ assignment, stats: wordAssignmentStats(assignment) }));
     const totalWords = list.reduce((sum, assignment) => sum + (assignment.wordTotal || (assignment.words || []).length), 0);
@@ -3991,6 +4008,284 @@
         `</div>` +
       `</article>`;
     }).join('');
+  }
+
+  /* --------------------- 学生单词书 / 语法打卡：对照面板 --------------------- */
+
+  const WORD_BOOK_STATS_KEY = 'shunshi.teacher.wordbookstats.v1';
+  const GRAMMAR_STATS_KEY = 'shunshi.teacher.grammarstats.v1';
+
+  function loadStatsSelection(key) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const ids = JSON.parse(raw);
+      return new Set(Array.isArray(ids) ? ids.map(String).filter(Boolean) : []);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function saveStatsSelection(key, ids) {
+    try { localStorage.setItem(key, JSON.stringify(Array.from(ids || []))); } catch (error) { /* 记不住勾选不影响查看 */ }
+  }
+
+  function statsSelectedIds(key, current) {
+    const all = new Set((data.students || []).map((student) => String(student.id)));
+    const source = current || loadStatsSelection(key) || all;
+    return new Set(Array.from(source).filter((id) => all.has(String(id))));
+  }
+
+  function statsChipsHtml(key, selected, attrs) {
+    const list = sortedStudents();
+    if (!list.length) return '<p class="hint">还没有学生。先到“学生”页添加。</p>';
+    return list.map((student) => {
+      const on = selected.has(String(student.id));
+      return `<label class="wb-student-chip${on ? ' is-checked' : ''}">` +
+        `<input type="checkbox" ${attrs}="${S.escapeHtml(student.id)}" ${on ? 'checked' : ''}>` +
+        `<span>${S.escapeHtml(student.avatar || '🦊')} ${S.escapeHtml(student.name)}</span>` +
+        (student.grade ? `<em>${S.escapeHtml(student.grade)}</em>` : '') +
+      `</label>`;
+    }).join('');
+  }
+
+  async function loadBookshelfData(force = false) {
+    if (bookshelfLoadPromise && !force) return bookshelfLoadPromise;
+    bookshelfLoadPromise = (async () => {
+      try {
+        const db = await openLibrary();
+        const getAll = (store) => new Promise((resolve, reject) => {
+          const transaction = db.transaction(store, 'readonly');
+          const request = transaction.objectStore(store).getAll();
+          request.onsuccess = () => resolve(request.result || []);
+          request.onerror = () => reject(request.error || new Error('读取词汇书失败。'));
+        });
+        const [books, words] = await Promise.all([getAll('books'), getAll('bookWords')]);
+        bookshelfBooks = books.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+        const byBook = new Map();
+        words.forEach((word) => {
+          if (!word || !word.bookId) return;
+          if (!byBook.has(word.bookId)) byBook.set(word.bookId, []);
+          byBook.get(word.bookId).push({
+            w: word.word || '',
+            zh: word.meaning || '',
+            kk: word.phonetic || '',
+            pos: word.pos || '',
+            ex: word.example || '',
+            exZh: word.exampleZh || ''
+          });
+        });
+        bookshelfWordsByBook = byBook;
+        return { books: bookshelfBooks, byBook };
+      } catch (error) {
+        console.error('读取词汇书失败', error);
+        bookshelfBooks = [];
+        bookshelfWordsByBook = new Map();
+        return { books: [], byBook: new Map() };
+      }
+    })().finally(() => {
+      bookshelfLoadPromise = null;
+    });
+    return bookshelfLoadPromise;
+  }
+
+  function wordBookStatsForStudent(student) {
+    const allBooks = bookshelfBooks.map((book) => {
+      const words = bookshelfWordsByBook.get(book.id) || [];
+      const summary = bookUsedWordSummary(student, words);
+      return { book, summary };
+    });
+    const books = allBooks.filter((row) => row.summary.attempts > 0);
+    books.sort((a, b) => String(b.summary.lastAt || '').localeCompare(String(a.summary.lastAt || '')) || b.summary.used - a.summary.used);
+    let totalWords = 0;
+    let usedWords = 0;
+    let attempts = 0;
+    let correct = 0;
+    let wrong = 0;
+    let lastAt = '';
+    // “书架总覆盖”要把没练过的书也算进分母，否则只练过一本书时永远显示 100%。
+    allBooks.forEach(({ summary }) => {
+      totalWords += summary.total;
+      usedWords += summary.used;
+      attempts += summary.attempts;
+      correct += summary.correct;
+      wrong += summary.wrong;
+      if (String(summary.lastAt || '') > lastAt) lastAt = String(summary.lastAt);
+    });
+    return {
+      books,
+      totalWords,
+      usedWords,
+      percent: totalWords ? Math.round((usedWords / totalWords) * 100) : 0,
+      attempts,
+      correct,
+      wrong,
+      accuracy: attempts ? Math.round((correct / attempts) * 100) : null,
+      lastAt
+    };
+  }
+
+  function wordBookProgressCard(student, stats) {
+    const totals = `<div class="wb-totals">` +
+      `<div class="wb-total"><b>${stats.totalWords ? `${stats.percent}%` : '—'}</b><small>书架总覆盖</small></div>` +
+      `<div class="wb-total"><b>${stats.attempts || '—'}</b><small>累计词次</small></div>` +
+      `<div class="wb-total"><b>${stats.accuracy == null ? '—' : `${stats.accuracy}%`}</b><small>一次答对</small></div>` +
+    `</div>`;
+    const bookRows = stats.books.slice(0, 4).map(({ book, summary }) => {
+      const detail = `练过 ${summary.used} / ${summary.total} 词 · 对 ${summary.correct} 错 ${summary.wrong}`;
+      const last = summary.lastAt ? ` · 最近 ${S.fmtDate(summary.lastAt)}` : '';
+      return `<div class="wb-book-row">` +
+        `<div class="wb-book-label"><span>${S.escapeHtml(book.title || '未命名词汇书')}</span><b>${summary.percent}%</b></div>` +
+        `<div class="book-progress-track"><i style="width:${summary.percent}%"></i></div>` +
+        `<small class="wb-book-note">${S.escapeHtml(detail + last)}</small>` +
+      `</div>`;
+    }).join('');
+    const empty = !stats.books.length
+      ? `<div class="wb-empty">${bookshelfBooks.length
+        ? `还没有交过单词汇报。布置单词任务后，学生交回汇报码，这里就会显示进度。`
+        : `词汇书架还是空的。点右上角「打开词汇书架」，先上传一本词汇书。`}</div>`
+      : '';
+    const more = stats.books.length > 4 ? `<p class="hint" style="text-align:left;margin:0;">还有 ${stats.books.length - 4} 本已练过的书未展开，点「布置」可继续按进度接着排。</p>` : '';
+    return `<article class="wb-student-card" data-wb-student="${S.escapeHtml(student.id)}">` +
+      `<div class="wb-student-head">` +
+        `<span class="student-avatar">${S.escapeHtml(student.avatar || '🦊')}</span>` +
+        `<div class="wb-student-name"><strong>${S.escapeHtml(student.name)}</strong><small>${S.escapeHtml(student.id)}${student.grade ? ` · ${S.escapeHtml(student.grade)}` : ''}${stats.lastAt ? ` · 最近 ${S.escapeHtml(S.fmtDateTime(stats.lastAt))}` : ''}</small></div>` +
+        totals +
+        `<button class="p-btn small ghost" type="button" data-wb-assign="${S.escapeHtml(student.id)}">布置</button>` +
+      `</div>` +
+      (empty || `<div class="wb-book-list">${bookRows}</div>${more}`) +
+    `</article>`;
+  }
+
+  async function renderWordBookProgress() {
+    const chips = $('#word-book-student-chips');
+    const box = $('#word-book-progress');
+    if (!chips || !box) return;
+    wordBookStatsIds = statsSelectedIds(WORD_BOOK_STATS_KEY, wordBookStatsIds);
+    chips.innerHTML = statsChipsHtml(WORD_BOOK_STATS_KEY, wordBookStatsIds, 'data-wb-student-chip');
+    box.innerHTML = '<div class="wb-empty">正在读取词汇书架…</div>';
+    await loadBookshelfData();
+    if (!bookshelfBooks.length) {
+      box.innerHTML = `<div class="wb-empty"><b>还没有词汇书。</b><br>点右上角「打开词汇书架」，上传整本 PDF / Word / TXT 后，这里会按学生显示每本书的进度。</div>`;
+      return;
+    }
+    const students = sortedStudents().filter((student) => wordBookStatsIds.has(String(student.id)));
+    if (!students.length) {
+      box.innerHTML = '<div class="wb-empty">先在上面的学生里勾选至少一位。</div>';
+      return;
+    }
+    box.innerHTML = students.map((student) => wordBookProgressCard(student, wordBookStatsForStudent(student))).join('');
+  }
+
+  function grammarStatsForStudent(student) {
+    const done = grammarDoneDays(student);
+    const doneDays = Array.from(done).sort((a, b) => a - b);
+    const next = nextGrammarDay(student);
+    const nextLesson = G ? G.lessonByDay(next) : null;
+    const grammarTasks = (student.tasks || [])
+      .filter((task) => task && task.status === 'done' && task.mode === 'grammar')
+      .sort((a, b) => String(b.submittedAt || b.importedAt || '').localeCompare(String(a.submittedAt || a.importedAt || '')));
+    const lastAt = grammarTasks.length ? String(grammarTasks[0].submittedAt || grammarTasks[0].importedAt || '') : '';
+    const plans = grammarPlans()
+      .filter((plan) => String(plan.studentId) === String(student.id))
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    const plan = plans[0] || null;
+    const planDone = plan ? grammarPlanDone(plan, student) : 0;
+    const planTotal = plan ? (plan.days || []).length : 0;
+    const week = [];
+    const today = S.todayIso();
+    for (let back = 6; back >= 0; back -= 1) {
+      const day = S.addDays(today, -back);
+      const hit = grammarTasks.some((task) => String(task.submittedAt || task.importedAt || '').slice(0, 10) === day);
+      week.push({ day, hit });
+    }
+    return { done, doneDays, next, nextLesson, lastAt, plans, plan, planDone, planTotal, week, taskCount: grammarTasks.length };
+  }
+
+  function grammarProgressCard(student, stats) {
+    const percent = G ? Math.round((stats.done.size / G.total) * 100) : 0;
+    const nextLabel = stats.next > (G ? G.total : 60)
+      ? '60 天已全部学完'
+      : `下一课 D${stats.next}${stats.nextLesson ? ` · ${stats.nextLesson.title}` : ''}`;
+    const dayChips = stats.doneDays.slice(-8).reverse().map((day) => `<span class="grammar-day-chip">D${day}</span>`).join('');
+    const weekHtml = stats.week.map((cell) => {
+      const date = new Date(`${cell.day}T00:00:00`);
+      const label = Number.isNaN(date.getTime()) ? '' : `${date.getMonth() + 1}/${date.getDate()}`;
+      return `<span class="grammar-week-cell${cell.hit ? ' is-done' : ''}" title="${S.escapeHtml(cell.day)}${cell.hit ? ' 已打卡' : ' 未打卡'}">${cell.hit ? '✓' : label}</span>`;
+    }).join('');
+    const planDays = stats.plan && Array.isArray(stats.plan.days) ? stats.plan.days : [];
+    const planLine = planDays.length
+      ? `最近一份：D${(planDays[0] || {}).grammarDay || '-'}–D${(planDays[planDays.length - 1] || {}).grammarDay || '-'} · 已完成 ${stats.planDone}/${stats.planTotal} 课`
+      : '还没有发过 7 天语法小营';
+    return `<article class="wb-student-card" data-grammar-progress-student="${S.escapeHtml(student.id)}">` +
+      `<div class="wb-student-head">` +
+        `<span class="student-avatar">${S.escapeHtml(student.avatar || '🦊')}</span>` +
+        `<div class="wb-student-name"><strong>${S.escapeHtml(student.name)}</strong><small>${S.escapeHtml(student.id)}${student.grade ? ` · ${S.escapeHtml(student.grade)}` : ''}${stats.lastAt ? ` · 最近打卡 ${S.escapeHtml(S.fmtDateTime(stats.lastAt))}` : ' · 还没有打卡记录'}</small></div>` +
+        `<div class="wb-totals">` +
+          `<div class="wb-total"><b>${stats.done.size}/${G ? G.total : 60}</b><small>累计天数</small></div>` +
+          `<div class="wb-total"><b>${percent}%</b><small>课程进度</small></div>` +
+        `</div>` +
+        (stats.plan ? `<button class="p-btn small ghost" type="button" data-grammar-progress-action="codes" data-plan-id="${S.escapeHtml(stats.plan.id)}">打卡码</button>` : '') +
+        `<button class="p-btn small ghost" type="button" data-grammar-progress-action="assign" data-student-id="${S.escapeHtml(student.id)}">去发 7 天</button>` +
+      `</div>` +
+      `<div class="wb-book-row" style="margin-top:9px;">` +
+        `<div class="wb-book-label"><span>${S.escapeHtml(nextLabel)}</span><b>${percent}%</b></div>` +
+        `<div class="book-progress-track"><i style="width:${percent}%"></i></div>` +
+        `<small class="wb-book-note">${S.escapeHtml(planLine)} · 累计 ${stats.taskCount} 次语法打卡</small>` +
+        (dayChips ? `<div class="grammar-day-chips">${dayChips}</div>` : '') +
+        `<div class="grammar-week-strip">${weekHtml}</div>` +
+      `</div>` +
+    `</article>`;
+  }
+
+  function renderGrammarProgress() {
+    const chips = $('#grammar-progress-chips');
+    const box = $('#grammar-progress-list');
+    if (!chips || !box) return;
+    grammarStatsIds = statsSelectedIds(GRAMMAR_STATS_KEY, grammarStatsIds);
+    chips.innerHTML = statsChipsHtml(GRAMMAR_STATS_KEY, grammarStatsIds, 'data-grammar-progress-chip');
+    const students = sortedStudents().filter((student) => grammarStatsIds.has(String(student.id)));
+    const count = $('#grammar-progress-count');
+    if (count) count.textContent = students.length ? `已选 ${students.length} 人` : '未选学生';
+    if (!students.length) {
+      box.innerHTML = '<div class="wb-empty">先在上面的学生里勾选至少一位。</div>';
+      return;
+    }
+    box.innerHTML = students.map((student) => grammarProgressCard(student, grammarStatsForStudent(student))).join('');
+  }
+
+  function openBookshelfDialog() {
+    const dialog = $('#bookshelf-dialog');
+    const frame = $('#bookshelf-frame');
+    if (!dialog || !frame) return;
+    frame.src = 'library.html?embed=books&ts=' + Date.now();
+    if (!dialog.open) dialog.showModal();
+  }
+
+  function closeBookshelfDialog() {
+    const dialog = $('#bookshelf-dialog');
+    const frame = $('#bookshelf-frame');
+    if (frame) frame.src = 'about:blank';
+    if (dialog && dialog.open) dialog.close();
+    // 书架里可能刚导入或删除了书，关掉后重新读一遍再刷新进度。
+    loadBookshelfData(true).then(() => renderWordBookProgress()).catch(() => {});
+  }
+
+  function assignWordsFromProgress(studentId) {
+    const student = getStudent(studentId);
+    if (!student) return;
+    openBookDialog(null, studentId);
+  }
+
+  function focusGrammarStudent(studentId) {
+    renderGrammarStudents();
+    const input = $(`#grammar-students input[value="${S.escapeHtml(studentId)}"]`);
+    if (input) input.checked = true;
+    if (!grammarStudentIds) grammarStudentIds = new Set();
+    grammarStudentIds.add(String(studentId));
+    updateGrammarSelectedCount();
+    const box = $('#grammar-students');
+    if (box) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   function renderWordStudents() {
@@ -4372,14 +4667,14 @@
     ];
   }
 
-  function openBookDialog(sourceId) {
+  function openBookDialog(sourceId, onlyStudentId) {
     const source = sourceId ? (data.assignments || []).find((item) => item.id === sourceId && item.bookMode) : null;
     bookWords = source ? (source.words || []).slice() : [];
     bookSlots = source && Array.isArray(source.slots) && source.slots.length
       ? source.slots.map((slot) => ({ ...slot, id: S.uid('SL') }))
       : defaultBookSlots();
     bookPreviewStudentId = '';
-    bookStudentsCache = null;
+    bookStudentsCache = onlyStudentId ? new Set([String(onlyStudentId)]) : null;
     bookSourceAssignmentId = source ? source.id : '';
     const title = $('#book-title');
     if (title) title.value = source ? `${String(source.title || '词汇书').replace(/·\s*续编.*$/, '').trim()} · 续编` : '';
@@ -6933,6 +7228,82 @@
         if (assignment) openBookDialog(assignmentId);
       } else if (action === 'delete') deleteWordAssignment(assignmentId);
     });
+
+    const shelfOpen = $('#word-book-shelf-open');
+    if (shelfOpen) shelfOpen.addEventListener('click', openBookshelfDialog);
+    const shelfRefresh = $('#word-book-stats-refresh');
+    if (shelfRefresh) {
+      shelfRefresh.addEventListener('click', () => {
+        loadBookshelfData(true).then(() => renderWordBookProgress()).catch(() => renderWordBookProgress());
+      });
+    }
+    const wordBookChips = $('#word-book-student-chips');
+    if (wordBookChips) {
+      wordBookChips.addEventListener('change', (event) => {
+        const input = event.target.closest('[data-wb-student-chip]');
+        if (!input) return;
+        if (!wordBookStatsIds) wordBookStatsIds = new Set();
+        if (input.checked) wordBookStatsIds.add(input.value);
+        else wordBookStatsIds.delete(input.value);
+        saveStatsSelection(WORD_BOOK_STATS_KEY, wordBookStatsIds);
+        renderWordBookProgress();
+      });
+    }
+    const wordBookBox = $('#word-book-progress');
+    if (wordBookBox) {
+      wordBookBox.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-wb-assign]');
+        if (button) assignWordsFromProgress(button.dataset.wbAssign);
+      });
+    }
+    const shelfDialog = $('#bookshelf-dialog');
+    if (shelfDialog) {
+      shelfDialog.querySelectorAll('[data-shelf-close]').forEach((button) => {
+        button.addEventListener('click', closeBookshelfDialog);
+      });
+      shelfDialog.addEventListener('close', () => {
+        const frame = $('#bookshelf-frame');
+        if (frame) frame.src = 'about:blank';
+        loadBookshelfData(true).then(() => renderWordBookProgress()).catch(() => {});
+      });
+      shelfDialog.addEventListener('click', (event) => {
+        if (event.target === shelfDialog) closeBookshelfDialog();
+      });
+    }
+    // 词汇书架用 iframe 嵌在教师端里；书架里点“带到教师端”后，
+    // 只接受来自这个 iframe 的消息，避免别的页面往教师端塞词表。
+    window.addEventListener('message', (event) => {
+      if (event.origin !== location.origin) return;
+      const frame = $('#bookshelf-frame');
+      if (!frame || !frame.contentWindow || event.source !== frame.contentWindow) return;
+      const message = event.data;
+      if (!message || message.type !== 'shunshi-book-pick') return;
+      const pick = message.pick;
+      if (!pick || !Array.isArray(pick.words) || !pick.words.length) return;
+      closeBookshelfDialog();
+      window.setTimeout(() => { applyWordBookPick(pick); }, 260);
+    });
+    const grammarChips = $('#grammar-progress-chips');
+    if (grammarChips) {
+      grammarChips.addEventListener('change', (event) => {
+        const input = event.target.closest('[data-grammar-progress-chip]');
+        if (!input) return;
+        if (!grammarStatsIds) grammarStatsIds = new Set();
+        if (input.checked) grammarStatsIds.add(input.value);
+        else grammarStatsIds.delete(input.value);
+        saveStatsSelection(GRAMMAR_STATS_KEY, grammarStatsIds);
+        renderGrammarProgress();
+      });
+    }
+    const grammarProgressBox = $('#grammar-progress-list');
+    if (grammarProgressBox) {
+      grammarProgressBox.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-grammar-progress-action]');
+        if (!button) return;
+        if (button.dataset.grammarProgressAction === 'codes') openGrammarPlanCodes(button.dataset.planId);
+        else if (button.dataset.grammarProgressAction === 'assign') focusGrammarStudent(button.dataset.studentId);
+      });
+    }
 
     $('#detail-back').addEventListener('click', closeDetail);
     $('#detail-assign').addEventListener('click', () => openAssign(detailStudentId));
