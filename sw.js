@@ -1,5 +1,5 @@
 /* 顺势 · 离线缓存：联网时永远取最新，断网时用上次看过的版本。 */
-const CACHE = 'shunshi-pwa-v36';
+const CACHE = 'shunshi-pwa-v37';
 const CORE = [
   './',
   './index.html',
@@ -106,8 +106,9 @@ self.addEventListener('fetch', (event) => {
   /* OCR 引擎和 PDF 渲染包体积大，交给浏览器普通缓存，不塞进离线缓存。 */
   if (/\/vendor\/(tesseract|pdf)/.test(url.pathname)) return;
 
-  event.respondWith(
-    fetchWithTimeout(request, 8000)
+  event.respondWith((async () => {
+    const cached = await caches.match(request, { ignoreSearch: true });
+    const network = fetchWithTimeout(request, 8000)
       .then((response) => {
         if (response && response.ok) {
           const copy = response.clone();
@@ -115,10 +116,17 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(request, { ignoreSearch: true }).then((hit) => {
-        if (hit) return hit;
-        if (request.mode === 'navigate') return caches.match('./index.html');
-        return Response.error();
-      }))
-  );
+      .catch(() => null);
+    if (cached) {
+      // 先用旧缓存立即打开，再在后台悄悄换成最新版；不要为了“取最新”让老师每次干等网络。
+      event.waitUntil(network.catch(() => null));
+      return cached;
+    }
+    const response = await network;
+    if (response) return response;
+    if (request.mode === 'navigate') {
+      return (await caches.match('./index.html')) || Response.error();
+    }
+    return Response.error();
+  })());
 });
