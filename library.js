@@ -7170,10 +7170,16 @@
       text = toDisplayText(cleaning.text);
       const stats = {};
       const parsedWords = parseBookWordEntries(text, stats);
-      // 对开排版的词汇书由 PDF 层按编号配对，返回 bookEntries；再和逐行解析的结果合并，
-      // 两边各补各的漏词，不会丢词。
+      // 对开排版的词汇书由 PDF 层按编号配对，返回 bookEntries。配对已经完整的词不再
+      // 用逐行解析的副本覆盖，否则“1. make | vt. | 做…”里的释义会被当成例句重复显示；
+      // 只把配对页之外的词补进来。
       const pairedWords = Array.isArray(result.bookEntries) ? result.bookEntries : [];
-      const words = pairedWords.length ? mergeBookWordLists(parsedWords, pairedWords) : parsedWords;
+      let words = parsedWords;
+      if (pairedWords.length) {
+        const pairedKeys = new Set(pairedWords.map((word) => normalizeWordKey(word.word)).filter(Boolean));
+        const extras = parsedWords.filter((word) => !pairedKeys.has(normalizeWordKey(word.word)));
+        words = mergeBookWordLists(extras, pairedWords);
+      }
       state.bookImport = {
         file,
         extension,
