@@ -3070,6 +3070,7 @@
       const capped = Math.min(pdf.numPages, MAX_PDF_PAGES);
       const bounds = pdfPageBounds(capped, Boolean(options.allPages));
       const pages = [];
+      const bookPairs = [];
       const pageTotal = bounds.to - bounds.from + 1;
       for (let pageNumber = bounds.from; pageNumber <= bounds.to; pageNumber += 1) {
         const done = pageNumber - bounds.from + 1;
@@ -3082,10 +3083,33 @@
         }
         const page = await pdf.getPage(pageNumber);
         const content = await page.getTextContent();
+        if (options.bookMode) {
+          const pairs = pairPdfBookColumns(content.items, pageNumber);
+          if (pairs.length >= 5) {
+            bookPairs.push(...pairs);
+            pages.push(pairs
+              .map((pair) => `${pair.number}. ${pair.entry.word} | ${pair.entry.pos || ''} | ${pair.entry.meaning}`)
+              .join('\n'));
+            continue;
+          }
+        }
         const lines = groupPdfTextItems(content.items, { bookMode: Boolean(options.bookMode) });
         if (lines.length) pages.push(lines.join('\n'));
       }
       const text = toDisplayText(cleanPageTexts(pages).join('\n\n'));
+      let bookEntries = [];
+      if (bookPairs.length) {
+        const numbers = bookPairs.map((pair) => pair.number);
+        const uniqueRatio = new Set(numbers).size / Math.max(1, numbers.length);
+        bookPairs.sort((a, b) => {
+          // 编号全书连续时按号码还原顺序（装订成册的 PDF 页码常被打乱）；
+          // 如果每个单元都从 1 重新编号，就按 PDF 原有页序排。
+          if (uniqueRatio >= 0.9) return a.number - b.number || a.page - b.page;
+          return a.page - b.page || a.index - b.index;
+        });
+        const seen = new Map();
+        bookPairs.forEach((pair) => mergeBookEntry(bookEntries, seen, pair.entry));
+      }
       const notes = [];
       if (!text) notes.push('PDF 中没有提取到可复制的文字，可能是扫描版或纯图片；原文件已完整保存。');
       if (bounds.mode === 'range') {
@@ -3093,7 +3117,8 @@
       } else if (pdf.numPages > MAX_PDF_PAGES) {
         notes.push(`PDF 共 ${pdf.numPages} 页，已读取前 ${MAX_PDF_PAGES} 页。`);
       }
-      return { text, note: notes.join(' '), pageCount: pdf.numPages, textPages: pageTotal };
+      if (bookEntries.length) notes.push(`按左词右义编号配对，还原了 ${bookEntries.length} 个词。`);
+      return { text, note: notes.join(' '), pageCount: pdf.numPages, textPages: pageTotal, bookEntries };
     } finally {
       if (pdf) {
         try { await pdf.destroy(); } catch (error) { /* ignore */ }
@@ -3250,6 +3275,252 @@
     if (!Array.isArray(items) || !items.length) return [];
     const groups = options.bookMode ? splitPdfColumns(items) : [items];
     return groups.flatMap((group) => groupPdfRows(group));
+  }
+
+  /* ------------------------------------------------------------------------
+     对开词汇表：左半页是“编号 + 英文单词”，右半页是“编号 + 中文释义”。
+     一份 PDF 页里并排放着原书的两页，左右两栏各有自己的编号。直接按行读会
+     把整页拆成互不相干的文字，几乎认不出词。这里先用编号做锚点，把左右两栏
+     同号的单词和释义配成一对，再按编号排回全书顺序。
+     ------------------------------------------------------------------------ */
+
+  function pdfBookBoxes(items) {
+    const boxes = [];
+    (items || []).forEach((item) => {
+      const text = String((item && item.str) || '').trim();
+      if (!text) return;
+      const transform = (item && item.transform) || [];
+      const x = Number(transform[4]);
+      const y = Number(transform[5]);
+      const width = Number(item.width) || 0;
+      const height = Math.abs(Number(item.height) || Math.abs(Number(transform[3])) || 0) || 8;
+      if (!Number.isFinite(x) || !Number.isFinite(y) || width <= 0) return;
+      boxes.push({ text, x, y, width, height });
+    });
+    return boxes;
+  }
+
+  function pdfBookAnchorColumns(boxes) {
+    const anchors = boxes.filter((box) => /^\d{1,4}$/.test(box.text) && box.width <= 36);
+    if (anchors.length < 12) return [];
+    const columns = [];
+    anchors.slice().sort((a, b) => a.x - b.x).forEach((anchor) => {
+      let column = columns.find((candidate) => Math.abs(candidate.x - anchor.x) <= 28);
+      if (!column) {
+        column = { x: anchor.x, anchors: [] };
+        columns.push(column);
+      }
+      column.anchors.push(anchor);
+      const xs = column.anchors.map((item) => item.x).sort((a, b) => a - b);
+      column.x = xs[Math.floor(xs.length / 2)];
+    });
+    columns.forEach((column) => column.anchors.sort((a, b) => b.y - a.y));
+    return columns.filter((column) => column.anchors.length >= 6);
+  }
+
+  function pickPdfBookColumns(columns) {
+    if (columns.length < 2) return null;
+    const sorted = columns.slice().sort((a, b) => b.anchors.length - a.anchors.length);
+    const first = sorted[0];
+    const second = sorted.slice(1).find((column) => Math.abs(column.x - first.x) >= 80);
+    if (!second) return null;
+    return first.x < second.x
+      ? { left: first, right: second }
+      : { left: second, right: first };
+  }
+
+  function pdfBookColumnBoundary(boxes, left, right) {
+    const from = Math.min(left.x, right.x);
+    const to = Math.max(left.x, right.x);
+    const anchorTop = Math.max(...left.anchors.map((a) => a.y), ...right.anchors.map((a) => a.y));
+    const anchorBottom = Math.min(...left.anchors.map((a) => a.y), ...right.anchors.map((a) => a.y));
+    const relevant = boxes.filter((box) => {
+      if (box.y < anchorBottom - 14 || box.y > anchorTop + 14) return false;
+      if (/^\d{1,4}$/.test(box.text) && box.width <= 36) return false;
+      return box.x + box.width > from && box.x < to;
+    });
+    if (relevant.length >= 4) {
+      const cover = new Uint16Array(Math.ceil(to) + 4);
+      relevant.forEach((box) => {
+        const start = Math.max(0, Math.floor(box.x));
+        const end = Math.min(cover.length - 1, Math.ceil(box.x + box.width));
+        for (let x = start; x <= end; x += 1) cover[x] += 1;
+      });
+      let best = null;
+      let start = null;
+      const consider = (end) => {
+        if (start === null) return;
+        const width = end - start;
+        const mid = (start + end) / 2;
+        if (width >= 20 && mid > from && mid < to && (!best || width > best.width)) {
+          best = { width, mid };
+        }
+        start = null;
+      };
+      for (let x = Math.floor(from); x <= Math.ceil(to); x += 1) {
+        if (!cover[x]) {
+          if (start === null) start = x;
+        } else {
+          consider(x);
+        }
+      }
+      // 竖缝一直延伸到右栏编号处时，循环结束前没有遇到非空像素，要手动收尾。
+      consider(Math.ceil(to) + 1);
+      if (best) return best.mid;
+    }
+    return (left.x + right.x) / 2;
+  }
+
+  function pdfBookRegionRows(boxes, anchor, previous, next) {
+    const top = previous ? (previous.y + anchor.y) / 2 : anchor.y + 15;
+    const bottom = next ? (next.y + anchor.y) / 2 : anchor.y - 15;
+    const rows = [];
+    boxes.forEach((box) => {
+      if (box === anchor) return;
+      if (box.y <= bottom || box.y > top) return;
+      if (/^\d{1,4}$/.test(box.text) && box.width <= 36 && Math.abs(box.x - anchor.x) <= 30) return;
+      const text = String(box.text || '').trim();
+      if (!text) return;
+      // 不能按文字内容排除 “Word / Meaning”：高频词表里真的会收 meaning 这个词。
+      // 页眉行已经由上下边界挡在第一条编号之外。
+      let row = rows.find((candidate) => Math.abs(candidate.y - box.y) < 2.6);
+      if (!row) {
+        row = { y: box.y, parts: [] };
+        rows.push(row);
+      }
+      row.parts.push(box);
+    });
+    rows.sort((a, b) => b.y - a.y);
+    return rows.map((row) => {
+      row.parts.sort((a, b) => a.x - b.x);
+      let line = '';
+      let previousPart = null;
+      row.parts.forEach((part) => {
+        if (previousPart) {
+          const gap = part.x - (previousPart.x + previousPart.width);
+          if (gap > 1.5 && !isCjk(line.slice(-1)) && !isCjk(part.text.slice(0, 1))) line += ' ';
+        }
+        line += part.text;
+        previousPart = part;
+      });
+      return line.replace(/\s+/g, ' ').trim();
+    }).filter(Boolean);
+  }
+
+  function splitBookPosPrefix(text) {
+    let rest = String(text || '').replace(/\s+/g, ' ').trim();
+    const tokens = [];
+    let guard = 0;
+    while (rest && guard < 8) {
+      guard += 1;
+      const match = rest.match(/^(vlink|link-v|vt|vi|adj|adv|prep|pron|conj|num|art|aux|modal|phr|abbr|interj|int|n|v)\s*\.?\s*/i);
+      if (!match) break;
+      tokens.push(`${match[1].toLowerCase()}.`);
+      rest = rest.slice(match[0].length).trim();
+    }
+    return { pos: tokens, rest };
+  }
+
+  function pdfBookPairEntry(wordText, meaningRows) {
+    // 这类 PDF 常用“康熙部首”字形（⼥、⼯、⽵…），码位不在常用汉字区，
+    // 按 /[一-鿿]/ 判断会误以为“没有中文释义”，整条词就被丢掉。先做 NFKC 归一化。
+    const normalize = (value) => {
+      const text = String(value || '');
+      try { return text.normalize('NFKC'); } catch (error) { return text; }
+    };
+    const wordLine = normalize(wordText).replace(/\s+/g, ' ').trim();
+    if (!wordLine) return null;
+    let word = wordLine;
+    let phonetic = '';
+    const withPhonetic = wordLine.match(/^(.*?)\s*([/\[][^/\]\[]{1,40}[/\]])\s*$/);
+    if (withPhonetic) {
+      word = withPhonetic[1].trim();
+      phonetic = withPhonetic[2].trim();
+    }
+    if (!word || word.split(/\s+/).length > 4) return null;
+    if (!isBookHeadwordToken(word.split(/\s+/)[0])) return null;
+    const posTokens = [];
+    const meanings = [];
+    meaningRows.forEach((row) => {
+      const parsed = splitBookPosPrefix(normalize(row));
+      parsed.pos.forEach((token) => {
+        if (!posTokens.includes(token)) posTokens.push(token);
+      });
+      let rest = parsed.rest.replace(/^[\s:：=—–\-]+/, '').trim();
+      if (!rest) return;
+      if (!/[一-鿿A-Za-z]/.test(rest)) return;
+      meanings.push(rest);
+    });
+    let meaning = meanings.join('；').replace(/([一-鿿])\s+(?=[一-鿿])/g, '$1');
+    meaning = meaning.replace(/[；;]{2,}/g, '；').replace(/^[；;]+|[；;]+$/g, '').trim();
+    if (!meaning || !/[一-鿿]/.test(meaning)) return null;
+    return finalizeBookEntry({ word, phonetic, pos: posTokens.join(' '), meaning });
+  }
+
+  function pdfBookPairsByColumns(wordColumn, meaningColumn, wordBoxes, meaningBoxes, pageNumber) {
+    const wordsByNumber = new Map();
+    const meaningsByNumber = new Map();
+    wordColumn.anchors.forEach((anchor) => {
+      if (!wordsByNumber.has(anchor.text)) wordsByNumber.set(anchor.text, anchor);
+    });
+    meaningColumn.anchors.forEach((anchor) => {
+      if (!meaningsByNumber.has(anchor.text)) meaningsByNumber.set(anchor.text, anchor);
+    });
+    const shared = [...wordsByNumber.keys()].filter((number) => meaningsByNumber.has(number));
+    const canPairByNumber = shared.length >= Math.max(4, Math.min(wordsByNumber.size, meaningsByNumber.size) * 0.5);
+    const canPairByOrder = !canPairByNumber
+      && Math.abs(wordColumn.anchors.length - meaningColumn.anchors.length) <= 2;
+    if (!canPairByNumber && !canPairByOrder) return [];
+
+    const wordAnchors = canPairByNumber
+      ? wordColumn.anchors.filter((anchor) => meaningsByNumber.has(anchor.text))
+      : wordColumn.anchors;
+    const meaningAnchors = canPairByNumber
+      ? meaningColumn.anchors.filter((anchor) => wordsByNumber.has(anchor.text))
+      : meaningColumn.anchors;
+    const count = Math.min(wordAnchors.length, meaningAnchors.length);
+    const pairs = [];
+    for (let index = 0; index < count; index += 1) {
+      const wordAnchor = wordAnchors[index];
+      const meaningAnchor = meaningAnchors[index];
+      const number = canPairByNumber ? Number(wordAnchor.text) : (Number(wordAnchor.text) || index + 1);
+      if (!Number.isFinite(number)) continue;
+      const wordIndex = wordColumn.anchors.indexOf(wordAnchor);
+      const meaningIndex = meaningColumn.anchors.indexOf(meaningAnchor);
+      const wordRows = pdfBookRegionRows(
+        wordBoxes,
+        wordAnchor,
+        wordIndex > 0 ? wordColumn.anchors[wordIndex - 1] : null,
+        wordIndex < wordColumn.anchors.length - 1 ? wordColumn.anchors[wordIndex + 1] : null
+      );
+      const meaningRows = pdfBookRegionRows(
+        meaningBoxes,
+        meaningAnchor,
+        meaningIndex > 0 ? meaningColumn.anchors[meaningIndex - 1] : null,
+        meaningIndex < meaningColumn.anchors.length - 1 ? meaningColumn.anchors[meaningIndex + 1] : null
+      );
+      const entry = pdfBookPairEntry(wordRows.join(' '), meaningRows);
+      if (!entry) continue;
+      pairs.push({ number, index, page: pageNumber || 0, entry });
+    }
+    return pairs;
+  }
+
+  function pairPdfBookColumns(items, pageNumber) {
+    const boxes = pdfBookBoxes(items);
+    if (boxes.length < 24) return [];
+    const columns = pdfBookAnchorColumns(boxes);
+    const picked = pickPdfBookColumns(columns);
+    if (!picked) return [];
+    const boundary = pdfBookColumnBoundary(boxes, picked.left, picked.right);
+    const leftBoxes = boxes.filter((box) => box.x + box.width / 2 < boundary);
+    const rightBoxes = boxes.filter((box) => box.x + box.width / 2 >= boundary);
+    if (leftBoxes.length < 8 || rightBoxes.length < 8) return [];
+    let pairs = pdfBookPairsByColumns(picked.left, picked.right, leftBoxes, rightBoxes, pageNumber);
+    if (pairs.length < 5) {
+      pairs = pdfBookPairsByColumns(picked.right, picked.left, rightBoxes, leftBoxes, pageNumber);
+    }
+    return pairs;
   }
 
   /* ------------------------------------------------------------------------
@@ -6898,14 +7169,18 @@
       const cleaning = cleanImportedText(text, { fileName: file.name });
       text = toDisplayText(cleaning.text);
       const stats = {};
-      const words = parseBookWordEntries(text, stats);
+      const parsedWords = parseBookWordEntries(text, stats);
+      // 对开排版的词汇书由 PDF 层按编号配对，返回 bookEntries；再和逐行解析的结果合并，
+      // 两边各补各的漏词，不会丢词。
+      const pairedWords = Array.isArray(result.bookEntries) ? result.bookEntries : [];
+      const words = pairedWords.length ? mergeBookWordLists(parsedWords, pairedWords) : parsedWords;
       state.bookImport = {
         file,
         extension,
         title,
         words,
         rawText: toDisplayText(result.text || ''),
-        lines: stats.lines || 0,
+        lines: Math.max(stats.lines || 0, words.length),
         note: [result.note || '', cleaning.removed ? `已清理 ${cleaning.removed} 行页眉、页码或噪点。` : ''].filter(Boolean).join(' '),
         pageCount: Number(result.pageCount) || 0
       };
