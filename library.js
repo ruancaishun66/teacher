@@ -2326,14 +2326,19 @@
     // 旧版本重新拼的卷子可能保留原样排版，题号里会出现好几个 21。
     // 只对“确实有重复原卷题号”的旧练习卷切到连续编号，单份原卷不受影响。
     for (const paper of state.papers) {
-      if (!paper || paper.visualMode !== 'original') continue;
-      if (!paperHasDuplicateSourceNumbers(paper.sections || [])) continue;
-      paper.visualMode = 'text';
-      paper.renumbered = true;
-      const record = { ...paper };
-      delete record.html;
-      delete record.wordBlob;
-      await dbPut('papers', record);
+      try {
+        if (!paper || paper.visualMode !== 'original') continue;
+        if (!paperHasDuplicateSourceNumbers(paper.sections || [])) continue;
+        paper.visualMode = 'text';
+        paper.renumbered = true;
+        const record = { ...paper };
+        delete record.html;
+        delete record.wordBlob;
+        await dbPut('papers', record);
+      } catch (error) {
+        // 个别旧练习卷结构不完整时，只跳过它的题号迁移，不能让整个资料库打不开。
+        console.error('旧练习卷题号迁移失败', error);
+      }
     }
     // 已删除的题组/词汇书不要继续留在勾选集合里。
     const itemIds = new Set(state.items.map((item) => item.id));
@@ -4976,14 +4981,16 @@
     const numbers = [];
     (Array.isArray(sections) ? sections : []).forEach((section) => {
       const type = normalizeType(section && section.type);
-      ((section && section.items) || []).forEach((item) => {
+      const sectionItems = Array.isArray(section && section.items) ? section.items : [];
+      sectionItems.forEach((item) => {
         if (!item) return;
         if (type === 'writing') {
           const number = Number(item.writingNumber);
           if (Number.isFinite(number) && number > 0) numbers.push(number);
           return;
         }
-        const questionNumbers = (item.questions || [])
+        const questionList = Array.isArray(item.questions) ? item.questions : [];
+        const questionNumbers = questionList
           .map((question) => Number(question && question.number))
           .filter(Number.isFinite);
         const blankNumbers = collectBlankNumbers(item.content || '');
