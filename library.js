@@ -22,7 +22,8 @@
   const LEGACY_WATERMARK = '阮蔡顺 · 初高中英语 · 仅供学习';
   const MAX_FILE_BYTES = 100 * 1024 * 1024;
   const MAX_PDF_PAGES = 80;
-  const OCR_PDF_PAGE_LIMIT = 8;
+  // 扫描版整卷常见 10–16 页；默认只 OCR 8 页会把后面的五选五、短文填词和作文漏掉。
+  const OCR_PDF_PAGE_LIMIT = 20;
   const VIEWS = new Set(['library', 'upload', 'practice', 'settings', 'guide']);
   const FONT_STACK = 'Arial, "SimHei", "Microsoft YaHei", "Heiti SC", sans-serif';
   const CN_FONT_STACK = '"SimHei", "Microsoft YaHei", "Heiti SC", sans-serif';
@@ -50,7 +51,7 @@
 
   const TYPE_KEYWORDS = {
     single: {
-      strong: ['单项选择', '单项填空', '单项选择题', '选择填空', 'multiple choice', 'single choice', 'choose the best answer'],
+      strong: ['单项选择', '单项填空', '单项选择题', '选择填空', '语法选择', 'multiple choice', 'single choice', 'choose the best answer'],
       weak: ['单选', '选择题']
     },
     cloze: {
@@ -62,8 +63,8 @@
       weak: ['阅读']
     },
     five: {
-      strong: ['五选五', '七选五', '阅读填句', '阅读七选五', '阅读还原', '补全短文', '从短文后所给的五个选项', '从短文后所给'],
-      weak: ['选五', '阅读填空', '还原']
+      strong: ['五选五', '七选五', '阅读填句', '阅读七选五', '阅读还原', '补全短文', '阅读填空', '阅读匹配', '从短文后所给的五个选项', '从短文后所给'],
+      weak: ['选五', '还原']
     },
     grammar: {
       strong: [
@@ -472,8 +473,15 @@
   function isNoiseLine(line) {
     const text = String(line || '').trim();
     if (!text) return false;
-    if (/^[\s\-—_=*·•.。，,;；:：|\\/]+$/.test(text)) return true;
+    // 题干/选项里的作答横线（“—______.”“（ ）”）不是噪点，丢了题目就不完整。
+    // 只要一行里有两个以上下划线或一对空括号，就保留。
+    if (text.length <= 160 && (/[_＿]{2,}/.test(text) || /\(\s*\)|（\s*）/.test(text))) return false;
+    if (/^[\s\-—=*·•.。，,;；:：|\\/]+$/.test(text)) return true;
     if (NOISE_LINE_RULES.some((pattern) => pattern.test(text))) return true;
+    // 短文填词的答案行常写成“71. ______ 72. ______ …”，字母很少，
+    // 按“符号占比”会被当噪点丢掉，这一大题就只剩 1 题。
+    if (/(?:\d{1,3}\s*[.、．)）]\s*[_\-.—]{2,}\s*){2,}/.test(text)) return false;
+    if (/(?:^|\s)\d{1,3}\s*[.、．)）]\s*\(\s*[A-Za-z][^)]{0,30}\)/.test(text)) return false;
     // OCR 常把边框、下划线识别成一串符号；字母/汉字/数字占比过低时丢掉。
     if (text.length >= 6) {
       const meaningful = (text.match(/[A-Za-z0-9一-鿿]/g) || []).length;
@@ -905,6 +913,23 @@
     return merged;
   }
 
+  function trimTrailingPassage(raw) {
+    // 一页的最后一道题后面，常紧跟下一篇阅读的篇目标签（单独一行 A/B/C）。
+    // 不切掉的话，这一题的正文会把下一篇阅读的开头整段吞进来。
+    const lines = String(raw || '').replace(/\r\n?/g, '\n').split('\n');
+    let lastOption = -1;
+    lines.forEach((line, index) => {
+      if (/^\s*[A-E]\s*[.、．)）]\s*\S/.test(line)) lastOption = index;
+    });
+    if (lastOption < 0) return String(raw || '').trim();
+    for (let index = lastOption + 1; index < lines.length; index += 1) {
+      if (/^[A-E]$/.test(lines[index].trim())) {
+        return lines.slice(0, index).join('\n').trim();
+      }
+    }
+    return String(raw || '').trim();
+  }
+
   function parseQuestionBlocks(text, options = {}) {
     const source = normalizeEnglish(String(text || '')).replace(/\r\n?/g, '\n');
     let starts = collectQuestionStarts(source);
@@ -912,7 +937,7 @@
     const blocks = [];
     starts.forEach((start, index) => {
       const end = index + 1 < starts.length ? starts[index + 1].index : source.length;
-      const raw = source.slice(start.contentStart, end).trim();
+      const raw = trimTrailingPassage(source.slice(start.contentStart, end));
       if (!raw || raw.length < 2) return;
       const parsed = extractQuestionOptions(raw);
       blocks.push({
@@ -1073,7 +1098,13 @@
       /_{2,}\s*(\d{1,3})\s*_{2,}/g,
       /\(\s*(\d{1,3})\s*\)\s*_{1,}/g,
       /（\s*(\d{1,3})\s*）\s*_{1,}/g,
-      /(?:^|\n|[^\d])(\d{1,3})\s*[.、．]\s*_{2,}/g
+      /(?:^|\n|[^\d])(\d{1,3})\s*[.、．]\s*_{2,}/g,
+      // 短文填词/语法填空常见“71 (take)”“72. (run)”“(73) ______”，
+      // 以及 OCR 把下划线吃掉后只剩“71.”单独一行。这些都要算作小题，
+      // 否则整篇会被统计成 1 题，答案也无处挂。
+      /(?:^|[\s(（])(\d{1,3})\s*[.、．)）]?\s*\(\s*[A-Za-z][^)]{0,30}\)/g,
+      /(?:^|\n)\s*[（(]\s*(\d{1,3})\s*[）)]/g,
+      /(?:^|\n)\s*(\d{1,3})\s*[.、．)）]\s*(?=\n|$)/g
     ];
     patterns.forEach((pattern) => {
       let match = pattern.exec(source);
@@ -2205,6 +2236,9 @@
     settingRecords.forEach((record) => {
       if (record && record.key) settings[record.key] = record.value;
     });
+    // 旧版本默认只 OCR 8 页；用户没有改过这个数字时，跟着新默认值走，
+    // 否则整卷后面的五选五、短文填词和作文永远识别不到。
+    if (Number(settings.ocrPdfPages) === 8) settings.ocrPdfPages = OCR_PDF_PAGE_LIMIT;
     state.settings = settings;
     state.sectionAliases = Array.isArray(settings.sectionAliases)
       ? settings.sectionAliases.filter((entry) => entry && entry.alias && TYPES[entry.type])
@@ -3168,12 +3202,39 @@
     return cut(lines, 0);
   }
 
+  function normalizeOcrLine(line) {
+    let text = String(line || '').replace(/ /g, ' ').trim();
+    if (!text) return '';
+    // 页脚常把学校名和页码连成一行：“松柏中学 … 第7页 共12页”，整行丢掉。
+    if (/第\s*\d{1,3}\s*页/.test(text) && text.length <= 140) return '';
+    // OCR 常在题号前带上括号、顿号、点号：“、 )53.”“(. 54.”“( )55.”。
+    // 先把这些杂点清掉，题号才能被后续拆题规则认出来。
+    text = text.replace(
+      /^[\s、，,;；:：.。·•\-—_()（）\[\]【】]*(?:\(\s*\)|（\s*）)?\s*(\d{1,3})\s*[.、．,，:：)）]\s*/,
+      '$1. '
+    );
+    // 选项后的逗号、顿号也统一成 “A. ”。
+    text = text.replace(
+      /^[\s、，,;；:：.。·•\-—_()（）\[\]【】]*([A-E])\s*[.、．,，:：)）]\s+/,
+      '$1. '
+    );
+    return text;
+  }
+
+  function normalizeOcrText(text) {
+    return String(text || '')
+      .replace(/\r\n?/g, '\n')
+      .split('\n')
+      .map((line) => (line.trim() ? normalizeOcrLine(line) : ''))
+      .join('\n');
+  }
+
   function ocrTextFromResult(data, width) {
     const lines = ocrLinesFromResult(data);
     if (lines.length) {
-      return toDisplayText(orderOcrLines(lines, width).join('\n'));
+      return toDisplayText(normalizeOcrText(orderOcrLines(lines, width).join('\n')));
     }
-    return toDisplayText(data && data.text ? data.text : '');
+    return toDisplayText(normalizeOcrText(data && data.text ? data.text : ''));
   }
 
   async function prepareOcrCanvas(source, targetWidth) {
@@ -3270,10 +3331,11 @@
     // 福建等地把听力写成“听音理解”，只认“听力”会把它并进后面的单选，
     // 导致没有音频的听力小题被当成普通选择题抽进每日练习。
     ['listening', /听音理解|听力(?:理解|测试|部分)?/],
-    ['single', /选择填空|单项选择|单项填空/],
+    ['single', /选择填空|单项选择|单项填空|语法选择/],
     ['cloze', /完形填空|完型填空/],
     ['reading', /阅读理解|任务型阅读/],
-    ['five', /五选五|七选五|阅读还原|阅读填句|补全短文|信息匹配/],
+    // “阅读填空/阅读匹配”各地也用来叫五选五或七选五，不能漏。
+    ['five', /五选五|七选五|阅读还原|阅读填句|补全短文|信息匹配|阅读填空|阅读匹配/],
     ['dialogue', /情景交际|补全对话|完成对话/],
     ['picture', /看图写话|看图作文/],
     // 各地叫法不同：语法填空、短文填空、短文填词、语篇填空、首字母填空、选词填空，
@@ -3282,9 +3344,18 @@
     ['writing', /书面表达|写作|作文/]
   ];
 
+  function collapseCjkSpaces(text) {
+    // OCR 常把中文标题拆成“五 选 五”“完 形 填 空”，先去掉汉字之间的空格，
+    // 再交给大题标题规则；英文单词之间的空格保持不动。
+    return String(text || '').replace(/([㐀-鿿])\s+(?=[㐀-鿿])/g, '$1');
+  }
+
   function sectionTypeFromLine(line) {
-    const text = String(line || '').trim();
-    if (!text || text.length > 120) return '';
+    const raw = String(line || '').trim();
+    if (!raw) return '';
+    // 扫描件常把“二、完形填空”和后面的作答说明粘成很长一行。
+    // 只看开头 160 字，标题仍然能认出来，也不会把正文里的“阅读理解”误当标题。
+    const text = collapseCjkSpaces(raw.length > 160 ? raw.slice(0, 160) : raw);
     if (/^\s*(?:\d{1,2}[.、．)）]|[A-D][.、．)）])/.test(text)) return '';
     const prefix = /^\s*(?:第[一二三四五六七八九十]+[部分节]\s*)?(?:[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩIVX]+|[一二三四五六七八九十]+)?\s*[.、．:：]?\s*/;
     if (!prefix.test(text)) return '';
@@ -3314,13 +3385,14 @@
     return /^(?:阅读下面短文[，,]?\s*(?:从短文后所给的(?:五个|七个)选项|在空白处填入)|根据每题所提供的图画情景|根据情景[，,]?\s*用恰当的)/.test(text);
   }
 
-  const PAPER_TYPE_WORDS = '单项选择|单项填空|选择填空|语法选择|完形填空|完型填空|阅读理解|任务型阅读|阅读还原|阅读填句|补全短文|信息匹配|五选五|七选五|语法填空|短文填空|短文填词|语篇填空|首字母填空|选词填空|单词拼写|词汇运用|完成句子|情景交际|补全对话|完成对话|看图写话|看图作文|书面表达|应用文写作|读后续写|听力理解|听力测试';
+  const PAPER_TYPE_WORDS = '单项选择|单项填空|选择填空|语法选择|完形填空|完型填空|阅读理解|任务型阅读|阅读还原|阅读填句|补全短文|信息匹配|阅读填空|阅读匹配|五选五|七选五|语法填空|短文填空|短文填词|语篇填空|首字母填空|选词填空|单词拼写|词汇运用|完成句子|情景交际|补全对话|完成对话|看图写话|看图作文|书面表达|应用文写作|读后续写|听力理解|听力测试';
 
   function normalizePaperLayout(text) {
-    // 有些 PDF 把“二、完形填空”粘在上一题的选项后面，整段因此识别不到大题。
+    // 有些 PDF / OCR 把“二、完形填空”粘在上一题的选项后面，整段因此识别不到大题。
     // 只在“已知题型词”前面补换行，不碰普通正文，避免把文章拆碎。
-    const source = String(text || '').replace(/\r\n?/g, '\n');
-    const heading = `(?:第[一二三四五六七八九十]+部分(?:\\s*[（(][^）)\\n]{0,24}[）)])?|[一二三四五六七八九十]+、|\\b(?:I{1,3}|IV|V|VI{0,3}|[ⅠⅡⅢⅣⅤⅥ])\\s*[.、．])\\s*(?:${PAPER_TYPE_WORDS})`;
+    // 中文标题被 OCR 拆成“五 选 五”时，先合并汉字间的空格再匹配。
+    const source = collapseCjkSpaces(String(text || '')).replace(/\r\n?/g, '\n');
+    const heading = `(?:第[一二三四五六七八九十]+部分(?:\\s*[（(][^）)\\n]{0,24}[）)])?|[一二三四五六七八九十]+\\s*[、.．:：]?\\s*|\\b(?:I{1,3}|IV|V|VI{0,3}|[ⅠⅡⅢⅣⅤⅥ])\\s*[.、．])\\s*(?:${PAPER_TYPE_WORDS})`;
     return source
       .replace(new RegExp(`([^\\n])([ \\t]*)(?=${heading})`, 'g'), '$1\n')
       .replace(/[ \t]+\n/g, '\n')
@@ -6212,8 +6284,8 @@
     const splitNote = $('#paper-split-ai-note');
     if (splitNote) {
       splitNote.textContent = cfg.key
-        ? '已保存 AI Key：上传后先显示预计费用，你确认后才调用 AI；AI 失败自动用本机结果。'
-        : '还没保存 AI Key：本次用本机规则识别；保存 Key 后可以让 AI 精准识别。';
+        ? '已保存 AI Key：上传后先显示预计费用，你确认后才调用；排版乱时可点「AI 重新编排」。'
+        : '还没保存 AI Key：本次用本机规则识别；保存 Key 后可以让 AI 精准识别或重新编排。';
     }
   }
 
@@ -6879,7 +6951,9 @@
      智能识别：一道题、一份专题卷或一整套试卷，按题型分类入库
      ------------------------------------------------------------------------ */
 
-  const SPLIT_AI_MAX_CHARS = 36000;
+  // 12 页左右的整卷 OCR 常有两三万字；只发前 36000 字会让后面的
+  // 五选五、短文填词、作文在 AI 边界结果里直接消失。
+  const SPLIT_AI_MAX_CHARS = 60000;
 
   function setPaperSplitStatus(message, kind = '') {
     const node = $('#paper-split-status');
@@ -6923,10 +6997,12 @@
   function setPaperSplitPreparing(active) {
     state.paperSplitPreparing = !!active;
     const recognize = $('#paper-split-recognize');
+    const reflow = $('#paper-split-reflow');
     const pick = $('#paper-split-pick');
     const save = $('#paper-split-save');
     const locked = state.paperSplitPreparing || state.paperSplitBusy;
     if (recognize) recognize.disabled = locked;
+    if (reflow) reflow.disabled = locked;
     if (pick) pick.disabled = locked;
     setPaperSplitDialogLocked(locked);
     if (save) {
@@ -7165,8 +7241,8 @@
     const note = $('#paper-split-ai-note');
     if (note) {
       note.textContent = cfg && cfg.key
-        ? '已保存 AI Key：上传后先显示预计费用，你确认后才调用 AI；AI 失败自动用本机结果。'
-        : '还没保存 AI Key：本次用本机规则识别；到「设置 → AI 直连」保存 Key 后，可以让 AI 精准识别。';
+        ? '已保存 AI Key：上传后先显示预计费用，你确认后才调用；排版乱时可点「AI 重新编排」。'
+        : '还没保存 AI Key：本次用本机规则识别；到「设置 → AI 直连」保存 Key 后，可以让 AI 精准识别或重新编排。';
     }
     const usbNote = $('#paper-split-usb-note');
     if (usbNote) {
@@ -7388,6 +7464,195 @@
     ].join('\n');
   }
 
+  const REFLOW_CHUNK_CHARS = 12000;
+  const REFLOW_MAX_OUTPUT = 8000;
+
+  function paperReflowPrompt(text, index, total) {
+    return [
+      '你是英语试卷排版校对助手。下面是一份试卷中的一段文字，可能是扫描件 OCR 的结果，很多行粘在了一起。',
+      '请只做“分题、分段、换行”，把这段文字恢复成能直接打印的干净排版。',
+      '绝对不要改写、增删、概括或补写任何题目、选项、短文和答案，不要编造答案。',
+      '必须遵守：',
+      '1. 每个大题标题单独占一行，例如“一、单项选择”“二、完形填空”“三、阅读理解”“五、五选五”“六、短文填词”“七、书面表达”。',
+      '2. 每道小题的题号单独起行，题号和题干之间空一格；下一题绝不能粘在上一题的选项后面。',
+      '3. 每个选项 A. B. C. D. 单独占一行；选项很短时可以排在同一行，但必须完整，不能丢选项。',
+      '4. 阅读理解每篇的篇目标签 A/B/C/D 单独占一行；文章每个自然段之间空一行。',
+      '5. 完形填空、五选五、短文填词的短文保持完整，空格用 ______ 表示，题号保留。',
+      '6. 删除页眉、页脚、学校名、页码、网站广告和水印；保留试卷标题、大题说明、分值、中文提示和答案区。',
+      '7. 只输出整理后的正文，不要解释，不要写“以下是整理稿”，不要用 Markdown 代码块。',
+      '',
+      `当前是第 ${index}/${total} 段，只整理这一段，不要补上其他段的内容。`,
+      '',
+      '原文：',
+      text
+    ].join('\n');
+  }
+
+  function splitReflowChunks(text, limit = REFLOW_CHUNK_CHARS) {
+    const source = String(text || '').replace(/\r\n?/g, '\n').trim();
+    if (!source) return [];
+    if (source.length <= limit) return [source];
+    const lines = source.split('\n');
+    const chunks = [];
+    let current = [];
+    let size = 0;
+    const isBoundary = (line) => /^\s*(?:[一二三四五六七八九十]+\s*[、.．:：]|第[一二三四五六七八九十]+部分|\d{1,3}\s*[.、．)）])/.test(line);
+    const pushCurrent = () => {
+      const value = current.join('\n').trim();
+      if (value) chunks.push(value);
+      current = [];
+      size = 0;
+    };
+    lines.forEach((line) => {
+      if (size + line.length + 1 > limit && current.length) {
+        // 先往回找最近的大题标题或题号，保证不把一道题从中间切开。
+        let cut = -1;
+        for (let index = current.length - 1; index >= Math.max(0, current.length - 16); index -= 1) {
+          if (isBoundary(current[index])) { cut = index; break; }
+        }
+        if (cut > 0) {
+          const carry = current.slice(cut);
+          current = current.slice(0, cut);
+          pushCurrent();
+          current = carry;
+          size = carry.reduce((sum, item) => sum + item.length + 1, 0);
+        } else {
+          pushCurrent();
+        }
+      }
+      current.push(line);
+      size += line.length + 1;
+    });
+    pushCurrent();
+    return chunks;
+  }
+
+  function questionNumberSet(text) {
+    const numbers = new Set();
+    const pattern = /(?:^|\n)\s*(\d{1,3})\s*[.、．)）]/g;
+    let match = pattern.exec(String(text || ''));
+    while (match) {
+      const number = Number(match[1]);
+      if (number >= 1 && number <= 200) numbers.add(number);
+      match = pattern.exec(String(text || ''));
+    }
+    return numbers;
+  }
+
+  function reflowLooksComplete(source, result) {
+    const text = String(result || '').trim();
+    if (!text) return false;
+    // AI 偶尔会把一段“总结”掉。长度明显变短，或题号丢了两成，就判失败，
+    // 宁可保留本机识别结果，也不能把缺题的资料入库。
+    if (text.length < Math.max(60, String(source || '').length * 0.55)) return false;
+    const before = questionNumberSet(source);
+    if (before.size < 3) return true;
+    const after = questionNumberSet(text);
+    let missing = 0;
+    before.forEach((number) => { if (!after.has(number)) missing += 1; });
+    return missing <= Math.max(1, Math.floor(before.size * 0.2));
+  }
+
+  async function runPaperReflow(prepared, chunks, fallbackState) {
+    const tool = aiTool();
+    if (!tool) { toast('AI 模块没有加载，请刷新页面。', 'error'); return; }
+    if (state.paperSplitBusy || state.paperSplitPreparing) return;
+    state.paperSplitBusy = true;
+    const recognizeButton = $('#paper-split-recognize');
+    const reflowButton = $('#paper-split-reflow');
+    const textarea = $('#paper-split-text');
+    const pickButton = $('#paper-split-pick');
+    [recognizeButton, reflowButton, textarea, pickButton].forEach((node) => {
+      if (node) node.disabled = true;
+    });
+    setPaperSplitDialogLocked(true);
+    renderPaperSplitPreview();
+    let tokens = 0;
+    let cost = 0;
+    try {
+      const results = [];
+      for (let index = 0; index < chunks.length; index += 1) {
+        setPaperSplitStatus(`AI 正在重新编排第 ${index + 1}/${chunks.length} 段，请稍等…`);
+        const prompt = paperReflowPrompt(chunks[index], index + 1, chunks.length);
+        const maxTokens = Math.min(REFLOW_MAX_OUTPUT, Math.max(900, Math.ceil(chunks[index].length / 1.4) + 400));
+        const result = await tool.call([
+          { role: 'system', content: '你是严谨的英语试卷排版校对员。只整理换行和分段，不改写、不增删题目，不编造答案。只输出整理后的正文。' },
+          { role: 'user', content: prompt }
+        ], maxTokens, '资料库 · AI 重排');
+        const cleaned = stripResultFence(result.text);
+        if (!reflowLooksComplete(chunks[index], cleaned)) {
+          throw new Error(`第 ${index + 1} 段返回不完整（题号或正文缺失），已停止，未覆盖本机结果。`);
+        }
+        results.push(cleaned);
+        tokens += Number(result.tokens) || 0;
+        cost += Number(result.cost) || 0;
+      }
+      const reflowed = toDisplayText(results.join('\n\n'));
+      if (textarea) textarea.value = [reflowed, prepared.answers].filter(Boolean).join('\n\n');
+      const ready = preparePaperSplitText();
+      if (!ready) throw new Error('AI 整理后的正文为空。');
+      const local = buildLocalPaperSplit(ready);
+      local.state.source = 'ai-reflow';
+      state.paperSplit = local.state;
+      state.paperSplitAiText = '';
+      renderPaperSplitPreview();
+      paperSplitRevealPreview();
+      const counts = local.state.sections.map((section) => `${typeShort(section.type)} ${section._questionCount || 0} 题`).join('、');
+      setPaperSplitStatus(`AI 重新编排完成：${local.state.sections.length} 个题型（${counts}）· 本次 ${tokens} tokens · 约 ${aiCostText(cost)}。请核对后确认入库。`);
+      toast('AI 重新编排完成，请核对题型和题数。', 'ok', 6500);
+      renderAiSettings();
+    } catch (error) {
+      console.error(error);
+      if (fallbackState) state.paperSplit = fallbackState;
+      setPaperSplitStatus(`${error.message || 'AI 重新编排失败'} 已保留本机识别结果。`, 'error');
+      toast(`AI 重新编排失败：${error.message || error}`, 'error', 9000);
+      renderPaperSplitPreview();
+    } finally {
+      state.paperSplitBusy = false;
+      [recognizeButton, reflowButton, textarea, pickButton].forEach((node) => {
+        if (node) node.disabled = false;
+      });
+      setPaperSplitDialogLocked(state.paperSplitPreparing);
+      renderPaperSplitPreview();
+    }
+  }
+
+  function offerPaperReflow() {
+    if (state.paperSplitBusy || state.paperSplitPreparing) return;
+    const prepared = preparePaperSplitText();
+    if (!prepared) return;
+    const tool = aiTool();
+    const cfg = tool ? tool.config() : null;
+    if (!cfg || !cfg.key) {
+      toast('先到「设置 → AI 直连」保存 Key，才能让 AI 重新编排。', 'error', 7000);
+      return;
+    }
+    const chunks = splitReflowChunks(prepared.body);
+    if (!chunks.length) {
+      toast('没有可整理的正文，请先上传文件或粘贴题目。', 'error');
+      return;
+    }
+    let inputTokens = 0;
+    let outputTokens = 0;
+    chunks.forEach((chunk, index) => {
+      const estimate = tool.estimate(paperReflowPrompt(chunk, index + 1, chunks.length).length, Math.min(REFLOW_MAX_OUTPUT, Math.max(900, Math.ceil(chunk.length / 1.4) + 400)));
+      inputTokens += estimate.inputTokens;
+      outputTokens += estimate.maxOutputTokens;
+    });
+    const estimateCost = (inputTokens * 2.2 + outputTokens * 8.6) / 1000000;
+    const fileName = state.paperSplitSource && state.paperSplitSource.name
+      ? `「${state.paperSplitSource.name}」`
+      : '这份资料';
+    openConfirm({
+      title: '用 AI 重新编排这份资料？',
+      message: `会把${fileName}的题目正文约 ${prepared.body.length} 字发送给 DeepSeek，分 ${chunks.length} 段整理换行、题号、选项和大题标题；不会发送学生信息。预计最多约 ${inputTokens + outputTokens} tokens，约 ${aiCostText(estimateCost)}，实际按返回用量记账。点「取消」就保留现在的本机识别结果。`,
+      confirmText: '开始重新编排',
+      danger: false,
+      onConfirm: () => runPaperReflow(prepared, chunks, state.paperSplit),
+      onCancel: () => setPaperSplitStatus('已保留本机识别结果；需要时再点「AI 重新编排」。')
+    });
+  }
+
   async function runPaperSplitAi(prepared, prompt, fallbackState) {
     const tool = aiTool();
     state.paperSplitBusy = true;
@@ -7482,20 +7747,21 @@
     const grade = (gradeSelect && gradeSelect.value) || split.grade || '';
     const answerMap = parseAnswerKey(split.answers || '');
     const splitSource = state.paperSplitSource;
-    const sourceLabel = split.source === 'ai' ? 'AI 定位' : '本机';
+    const aiReflow = split.source === 'ai-reflow';
+    const sourceLabel = aiReflow ? 'AI 重排' : split.source === 'ai' ? 'AI 定位' : '本机';
     const material = {
       id: uid(),
       title,
       type: picked.length === 1 ? picked[0].type : 'paper',
       grade,
       band: gradeBand(grade),
-      tags: unique([...picked.map((section) => typeShort(section.type)), grade, '智能识别', split.source === 'ai' ? 'AI 识别' : '本机识别'].filter(Boolean)),
+      tags: unique([...picked.map((section) => typeShort(section.type)), grade, '智能识别', aiReflow ? 'AI 重排' : split.source === 'ai' ? 'AI 识别' : '本机识别'].filter(Boolean)),
       text: split.text,
       body: split.body,
       answers: split.answers,
       answerMap,
       sectionTypes: unique(picked.map((section) => section.type)),
-      note: `智能识别：原文 ${split.sections.length} 个题型，已选 ${picked.length} 个（${picked.map((section) => typeShort(section.type)).join('、')}）。${split.source === 'ai' ? '题型边界由 AI 定位，原文只保存在本机。' : '本机规则识别，未调用 AI。'}${splitSource ? ` 原文件「${splitSource.name}」已完整保留。` : ''}`,
+      note: `智能识别：原文 ${split.sections.length} 个题型，已选 ${picked.length} 个（${picked.map((section) => typeShort(section.type)).join('、')}）。${aiReflow ? 'AI 已把粘连的文字重新分行、分题和分选项，原文只保存在本机。' : split.source === 'ai' ? '题型边界由 AI 定位，原文只保存在本机。' : '本机规则识别，未调用 AI。'}${splitSource ? ` 原文件「${splitSource.name}」已完整保留。` : ''}`,
       sourceName: splitSource ? splitSource.name : `智能识别（${sourceLabel}）`,
       sourceType: splitSource ? splitSource.type : 'text/plain',
       sourceExtension: splitSource ? splitSource.extension : 'txt',
@@ -7503,7 +7769,7 @@
       originalSize: splitSource ? splitSource.size : 0,
       processedBlob: null,
       processedSize: 0,
-      confidence: split.source === 'ai' ? 82 : 88,
+      confidence: aiReflow ? 86 : split.source === 'ai' ? 82 : 88,
       autoType: 'paper',
       createdAt: nowIso(),
       updatedAt: nowIso()
@@ -7564,8 +7830,8 @@
     const usedTypes = Array.from(groups.keys());
     material.type = usedTypes.length === 1 ? usedTypes[0] : 'paper';
     material.sectionTypes = usedTypes;
-    material.tags = unique([...usedTypes.map((type) => typeShort(type)), grade, '智能识别', split.source === 'ai' ? 'AI 识别' : '本机识别'].filter(Boolean));
-    material.note = `智能识别：原文 ${split.sections.length} 个题型，已入库 ${usedTypes.length} 个（${usedTypes.map((type) => typeShort(type)).join('、')}）。${split.source === 'ai' ? '题型边界由 AI 定位，原文只保存在本机。' : '本机规则识别，未调用 AI。'}${visualNote ? ` ${visualNote}` : ''}`;
+    material.tags = unique([...usedTypes.map((type) => typeShort(type)), grade, '智能识别', aiReflow ? 'AI 重排' : split.source === 'ai' ? 'AI 识别' : '本机识别'].filter(Boolean));
+    material.note = `智能识别：原文 ${split.sections.length} 个题型，已入库 ${usedTypes.length} 个（${usedTypes.map((type) => typeShort(type)).join('、')}）。${aiReflow ? 'AI 已把粘连的文字重新分行、分题和分选项，原文只保存在本机。' : split.source === 'ai' ? '题型边界由 AI 定位，原文只保存在本机。' : '本机规则识别，未调用 AI。'}${visualNote ? ` ${visualNote}` : ''}`;
     material.visualCount = visualCount;
     material.questionCount = allItems.length;
     material.processedBlob = makeMaterialBlob(material);
@@ -7968,7 +8234,7 @@ Li Hua`,
         formatDate(record.at, true),
         record.title,
         record.grade || '未标注',
-        record.source === 'ai' ? 'AI 识别' : '本机识别',
+        record.source === 'ai' ? 'AI 识别' : record.source === 'ai-reflow' ? 'AI 重排' : '本机识别',
         record.types.map((entry) => `${entry.label} ${entry.items}组/${entry.questions}题`).join('；'),
         record.itemCount,
         record.questionCount,
@@ -8569,6 +8835,10 @@ Li Hua`,
     const splitPaperRecognize = $('#paper-split-recognize');
     if (splitPaperRecognize) {
       splitPaperRecognize.addEventListener('click', smartRecognizePaper);
+    }
+    const splitPaperReflow = $('#paper-split-reflow');
+    if (splitPaperReflow) {
+      splitPaperReflow.addEventListener('click', offerPaperReflow);
     }
     const splitPaperSave = $('#paper-split-save');
     if (splitPaperSave) {

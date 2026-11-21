@@ -3034,10 +3034,10 @@
               </div>
               <div class="field">
                 <label for="ocr-pages">扫描 PDF 最多识别页数</label>
-                <input class="input" id="ocr-pages" type="number" min="1" max="40" step="1" value="8">
+                <input class="input" id="ocr-pages" type="number" min="1" max="40" step="1" value="20">
               </div>
             </div>
-            <p class="form-note">整本 100 多页的扫描试卷不建议一次全部 OCR，先拆分或只上传需要用的几页，识别更快、也更准确。</p>
+            <p class="form-note">默认识别前 20 页，整份 12 页的扫描卷也能一次读完（后面的五选五、短文填词、作文不会再漏）。100 多页的整本书建议先拆分；页数越多，识别越慢。</p>
             <div class="settings-actions">
               <button class="btn btn-blue" type="button" data-action="save-settings">保存设置</button>
             </div>
@@ -3295,6 +3295,10 @@
             <svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>
             智能识别
           </button>
+          <button class="btn btn-outline" type="button" id="paper-split-reflow" title="让 AI 把扫描件或乱掉的文字重新分行、分题、分选项">
+            <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
+            AI 重新编排
+          </button>
           <span class="split-ai-note" id="paper-split-ai-note">AI 需要先在「设置 → AI 直连」保存 Key，只在你确认后调用。</span>
         </div>
         <p class="split-status" id="paper-split-status"></p>
@@ -3416,7 +3420,7 @@
   <script>window.SHUNSHI_TEACHER_AI = true;</script>
   <script src="portal.js?v=20261121d"></script>
   <script src="question-visual.js?v=20261121d"></script>
-  <script src="library.js?v=20261121d"></script>
+  <script src="library.js?v=20261121e"></script>
 <script src="pwa.js" defer></script>
 </body>
 </html>
