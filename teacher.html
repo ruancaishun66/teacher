@@ -211,7 +211,7 @@
       <div class="roster-toolbar">
         <div>
           <h2 class="pane-title">一周任务计划 <small>WEEKLY PLAN</small></h2>
-          <p class="pane-sub">选好一周的资料和学生，系统按每位学生的难度档自动拆成 7 天任务。生成一次，学生导入一份“周计划码”，之后每天按天解锁；老师不用每天再发任务。</p>
+          <p class="pane-sub">选好一周的资料和学生，会按每位学生的难度档拆成 7 天任务。生成一次，学生导入一份“周计划码”，之后每天按天解锁；老师不用每天再发任务。</p>
         </div>
         <div class="toolbar-actions">
           <button class="p-btn small ghost" type="button" id="plan-refresh">刷新资料</button>
@@ -260,7 +260,7 @@
       <!-- A 单词书打卡 -->
       <div class="publish-subpane" data-publish-pane="book">
         <div class="publish-banner">
-          <div><b>一整本词汇书，排成一周任务</b><p>导入词汇书，插入任务 1、2、3…；单词日和语法日可以混排。系统按学情分好每天的词，生成一人一码。下面也可以单独补发一份单词任务。</p></div>
+          <div><b>一整本词汇书，排成一周任务</b><p>导入词汇书，插入任务 1、2、3…；单词日和语法日可以混排。每天的词按学情分好，生成一人一码。下面也可以单独补发一份单词任务。</p></div>
           <button class="p-btn small" type="button" id="publish-book">打开周编排</button>
         </div>
 
@@ -269,7 +269,7 @@
             <div class="book-launch-copy">
               <span class="book-launch-kicker">A · 整本书打卡</span>
               <h2 class="pane-title">词汇书周编排 <small>BOOK WEEK</small></h2>
-              <p>适合长期词汇主线：把词汇书按单元切成任务栏，系统按每位学生的学情分配每天的词，7 天自动解锁。</p>
+              <p>适合长期词汇主线：把词汇书按单元切成任务栏，每天的词按每位学生的学情分配，7 天自动解锁。</p>
               <ul class="book-launch-points">
                 <li><b>不会重复</b><span>接着上次的进度往下排，同一本书的词只出现一次。</span></li>
                 <li><b>单词 + 语法混排</b><span>任务栏可以插语法日，一周不必只背单词。</span></li>
@@ -372,7 +372,7 @@
               <button class="p-btn small" type="button" id="reading-ai">AI 生成语法 + 长难句 + 命题视角</button>
             </div>
           </div>
-          <div class="reading-ai-status" id="reading-ai-status">还没有生成。没有 API Key 也能继续：系统会用“本机规则版”生成观察和拆解任务，只是没有 AI 那么细。</div>
+          <div class="reading-ai-status" id="reading-ai-status">还没有生成。没有 API Key 也能继续：会用“本机规则版”生成观察和拆解任务，只是没有 AI 那么细。</div>
           <details class="reading-ai-preview" id="reading-ai-preview" hidden>
             <summary>预览 AI 生成的内容（建议先核对答案）</summary>
             <div id="reading-ai-preview-body"></div>
@@ -513,7 +513,7 @@
         </section>
         <section class="p-card p-col-8">
           <div id="weekly-advice-output" class="weekly-output">
-            <div class="empty-state"><strong>还没有生成</strong>选好这一周，点“生成上课建议”。系统会把出勤、单词错词、语法卡点和课堂材料整理成一页。</div>
+            <div class="empty-state"><strong>还没有生成</strong>选好这一周，点“生成上课建议”。这里会把出勤、单词错词、语法卡点和课堂材料整理成一页。</div>
           </div>
         </section>
       </div>
@@ -1055,7 +1055,7 @@
         </div>
 
         <div class="word-source-pane" data-word-pane="library">
-          <p class="hint">从组卷工作台保存过的阅读、完形或试卷里提取生词。系统会跳过常见虚词，最多取 40 个。</p>
+          <p class="hint">从组卷工作台保存过的阅读、完形或试卷里提取生词。常见虚词会自动跳过，最多取 40 个。</p>
           <div class="word-library-row">
             <select class="select" id="word-material"></select>
             <button class="p-btn small" type="button" id="word-extract">提取到单词表</button>
@@ -1113,7 +1113,7 @@
     <div class="p-dialog-head">
       <div>
         <h2>词汇书周编排</h2>
-        <p>导入整本词汇书，自行插入任务 1、2、3…；系统按每位学生上周的完成情况、正确率和当前水平，自动分好每天要打卡的词，并支持接着下周继续。</p>
+        <p>导入整本词汇书，自行插入任务 1、2、3…；会按每位学生上周的完成情况、正确率和当前水平，分好每天要打卡的词，并支持接着下周继续。</p>
       </div>
       <button class="p-close" type="button" data-close aria-label="关闭">×</button>
     </div>
@@ -1176,14 +1176,14 @@
         <button class="p-btn small ghost" type="button" id="book-preview-btn">刷新预览</button>
       </div>
       <div class="book-student-preview" id="book-student-preview">
-        <p class="hint">先选择学生，再刷新预览，就能看到系统按上周情况分好的每日词量。</p>
+        <p class="hint">先选择学生，再刷新预览，就能看到按上周情况分好的每日词量。</p>
       </div>
 
       <div class="field" style="margin-top:12px;">
         <label>发给谁</label>
         <div class="check-list" id="book-students"></div>
       </div>
-      <p class="hint">系统会跳过该生已做过的词，优先补上周错词；同一本书可以连续生成下周任务，直到整本过完。学生每天完成任务后发“今日汇报码”，你在“汇报 → 每日看板”里就能看到。</p>
+      <p class="hint">该生做过的词会自动跳过，优先补上周错词；同一本书可以连续生成下周任务，直到整本过完。学生每天完成任务后发“今日汇报码”，你在“汇报 → 每日看板”里就能看到。</p>
     </div>
     <div class="p-dialog-foot">
       <span class="hint" style="margin-right:auto;" id="book-foot-hint">至少导入 4 个词，并至少插入 1 个任务栏。</span>
@@ -1233,7 +1233,7 @@
     <div class="p-dialog-head">
       <div>
         <h2>导入学生汇报</h2>
-        <p>把学生发来的汇报码整段粘贴进来。系统会用该生登记的密码校验。</p>
+        <p>把学生发来的汇报码整段粘贴进来。会用该生登记的密码校验。</p>
       </div>
       <button class="p-close" type="button" data-close aria-label="关闭">×</button>
     </div>

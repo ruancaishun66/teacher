@@ -2581,9 +2581,60 @@
     }
 
     .bank-summary {
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       color: var(--ink-soft);
       font-size: 0.7rem;
+    }
+
+    /* 题型做成上方的一排按钮，点哪个看哪个，整页不会越拉越长。 */
+    .bank-type-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 0 0 12px;
+    }
+
+    .bank-type-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fffdf8;
+      color: var(--ink-soft);
+      font-family: inherit;
+      font-size: 0.7rem;
+      line-height: 1.2;
+      cursor: pointer;
+      transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+    }
+
+    .bank-type-tab b {
+      color: var(--blue-deep);
+      font-weight: 600;
+    }
+
+    .bank-type-tab em {
+      font-style: normal;
+      opacity: 0.65;
+    }
+
+    .bank-type-tab:hover {
+      border-color: var(--blue-soft, #9bb7cf);
+      color: var(--blue-deep);
+    }
+
+    .bank-type-tab.is-active {
+      border-color: var(--blue-deep);
+      background: var(--blue-deep);
+      color: #fff;
+    }
+
+    .bank-type-tab.is-active b,
+    .bank-type-tab.is-active em {
+      color: #fff;
+      opacity: 0.9;
     }
 
     .bank-list {
@@ -2677,34 +2728,93 @@
     }
 
     .bank-stem {
-      display: -webkit-box;
-      overflow: hidden;
+      display: block;
       color: var(--ink);
       font-size: 0.78rem;
       line-height: 1.65;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
 
     .bank-options {
-      display: -webkit-box;
-      overflow: hidden;
+      display: block;
       margin-top: 3px;
       color: var(--ink-soft);
       font-size: 0.68rem;
       line-height: 1.6;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
 
     .bank-question-list {
       display: grid;
-      gap: 3px;
-      max-height: 220px;
-      margin-top: 7px;
-      padding-top: 7px;
+      gap: 6px;
+      margin-top: 8px;
+      padding-top: 8px;
       border-top: 1px dashed rgba(49, 95, 140, 0.18);
+    }
+
+    /* 大题原文单独折叠：题目完整保留，又不会把整页一开始就撑得很长。 */
+    .bank-passage {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border: 1px dashed rgba(49, 95, 140, 0.2);
+      border-radius: 9px;
+      background: #fffdf8;
+    }
+
+    .bank-passage summary {
+      color: var(--blue-deep);
+      font-size: 0.66rem;
+      line-height: 1.5;
+      cursor: pointer;
+    }
+
+    .bank-passage pre {
+      max-height: 260px;
+      margin: 8px 0 0;
+      padding-right: 4px;
       overflow: auto;
+      color: var(--ink-soft);
+      font-family: inherit;
+      font-size: 0.68rem;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    /* 题库里的原题缩略图：点开看原卷字体、题号和分栏。 */
+    .bank-visual {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .bank-visual button {
+      display: block;
+      max-width: 230px;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+      cursor: zoom-in;
+    }
+
+    .bank-visual img {
+      display: block;
+      width: 100%;
+      max-height: 150px;
+      object-fit: contain;
+      object-position: top center;
+    }
+
+    .bank-visual-note {
+      align-self: center;
+      color: var(--ink-soft);
+      font-size: 0.62rem;
     }
 
     .bank-question-row {
@@ -2796,6 +2906,55 @@
     .bank-pickbar .btn-ghost:hover {
       color: #fff;
       background: rgba(255, 255, 255, 0.12);
+    }
+
+    /* 组卷前的排版缩略预览：先在弹窗里看整张卷子，再决定保不保存。 */
+    .paper-thumb-dialog {
+      width: min(1080px, calc(100% - 16px));
+    }
+
+    .paper-thumb-hint {
+      margin: 0 0 10px;
+      color: var(--ink-soft);
+      font-size: 0.68rem;
+      line-height: 1.7;
+    }
+
+    .paper-thumb-body {
+      height: min(72vh, 760px);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #e9e4d8;
+      overflow: hidden;
+    }
+
+    .paper-thumb-body iframe {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #fff;
+    }
+
+    /* 原题图片放大查看。 */
+    .visual-dialog {
+      width: min(1000px, calc(100% - 16px));
+    }
+
+    .visual-dialog-body {
+      display: grid;
+      gap: 10px;
+      max-height: 76vh;
+      overflow: auto;
+    }
+
+    .visual-dialog-body img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
     }
 
     /* 词汇书：书架封面 + 整本单词详情 */
@@ -3294,6 +3453,21 @@
         flex: 1 1 138px;
       }
 
+      .bank-type-tabs {
+        flex-wrap: nowrap;
+        margin-right: -12px;
+        padding-right: 12px;
+        overflow-x: auto;
+      }
+
+      .bank-type-tab {
+        flex: 0 0 auto;
+      }
+
+      .paper-thumb-body {
+        height: 66vh;
+      }
+
       .bank-item {
         grid-template-columns: auto minmax(0, 1fr);
       }
@@ -3596,8 +3770,8 @@
         <div class="view-head">
           <div>
             <p class="eyebrow">Question Bank <span>/ 题库</span></p>
-            <h1 id="bank-title">拆好的题，一道一道摆出来。</h1>
-            <p>入库时按题型拆开的题目都在这里。像翻题库一样逐题查看，勾选进候选栏，凑齐后一次生成练习卷。</p>
+            <h1 id="bank-title">想组哪几道，直接挑。</h1>
+            <p>按题型挑题，题干和选项都完整显示。选中的先放进候选栏，凑够一套再生成练习卷。</p>
           </div>
         </div>
 
@@ -3606,9 +3780,6 @@
             <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
             <input class="input" id="bank-search" type="search" placeholder="搜索题干、选项或资料名…" aria-label="搜索题库">
           </div>
-          <select class="select" id="bank-type" aria-label="按题型筛选">
-            <option value="">全部题型</option>
-          </select>
           <select class="select" id="bank-grade" aria-label="按年级筛选">
             <option value="">全部年级</option>
           </select>
@@ -3625,16 +3796,18 @@
           </div>
         </div>
 
-        <div class="bank-summary" id="bank-summary">资料库里还没有拆好的题目。</div>
+        <div class="bank-type-tabs" id="bank-type-tabs" role="tablist" aria-label="选择题型"></div>
+        <div class="bank-summary" id="bank-summary">还没有题目。先上传一份资料，题目会按题型分好放在这里。</div>
         <div class="bank-list" id="bank-list" aria-live="polite"></div>
 
         <div class="bank-pickbar" id="bank-pickbar" hidden>
           <div class="bank-pickbar-text">
-            <strong id="bank-pick-count">已选 0 组</strong>
-            <span id="bank-pick-detail">勾选题目后会出现在这里，凑齐再组卷。</span>
+            <strong id="bank-pick-count">已选 0 道</strong>
+            <span id="bank-pick-detail">选中的题先放这儿，凑够一套再生成练习卷。</span>
           </div>
           <div class="bank-pickbar-actions">
             <button class="btn btn-ghost" type="button" data-action="bank-clear">清空</button>
+            <button class="btn btn-outline" type="button" data-action="bank-preview">预览排版</button>
             <button class="btn btn-outline" type="button" data-action="bank-save-usb-picked">所选存 U 盘</button>
             <button class="btn btn-primary" type="button" data-action="bank-compose">
               <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
@@ -3678,8 +3851,8 @@
         <div class="view-head">
           <div>
             <p class="eyebrow">Upload <span>/ 上传资料</span></p>
-            <h1 id="upload-title">把资料交给我，剩下的我来整理。</h1>
-            <p>上传 Word (.docx) 或 PDF，AI 先判断题型、拆开大题，你核对确认后再入库。原文件完整保留，之后仍可修改标题和题型。</p>
+            <h1 id="upload-title">把资料放进来，先看分得对不对。</h1>
+            <p>Word 或 PDF 都可以。题型和大题会先摆出来，你看过、改过，再保存。原文件会完整留着，之后还能改标题和题型。</p>
           </div>
         </div>
 
@@ -3688,8 +3861,8 @@
             <span class="dropzone-icon" aria-hidden="true">
               <svg class="icon"><use href="#i-upload"/></svg>
             </span>
-            <h2>上传 Word / PDF，智能识别后入库</h2>
-            <p>一道题、一份专题卷、一整套试卷都可以。拖进来或点「选择文件」，先识别预览、确认后再入库；可以一次选多份，逐份确认。支持 .docx、.pdf；旧版 .doc 请先用 Word 另存为 .docx。</p>
+            <h2>拖进来，先看题目分得对不对</h2>
+            <p>一道题、一份专题卷、一整套试卷都行。拖进来或点「选择文件」，题目和题型会先摆出来；你可以改、可以勾选，确认后才保存。一次选多份也可以，一份一份来。支持 .docx、.pdf；旧版 .doc 请先用 Word 另存为 .docx。</p>
             <button class="btn btn-primary" type="button" id="pick-files">
               <svg class="icon" aria-hidden="true"><use href="#i-file"/></svg>
               选择文件
@@ -3708,10 +3881,10 @@
           <div class="queue" id="upload-queue" aria-live="polite"></div>
 
           <div class="pipeline" aria-label="处理流程">
-            <div class="pipeline-step"><span>01</span><strong>读取文件</strong><p>解析 Word / PDF 文字，原文件完整保留。</p></div>
-            <div class="pipeline-step"><span>02</span><strong>AI 识别</strong><p>优先用已保存的 Key 判断题型、拆开大题；失败时本机兜底。</p></div>
-            <div class="pipeline-step"><span>03</span><strong>预览确认</strong><p>核对题型和题数，可改可勾选，确认后才入库。</p></div>
-            <div class="pipeline-step"><span>04</span><strong>随时组卷</strong><p>每个题型生成一份练习卷，教师端直接布置。</p></div>
+            <div class="pipeline-step"><span>01</span><strong>读文字</strong><p>先读出 Word / PDF 里的文字，原文件完整保留。</p></div>
+            <div class="pipeline-step"><span>02</span><strong>分题型</strong><p>已保存 Key 时请 AI 分清题型和大题；没 Key 或失败时用本机规则。</p></div>
+            <div class="pipeline-step"><span>03</span><strong>你确认</strong><p>题型和题数看一遍，能改也能勾选，确认后才保存。</p></div>
+            <div class="pipeline-step"><span>04</span><strong>去组卷</strong><p>每个题型生成一份练习卷，教师端直接布置。</p></div>
           </div>
         </div>
       </section>
@@ -4023,20 +4196,20 @@
               <li>入库前会自动清理重复页眉页脚、页码、题库网址、扫描软件水印和符号噪点，生成练习时还会再清一次。清理不彻底时，可在资料编辑里手动删掉那几行。</li>
               <li>扫描版现在默认读整本全部页，几百页的整本练习册也能一次入库；页数越多越慢，识别时电脑别休眠。只想先处理其中一段时，到设置里把「扫描 PDF 识别范围」改成「只识别指定页码」，填上从第几页到第几页即可。</li>
               <li>OCR 是机器识别，题号、引号和易混字母（l/I、0/O）可能出错。入库后点资料卡上的「修改」核对一遍，准确率会高很多。</li>
-              <li>如果提取出来题号、选项、大题标题粘成一团，点资料卡上的「豆包精排」图标：复制提示词给豆包，让它只调整换行和分段，再把整理稿整段粘回来，系统会按新稿一道一道重新拆题。</li>
+              <li>如果提取出来题号、选项、大题标题粘成一团，点资料卡上的「豆包精排」图标：复制提示词给豆包，让它只调整换行和分段，再把整理稿整段粘回来，保存后会按新稿重新拆题。</li>
               <li>旧版 .doc 会完整存档，但不能自动提取文字；用 Word 另存为 .docx 最稳。</li>
             </ul>
           </article>
 
           <article class="guide-card">
             <h2><span class="num">2</span>核对分类：题型和年级可以手动改</h2>
-            <p>系统会先看试卷里的部分标题（听力、选择填空、完形填空、阅读理解、五选五、语法填空、书面表达等），再结合题号、选项、空格和文章结构判断题型。综合卷会被拆成多个部分，阅读还会按 A/B/C/D/E 篇拆开。</p>
+            <p>识别时会先看试卷里的部分标题（听力、选择填空、完形填空、阅读理解、五选五、语法填空、书面表达等），再结合题号、选项、空格和文章结构判断题型。综合卷会被拆成多个部分，阅读还会按 A/B/C/D/E 篇拆开。</p>
             <ul>
               <li><strong>语法填空、短文填空、短文填词、语篇填空、首字母填空、选词填空已经合并为同一类「语法填空」</strong>，不会再因为叫法不同被拆成两个大题；出卷时若原卷写的是「完成句子」「选词填空」或「首字母填空」，大题标题会跟着原卷走，不会一律印成「语法填空」。</li>
               <li>识别不准时，点资料卡右侧的铅笔图标，修改题型、年级、标签和正文，保存后会重新拆题。</li>
               <li>遇到新的大题叫法（例如「阅读还原」「词汇运用」「看图写话」），豆包精排后会把它记进「设置 → 题型识别库」；以后同类卷子直接就能认出来。也可以手动添加别名。</li>
               <li>每道题会自动给出 1–10 级难度，依据包括词汇长度与难度、平均句长、长难句、从句、非谓语、被动语态、空格数量和题型；资料卡和答案区会同时显示对应的 ★–★★★★★ 星级。</li>
-              <li>系统会从文件名、卷头和正文自动判断初中/高中；也可以在资料库顶部按「初中 / 高中」筛选，或在编辑资料时手动改年级。</li>
+              <li>会从文件名、卷头和正文判断初中/高中；也可以在资料库顶部按「初中 / 高中」筛选，或在编辑资料时手动改年级。</li>
             </ul>
           </article>
 
@@ -4094,7 +4267,7 @@
 
           <article class="guide-card">
             <h2><span class="num">7</span>词汇表与默写表：每次生成都会一起出</h2>
-            <p>生成练习时，系统会从文章和所有选项中按出现顺序抽取单词，去重后生成：</p>
+            <p>生成练习时，会从文章和所有选项中按出现顺序抽取单词，去重后生成：</p>
             <ul>
               <li>词汇背诵表：三列「英文 / KK 音标 / 中文」，短语和固定搭配单独一张表。</li>
               <li>默写表：第一部分英译英，第二部分英译中；每部分再分单个词汇和短语词组；每行两组，四列「参考词 / 默写 / 参考词 / 默写」。</li>
@@ -4121,7 +4294,7 @@
               <li><strong>扫描 PDF 识别很慢？</strong> OCR 在浏览器里跑，第一页要加载语言包。默认读整本全部页；赶时间时到「设置 → 扫描 PDF 识别范围」选「只识别指定页码」，先处理需要的那一段。</li>
               <li><strong>题目被拆错？</strong> 先点资料卡上的「豆包精排」，让豆包只整理换行和分段；实在不行再打开资料编辑，手动把正文整理成「题号 + 题干 + 选项」，保存后会重新拆题。</li>
               <li><strong>豆包精排会改题目内容吗？</strong> 提示词明确要求只动换行和分段，不改写、不增删。应用后仍建议扫一眼；原始文件一直保留，可随时下载。</li>
-              <li><strong>答案区显示「—」？</strong> 说明原资料没有附答案，或答案不在同一份文件里。用「豆包解析」补齐即可。</li>
+              <li><strong>答案区显示「—」？</strong> 表示原资料没有附答案，或答案不在同一份文件里。用「豆包解析」补齐即可。</li>
               <li><strong>Word 打开后版式有偏差？</strong> .doc 是 HTML 兼容格式，Word 会按自己的规则重排。打印前在 Word 里检查分页；需要完全固定的版式时，用「导出 PDF」。</li>
               <li><strong>能自动调用豆包 API 吗？</strong> 当前版本故意不把 API Key 写进静态网页，避免泄露。使用复制/粘贴工作流最安全；如果你之后有自己的服务器，可以再接 API。</li>
             </ul>
@@ -4204,7 +4377,7 @@
       </div>
       <div class="dialog-actions">
         <button class="btn btn-ghost" type="submit" value="cancel">取消</button>
-        <button class="btn btn-primary" type="submit" value="save">整理入库</button>
+        <button class="btn btn-primary" type="submit" value="save">保存到资料库</button>
       </div>
     </form>
   </dialog>
@@ -4212,18 +4385,18 @@
   <dialog class="app-dialog split-dialog" id="paper-split-dialog">
     <form class="dialog-form" id="paper-split-form" method="dialog">
       <div class="dialog-head">
-        <h2>上传并智能识别</h2>
+        <h2>上传资料，分好题型再保存</h2>
         <button class="dialog-close" type="submit" value="cancel" aria-label="关闭">×</button>
       </div>
       <div class="split-dialog-body">
-        <p class="split-lead">上传 Word / PDF 后会自动读取文字并准备识别：已保存 Key 时先显示预计费用，你确认后才调用 AI 精准判断题型、拆开大题；没有 Key 或 AI 失败时，自动用本机规则兜底。AI 只发送题目正文（会先尽量剔除答案区），不含学生信息；记录只留在教师端。PDF / Word 默认按原文件把每道题切成图片，字体、题号、选项和分栏都保留原样，切图只在本机完成。</p>
+        <p class="split-lead">拖入 Word 或 PDF 后，会先读出文字，再分好题型和大题。已保存 Key 时，会先告诉你要花多少，你点了才调用 AI；没 Key 或 AI 失败，就用本机规则接着分。只发送题目文字，不含学生信息。PDF / Word 默认把每道题切成原样图片，字体、题号、选项和分栏都保留，切图只在这台电脑完成。</p>
         <div class="split-file-zone" id="paper-split-file-drop">
           <span class="split-file-icon" aria-hidden="true">
             <svg class="icon"><use href="#i-upload"/></svg>
           </span>
           <div class="split-file-copy">
             <b id="paper-split-file-title">拖入 Word / PDF，或点「选择文件」</b>
-            <span id="paper-split-file-note">支持 .docx、.pdf；可以一次选多份，逐份确认入库。</span>
+            <span id="paper-split-file-note">支持 .docx、.pdf；可以一次选多份，一份一份确认保存。</span>
           </div>
           <button class="btn btn-outline" type="button" id="paper-split-pick">
             <svg class="icon" aria-hidden="true"><use href="#i-file"/></svg>
@@ -4256,7 +4429,7 @@
         <div class="split-toolbar">
           <button class="btn btn-primary" type="button" id="paper-split-recognize">
             <svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>
-            智能识别
+            开始识别
           </button>
           <button class="btn btn-outline" type="button" id="paper-split-reflow" title="让 AI 把扫描件或乱掉的文字重新分行、分题、分选项">
             <svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg>
@@ -4268,7 +4441,7 @@
         <div class="split-preview" id="paper-split-preview"></div>
         <label class="split-options-line">
           <input type="checkbox" id="paper-split-make-papers" checked>
-          <span>同时生成可布置的练习卷：每个题型生成一份，教师端发布中心 →「练习卷」里可以直接选。取消勾选则只入资料库。</span>
+          <span>同时生成可布置的练习卷：每个题型生成一份，教师端发布中心 →「练习卷」里可以直接选。取消勾选就只保存资料，不生成练习卷。</span>
         </label>
         <label class="split-options-line">
           <input type="checkbox" id="paper-split-keep-original" checked>
@@ -4278,7 +4451,7 @@
       </div>
       <div class="dialog-actions">
         <button class="btn btn-ghost" type="submit" value="cancel">取消</button>
-        <button class="btn btn-primary" type="button" id="paper-split-save" disabled>确认入库</button>
+        <button class="btn btn-primary" type="button" id="paper-split-save" disabled>确认保存</button>
       </div>
     </form>
   </dialog>
@@ -4315,10 +4488,10 @@
   <dialog class="app-dialog" id="split-dialog">
     <form class="dialog-form" id="split-form" method="dialog">
       <div class="dialog-head">
-        <h2 id="split-title">豆包精排 · 一道一道分开</h2>
+        <h2 id="split-title">排版乱了？让豆包帮你重新分行</h2>
         <button class="dialog-close" type="submit" value="cancel" aria-label="关闭">×</button>
       </div>
-      <p class="ai-hint" style="margin-top: 0;">本地分题不准时，用这一步：先把提示词复制到豆包，让它只整理换行和分段；再把结果整段粘贴回来。</p>
+      <p class="ai-hint" style="margin-top: 0;">题目和选项粘成一团时，用这一步：把提示词复制到豆包，让它只整理换行和分段；再把结果整段粘贴回来。</p>
       <div class="field">
         <label for="split-prompt">提示词（点“复制提示词”，粘贴到豆包）</label>
         <textarea class="ai-prompt" id="split-prompt" rows="8" readonly></textarea>
@@ -4387,8 +4560,10 @@
       <div class="book-import-status" id="book-import-status">正在提取文字…</div>
       <div class="book-import-progress"><div id="book-import-bar"></div></div>
       <div class="book-import-summary" id="book-import-summary"></div>
+      <p class="form-note" id="book-import-ai-note">词表里夹着编号、乱码，或者数了数发现少了词，可以先让 AI 整理一遍；只发送这本书的文字，不发送学生信息。</p>
       <div class="book-import-preview" id="book-import-preview"></div>
       <div class="dialog-actions">
+        <button class="btn btn-outline" type="button" id="book-import-ai" disabled>AI 清理词表</button>
         <button class="btn btn-ghost" type="button" data-book-close>取消</button>
         <button class="btn btn-primary" type="button" id="book-import-save" disabled>保存到书架</button>
       </div>
@@ -4436,6 +4611,41 @@
     </div>
   </dialog>
 
+  <dialog class="app-dialog paper-thumb-dialog" id="paper-thumb-dialog">
+    <div class="dialog-form">
+      <div class="dialog-head">
+        <div>
+          <h2 id="paper-thumb-title">练习卷排版预览</h2>
+          <p class="paper-thumb-hint" id="paper-thumb-hint">这是缩略预览，可以在框里上下滚动。看着合适就去保存，不合适就回去继续挑题。</p>
+        </div>
+        <button class="dialog-close" type="button" data-paper-thumb-close aria-label="关闭">×</button>
+      </div>
+      <div class="paper-thumb-body">
+        <iframe id="paper-thumb-frame" title="练习卷排版预览"></iframe>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" type="button" data-paper-thumb-close>继续挑题</button>
+        <button class="btn btn-primary" type="button" data-action="bank-open-practice">去保存练习卷</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="app-dialog visual-dialog" id="visual-dialog">
+    <div class="dialog-form">
+      <div class="dialog-head">
+        <div>
+          <h2 id="visual-dialog-title">原题图片</h2>
+          <p class="paper-thumb-hint">原卷的字体、题号、选项和分栏都保留在这里。</p>
+        </div>
+        <button class="dialog-close" type="button" data-visual-close aria-label="关闭">×</button>
+      </div>
+      <div class="visual-dialog-body" id="visual-dialog-body"></div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" type="button" data-visual-close>关闭</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog class="app-dialog" id="confirm-dialog">
     <form class="dialog-form" method="dialog">
       <div class="dialog-head">
@@ -4456,7 +4666,7 @@
   <script>window.SHUNSHI_TEACHER_AI = true;</script>
   <script src="portal.js?v=20261121d"></script>
   <script src="question-visual.js?v=20261121d"></script>
-  <script src="library.js?v=20261121h"></script>
+  <script src="library.js?v=20261121j"></script>
 <script src="pwa.js" defer></script>
 </body>
 </html>

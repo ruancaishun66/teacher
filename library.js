@@ -2920,7 +2920,7 @@
     return '';
   }
 
-  async function extractFileText(file, extension, onProgress) {
+  async function extractFileText(file, extension, onProgress, options = {}) {
     const report = typeof onProgress === 'function' ? onProgress : () => {};
     if (extension === 'txt' || extension === 'md') {
       return { text: await decodeTextFile(file), note: '' };
@@ -2934,7 +2934,7 @@
     }
     if (extension === 'pdf') {
       report({ stage: 'extract', status: '读取 PDF 文字', progress: 0.05 });
-      const result = await extractPdfText(file, report);
+      const result = await extractPdfText(file, report, options);
       if (result.text && result.text.replace(/\s+/g, '').length >= 120) {
         return result;
       }
@@ -2946,13 +2946,13 @@
       }
       try {
         report({ stage: 'ocr', status: '扫描版 PDF，启动本地 OCR', progress: 0.1 });
-        const ocr = await ocrPdfPages(file, result.pageCount || 1, report);
+        const ocr = await ocrPdfPages(file, result.pageCount || 1, report, options);
         const text = toDisplayText([result.text, ocr.text].filter(Boolean).join('\n\n'));
         if (!text) throw new Error('OCR 没有识别出文字。');
         const pageNote = ocr.to < ocr.total
           ? `PDF 共 ${ocr.total} 页，已 OCR 第 ${ocr.from}–${ocr.to} 页；可在设置里改成整本全部页。`
           : `已对 ${ocr.pages} 页扫描内容做本地 OCR，识别后请核对文字。`;
-        return { text, note: pageNote };
+        return { text, note: pageNote, pageCount: result.pageCount || ocr.total || 0 };
       } catch (error) {
         return {
           text: result.text || '',
@@ -3043,9 +3043,9 @@
     return toDisplayText(lines.join('\n'));
   }
 
-  function pdfPageBounds(pageCount) {
+  function pdfPageBounds(pageCount, forceAll = false) {
     const total = Math.max(1, Math.round(Number(pageCount) || 1));
-    if (state.settings.ocrPageMode !== 'range') {
+    if (forceAll || state.settings.ocrPageMode !== 'range') {
       return { mode: 'all', from: 1, to: total, total };
     }
     let from = Math.round(Number(state.settings.ocrPageFrom) || 1);
@@ -3061,14 +3061,14 @@
     return { mode: 'range', from, to, total };
   }
 
-  async function extractPdfText(file, onProgress) {
+  async function extractPdfText(file, onProgress, options = {}) {
     const pdfjs = await loadPdfLibrary();
     let pdf = null;
     try {
       const data = new Uint8Array(await file.arrayBuffer());
       pdf = await pdfjs.getDocument({ data, isEvalSupported: false }).promise;
       const capped = Math.min(pdf.numPages, MAX_PDF_PAGES);
-      const bounds = pdfPageBounds(capped);
+      const bounds = pdfPageBounds(capped, Boolean(options.allPages));
       const pages = [];
       const pageTotal = bounds.to - bounds.from + 1;
       for (let pageNumber = bounds.from; pageNumber <= bounds.to; pageNumber += 1) {
@@ -3082,7 +3082,7 @@
         }
         const page = await pdf.getPage(pageNumber);
         const content = await page.getTextContent();
-        const lines = groupPdfTextItems(content.items);
+        const lines = groupPdfTextItems(content.items, { bookMode: Boolean(options.bookMode) });
         if (lines.length) pages.push(lines.join('\n'));
       }
       const text = toDisplayText(cleanPageTexts(pages).join('\n\n'));
@@ -3137,8 +3137,7 @@
     }
   }
 
-  function groupPdfTextItems(items) {
-    if (!Array.isArray(items) || !items.length) return [];
+  function groupPdfRows(items) {
     const rows = [];
     items.forEach((item) => {
       const text = item.str;
@@ -3174,6 +3173,83 @@
       });
       return line.replace(/[ \t]+/g, ' ').trim();
     }).filter(Boolean);
+  }
+
+  function splitPdfColumns(items) {
+    // 词汇书常常两栏或三栏排版。按 y 分行会把左右两栏的同高度单词拼成一行，
+    // 结果一半单词被当成上一词的释义吞掉。先用整页空白竖缝找出栏位，再逐栏读。
+    const boxes = [];
+    items.forEach((item) => {
+      const text = item.str;
+      if (!text || !text.trim()) return;
+      const transform = item.transform || [];
+      const x = Number(transform[4]);
+      const y = Number(transform[5]);
+      const width = Number(item.width) || 0;
+      if (!Number.isFinite(x) || !Number.isFinite(y) || width <= 0) return;
+      boxes.push({ item, x, y, width });
+    });
+    if (boxes.length < 12) return [items];
+    const minX = Math.min(...boxes.map((box) => box.x));
+    const maxX = Math.max(...boxes.map((box) => box.x + box.width));
+    const minY = Math.min(...boxes.map((box) => box.y));
+    const maxY = Math.max(...boxes.map((box) => box.y));
+    const pageWidth = maxX - minX;
+    const pageHeight = maxY - minY;
+    if (!(pageWidth > 60)) return [items];
+    // 页眉、页脚、跨栏大标题和目录点线常常横跨两栏；不排除它们就找不到中间那条空白竖缝。
+    const narrow = boxes.filter((box) => {
+      if (box.width >= pageWidth * 0.5) return false;
+      if (pageHeight > 20 && (box.y < minY + pageHeight * 0.08 || box.y > maxY - pageHeight * 0.05)) return false;
+      const text = String(box.item.str || '').trim();
+      if (text.length >= 6) {
+        const meaningful = (text.match(/[A-Za-z0-9一-鿿]/g) || []).length;
+        if (meaningful / text.length < 0.5) return false;
+      }
+      return true;
+    });
+    if (narrow.length < 8) return [items];
+    const cover = new Uint16Array(Math.ceil(maxX) + 2);
+    narrow.forEach((box) => {
+      const from = Math.max(0, Math.floor(box.x));
+      const to = Math.min(cover.length - 1, Math.ceil(box.x + box.width));
+      for (let x = from; x <= to; x += 1) cover[x] += 1;
+    });
+    const gutters = [];
+    let start = null;
+    for (let x = Math.floor(minX); x <= Math.ceil(maxX); x += 1) {
+      if (cover[x] === 0) {
+        if (start === null) start = x;
+      } else if (start !== null) {
+        const end = x;
+        const mid = (start + end) / 2;
+        if (end - start >= 10 && mid > minX + pageWidth * 0.18 && mid < maxX - pageWidth * 0.18) {
+          gutters.push([start, end]);
+        }
+        start = null;
+      }
+    }
+    if (!gutters.length) return [items];
+    const boundaries = gutters
+      .sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]))
+      .slice(0, 2)
+      .map((gutter) => (gutter[0] + gutter[1]) / 2)
+      .sort((a, b) => a - b);
+    const buckets = Array.from({ length: boundaries.length + 1 }, () => []);
+    boxes.forEach((box) => {
+      const center = box.x + box.width / 2;
+      let index = 0;
+      while (index < boundaries.length && center >= boundaries[index]) index += 1;
+      buckets[index].push(box.item);
+    });
+    const kept = buckets.filter((bucket) => bucket.length >= Math.max(4, boxes.length * 0.08));
+    return kept.length >= 2 ? kept : [items];
+  }
+
+  function groupPdfTextItems(items, options = {}) {
+    if (!Array.isArray(items) || !items.length) return [];
+    const groups = options.bookMode ? splitPdfColumns(items) : [items];
+    return groups.flatMap((group) => groupPdfRows(group));
   }
 
   /* ------------------------------------------------------------------------
@@ -3446,8 +3522,8 @@
     return recognizeOcrCanvas(worker, canvas, onProgress);
   }
 
-  async function ocrPdfPages(file, pageCount, onProgress) {
-    const bounds = pdfPageBounds(Math.min(Number(pageCount) || 1, MAX_PDF_PAGES));
+  async function ocrPdfPages(file, pageCount, onProgress, options = {}) {
+    const bounds = pdfPageBounds(Math.min(Number(pageCount) || 1, MAX_PDF_PAGES), Boolean(options.allPages));
     const pdfjs = await loadPdfLibrary();
     let pdf = null;
     const pages = [];
@@ -6074,7 +6150,7 @@
         .map((option) => {
           if (!option) return '';
           if (typeof option === 'string') return option;
-          return `${option.letter ? `${option.letter}.` : ''}${option.text || ''}`;
+          return `${option.letter ? `${option.letter}. ` : ''}${option.text || ''}`;
         })
         .filter(Boolean)
         .join(' ');
@@ -6093,15 +6169,12 @@
   function bankStemOf(item) {
     const questions = Array.isArray(item.questions) ? item.questions : [];
     const question = questions[0] || null;
-    // 大题（阅读、完形等）在卡片头显示篇名/原文开头，小题放到下面逐条列，
-    // 避免第一道小题既做标题又在小题列表里重复出现。
+    // 大题（阅读、完形等）在卡片头只显示篇名，完整原文放到下面折叠，
+    // 小题逐条列全，避免第一道小题既做标题又重复出现。
     if (item.kind === 'set' || questions.length > 1) {
-      const passage = stripChoiceOptions(item.passage || item.content || '').replace(/\s+/g, ' ').trim();
       const title = String(item.title || '').trim();
-      if (title && passage) return `${title} · ${passage.slice(0, 90)}`;
       if (title) return title;
-      if (passage) return passage.slice(0, 120);
-      return '题组';
+      return `${typeLabel(item.type)} · ${questions.length || bankQuestionTotal([item])} 道小题`;
     }
     if (question && question.stem) return String(question.stem);
     if (question && question.stem === '') return '';
@@ -6147,11 +6220,11 @@
     ].filter(Boolean).join('\n').toLowerCase();
   }
 
-  function filteredBankItems() {
+  function filteredBankItems(ignoreType = false) {
     const query = state.bank.q.trim().toLowerCase();
     const type = normalizeType(state.bank.type);
     return state.items.filter((item) => {
-      if (type && type !== '') {
+      if (!ignoreType && type && type !== '') {
         if (normalizeType(item.type) !== type) return false;
       }
       if (state.bank.grade && item.grade !== state.bank.grade) return false;
@@ -6186,15 +6259,16 @@
     const count = bankQuestionTotal(items);
     const types = unique(items.map((item) => typeShort(item.type))).join('、');
     const countNode = $('#bank-pick-count');
-    if (countNode) countNode.textContent = `已选 ${items.length} 组 · ${count} 题`;
+    if (countNode) countNode.textContent = `已选 ${count} 道题`;
     const detailNode = $('#bank-pick-detail');
-    if (detailNode) detailNode.textContent = `${types}。核对后点「生成练习卷」，会跳到排版预览，再存进练习卷。`;
+    if (detailNode) detailNode.textContent = `${types}。点「预览排版」先看整张卷子，合适再保存。`;
     bar.hidden = false;
   }
 
   function renderBank() {
     const list = $('#bank-list');
     if (!list) return;
+    const tabs = $('#bank-type-tabs');
     const materialSelect = $('#bank-material');
     if (materialSelect) {
       const current = state.bank.materialId;
@@ -6207,32 +6281,22 @@
 
     const summary = $('#bank-summary');
     if (!state.items.length) {
-      if (summary) summary.textContent = '资料库里还没有拆好的题目。先到「上传资料」上传一份 Word 或 PDF，识别入库后就能在这里逐题勾选。';
+      if (tabs) tabs.innerHTML = '';
+      if (summary) summary.textContent = '还没有题。上传一份资料，题目会按题型归好，来这里挑。';
       list.innerHTML = `<div class="empty-state">` +
         `<span class="empty-icon"><svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg></span>` +
-        `<h3>题库还是空的</h3><p>上传一份资料，系统会按题型拆成题组，题目会自动出现在这里。</p>` +
+        `<h3>这里还没有题</h3><p>上传一份资料，题目会按题型分好，来这里就能挑。</p>` +
         `<div class="empty-actions"><button class="btn btn-primary" type="button" data-view="upload">去上传资料</button></div>` +
         `</div>`;
       renderBankPickbar();
       return;
     }
 
-    const items = filteredBankItems();
-    if (summary) {
-      summary.textContent = `当前显示 ${items.length} 组 · ${bankQuestionTotal(items)} 题；题库共 ${state.items.length} 组 · ${bankQuestionTotal(state.items)} 题。`;
-    }
-    if (!items.length) {
-      list.innerHTML = `<div class="empty-state">` +
-        `<span class="empty-icon"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg></span>` +
-        `<h3>没有符合条件的题目</h3><p>换个关键词，或把题型、年级、资料筛选改回“全部”。</p>` +
-        `<div class="empty-actions"><button class="btn btn-outline" type="button" data-action="bank-reset-filters">清除筛选</button></div>` +
-        `</div>`;
-      renderBankPickbar();
-      return;
-    }
-
+    // 题型按钮先按搜索、年级、资料筛一遍；题型本身由上面的按钮决定，
+    // 不再把所有题型一道接一道铺在页面上。
+    const tabItems = filteredBankItems(true);
     const groups = new Map();
-    items.forEach((item) => {
+    tabItems.forEach((item) => {
       const type = normalizeType(item.type);
       if (!groups.has(type)) groups.set(type, []);
       groups.get(type).push(item);
@@ -6243,15 +6307,41 @@
       return defA.order - defB.order;
     });
 
-    list.innerHTML = orderedTypes.map((type) => {
-      const groupItems = groups.get(type);
-      const def = TYPES[type] || TYPES.other;
-      const count = bankQuestionTotal(groupItems);
-      return `<section class="bank-group">` +
-        `<div class="bank-group-head"><h2>${escapeHtml(def.label)}</h2><span>${groupItems.length} 组 · ${count} 题</span></div>` +
-        `<div class="bank-items">${groupItems.map(bankItemHtml).join('')}</div>` +
-        `</section>`;
-    }).join('');
+    if (!orderedTypes.length) {
+      if (tabs) tabs.innerHTML = '';
+      if (summary) summary.textContent = '没有找到符合条件的题目。';
+      list.innerHTML = `<div class="empty-state">` +
+        `<span class="empty-icon"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg></span>` +
+        `<h3>没有符合条件的题目</h3><p>换个关键词，或把年级、资料筛选改回“全部”。</p>` +
+        `<div class="empty-actions"><button class="btn btn-outline" type="button" data-action="bank-reset-filters">清除筛选</button></div>` +
+        `</div>`;
+      renderBankPickbar();
+      return;
+    }
+
+    if (!orderedTypes.includes(state.bank.type)) state.bank.type = orderedTypes[0];
+    if (tabs) {
+      tabs.innerHTML = orderedTypes.map((type) => {
+        const def = TYPES[type] || TYPES.other;
+        const count = bankQuestionTotal(groups.get(type));
+        const active = type === state.bank.type;
+        return `<button class="bank-type-tab${active ? ' is-active' : ''}" type="button" role="tab" aria-selected="${active ? 'true' : 'false'}" data-bank-type="${escapeAttr(type)}">` +
+          `${escapeHtml(def.label)} <b>${count}</b><em>道</em>` +
+          `</button>`;
+      }).join('');
+    }
+
+    const items = groups.get(state.bank.type) || [];
+    const def = TYPES[state.bank.type] || TYPES.other;
+    const allQuestions = bankQuestionTotal(state.items);
+    const typeQuestions = bankQuestionTotal(items);
+    if (summary) {
+      summary.textContent = `${def.label} ${typeQuestions} 道；全部资料一共 ${allQuestions} 道。点上面的题型可以切换。`;
+    }
+    list.innerHTML = `<section class="bank-group">` +
+      `<div class="bank-group-head"><h2>${escapeHtml(def.label)}</h2><span>${items.length} 组 · ${typeQuestions} 道题</span></div>` +
+      `<div class="bank-items">${items.map(bankItemHtml).join('')}</div>` +
+      `</section>`;
     renderBankPickbar();
   }
 
@@ -6259,10 +6349,11 @@
     const material = findMaterial(item.materialId);
     const checked = state.bankSelection.has(item.id);
     const numbers = bankItemNumbers(item);
-    const numberLabel = numbers.length === 1 ? numbers[0] : (numbers.length ? `${numbers[0]}–${numbers[numbers.length - 1]}` : '题组');
+    const numberLabel = numbers.length === 1 ? numbers[0] : (numbers.length ? `${numbers[0]}–${numbers[numbers.length - 1]}` : '题目');
     const stem = bankStemOf(item);
     const options = bankOptionsOf(item);
     const questions = Array.isArray(item.questions) ? item.questions : [];
+    // 题干和选项都不截断：老师要能一眼判断是不是自己要的那道题。
     const subRows = questions.map((question) => {
       const label = question && question.number != null ? question.number : '';
       const text = String((question && question.stem) || '').trim()
@@ -6270,9 +6361,9 @@
         || (label !== '' ? `第 ${label} 空` : '小题');
       const optionText = question && question.options ? itemOptionText(question.options) : '';
       const optionLine = optionText && optionText !== text
-        ? `<em class="bank-question-options">${escapeHtml(optionText.slice(0, 220))}</em>`
+        ? `<em class="bank-question-options">${escapeHtml(optionText)}</em>`
         : '';
-      return `<div class="bank-question-row"><b>${escapeHtml(label)}</b><span>${escapeHtml(text.slice(0, 180))}${optionLine}</span></div>`;
+      return `<div class="bank-question-row"><b>${escapeHtml(label)}</b><span>${escapeHtml(text)}${optionLine}</span></div>`;
     }).join('');
     const blanks = Object.keys(item.blankAnswers || {}).sort((a, b) => Number(a) - Number(b)).filter(() => !questions.length);
     const blankRows = blanks.map((number) => {
@@ -6283,19 +6374,34 @@
     const groupQuestions = showSubList
       ? `<div class="bank-question-list">${subRows}${blankRows}</div>`
       : '';
+    // 大题的完整原文放在折叠里，需要核对时点开，平时不占版面。
+    const passage = String(item.passage || '').trim();
+    const passageHtml = passage && passage.length > 30
+      ? `<details class="bank-passage" open><summary>原文（${passage.length.toLocaleString()} 字，可收起）</summary><pre>${escapeHtml(passage)}</pre></details>`
+      : '';
+    const visuals = Array.isArray(item.visuals) ? item.visuals.filter((visual) => visual && visual.url) : [];
+    const visualHtml = visuals.length
+      ? `<div class="bank-visual">` +
+          `<button type="button" data-action="view-visual" data-visual-id="${escapeAttr(item.id)}" title="查看原题图片">` +
+            `<img src="${escapeAttr(visuals[0].url)}" alt="原题图片缩略图" loading="lazy">` +
+          `</button>` +
+          `<span class="bank-visual-note">${visuals.length > 1 ? `共 ${visuals.length} 张，点开看全部` : '原题排版，点开看大图'}</span>` +
+        `</div>`
+      : '';
     const meta = [
       material ? material.title : '未命名资料',
       item.grade || (material ? material.grade : '') || '未标注',
-      item.title || '',
       `难度 ${itemDifficultyOf(item)}`
     ].filter(Boolean).map((part) => escapeHtml(part)).join('<i class="dot"></i>');
     return `<label class="bank-item${checked ? ' is-checked' : ''}" data-bank-item="${escapeAttr(item.id)}">` +
-      `<input type="checkbox" data-bank-pick="${escapeAttr(item.id)}" ${checked ? 'checked' : ''} aria-label="勾选题组 ${escapeAttr(numberLabel)}">` +
+      `<input type="checkbox" data-bank-pick="${escapeAttr(item.id)}" ${checked ? 'checked' : ''} aria-label="勾选题目 ${escapeAttr(numberLabel)}">` +
       `<span class="bank-number">${escapeHtml(numberLabel)}</span>` +
       `<div class="bank-body">` +
-        `<p class="bank-stem">${escapeHtml(stem || item.title || '（无题干，展开看小题）')}</p>` +
+        `<p class="bank-stem">${escapeHtml(stem || item.title || '（点开看小题）')}</p>` +
         (options ? `<p class="bank-options">${escapeHtml(options)}</p>` : '') +
+        passageHtml +
         groupQuestions +
+        visualHtml +
         `<div class="bank-item-meta">${meta}</div>` +
       `</div>` +
       `</label>`;
@@ -6304,11 +6410,9 @@
   function resetBankFilters() {
     state.bank = { q: '', type: '', grade: '', materialId: '' };
     const search = $('#bank-search');
-    const type = $('#bank-type');
     const grade = $('#bank-grade');
     const material = $('#bank-material');
     if (search) search.value = '';
-    if (type) type.value = '';
     if (grade) grade.value = '';
     if (material) material.value = '';
     renderBank();
@@ -6325,11 +6429,11 @@
     toast(`已勾选当前 ${items.length} 组题。`, 'ok', 2600);
   }
 
-  async function composePaperFromBank() {
+  async function buildPaperFromBank() {
     const items = bankSelectionItems();
     if (!items.length) {
-      toast('先勾选至少一组题，再生成练习卷。', 'error');
-      return;
+      toast('先勾选至少一道题，再生成练习卷。', 'error');
+      return null;
     }
     await loadWordDictionary();
     const groups = new Map();
@@ -6358,12 +6462,12 @@
     const grade = grades.length === 1 ? grades[0] : '';
     const paper = {
       id: uid(),
-      title: `题库组卷 · ${cnDateWithWeek(date)}`,
+      title: `英语每日练习 · ${cnDateWithWeek(date)}`,
       examName: (state.settings.examTitle || DEFAULT_SETTINGS.examTitle).trim() || DEFAULT_SETTINGS.examTitle,
       date,
       weekday: cnWeekday(date),
       createdAt: nowIso(),
-      command: `从题库勾选 ${items.length} 组题`,
+      command: `这次挑了 ${items.length} 组题`,
       grade,
       band: grade ? gradeBand(grade) : '',
       level: null,
@@ -6378,18 +6482,65 @@
     };
     paper.vocab = buildPaperVocabulary(paper);
     Object.assign(paper, paperVisualFields(sections.flatMap((section) => section.items)));
-    state.currentPaper = paper;
-    state.currentParsed = null;
-    go('practice');
-    renderPaper(paper);
     const result = $('#command-result');
     if (result) {
-      result.innerHTML = `<span>从题库勾选</span>` +
+      result.innerHTML = `<span>这次挑了</span>` +
         orderedTypes.map((type) => `<span class="result-chip">${escapeHtml(typeShort(type))}<em>${groups.get(type).length}${escapeHtml(typeUnit(type))}</em></span>`).join('') +
         `<span class="result-chip">共 <em>${questionTotal}</em> 题</span>`;
       result.classList.add('is-visible');
     }
-    toast(`已按勾选生成 ${questionTotal} 题，确认版式后点「存入练习卷」。`, 'ok', 6000);
+    return paper;
+  }
+
+  function openPaperThumbDialog(paper) {
+    const dialog = $('#paper-thumb-dialog');
+    const frame = $('#paper-thumb-frame');
+    if (!dialog || !frame || !paper) return;
+    const total = Number(paper.questionTotal) || Number(paper.total) || 0;
+    frame.srcdoc = buildStandalonePaperHtml(paper);
+    const title = $('#paper-thumb-title');
+    if (title) title.textContent = `${paper.title || '练习卷'} · 排版预览`;
+    const hint = $('#paper-thumb-hint');
+    if (hint) hint.textContent = `一共 ${total} 道题。这是缩略预览，可以在框里上下滚动；看着合适就去保存，不合适就回去继续挑。`;
+    if (!dialog.open) dialog.showModal();
+  }
+
+  function closePaperThumbDialog() {
+    const dialog = $('#paper-thumb-dialog');
+    if (dialog && dialog.open) dialog.close();
+  }
+
+  async function composePaperFromBank() {
+    const paper = await buildPaperFromBank();
+    if (!paper) return;
+    state.currentPaper = paper;
+    state.currentParsed = null;
+    renderPaper(paper);
+    openPaperThumbDialog(paper);
+    toast(`已排好 ${paper.questionTotal} 道题，先在预览里看看版式。`, 'ok', 5000);
+  }
+
+  function openVisualDialog(itemId) {
+    const item = state.items.find((entry) => entry.id === itemId);
+    const dialog = $('#visual-dialog');
+    const body = $('#visual-dialog-body');
+    if (!item || !dialog || !body) return;
+    const visuals = Array.isArray(item.visuals) ? item.visuals.filter((visual) => visual && visual.url) : [];
+    if (!visuals.length) {
+      toast('这道题还没有原题图片。可以到资料卡上补生成。', 'error', 5000);
+      return;
+    }
+    const title = $('#visual-dialog-title');
+    if (title) title.textContent = `${typeLabel(item.type)} · 原题图片`;
+    body.innerHTML = visuals.map((visual, index) =>
+      `<img src="${escapeAttr(visual.url)}" alt="原题图片 ${index + 1}" loading="lazy">`
+    ).join('');
+    if (!dialog.open) dialog.showModal();
+  }
+
+  function closeVisualDialog() {
+    const dialog = $('#visual-dialog');
+    if (dialog && dialog.open) dialog.close();
   }
 
   /* ---------------------------- 题库分类存 U 盘 ---------------------------- */
@@ -6579,6 +6730,22 @@
     'section', 'page', 'exercise', 'example', 'note', 'word', 'words'
   ]);
 
+  const BOOK_PARTICLES = new Set([
+    'up', 'down', 'off', 'on', 'in', 'out', 'away', 'over', 'back', 'after', 'before',
+    'for', 'at', 'to', 'with', 'of', 'about', 'into', 'from', 'through', 'around',
+    'by', 'as', 'like', 'under', 'across', 'along', 'behind', 'beyond'
+  ]);
+
+  function bookHeadAllowed(wordTokens, raw) {
+    const first = String((wordTokens && wordTokens[0]) || '').toLowerCase();
+    if (!BOOK_SENTENCE_HEADS.has(first)) return true;
+    // “read 阅读”“book 书”也可能是高频词条；只有没有中文释义的整行才像题目说明。
+    if (!/[一-鿿]/.test(raw)) return false;
+    if (wordTokens.length === 1) return true;
+    if (['a', 'an', 'the'].includes(first)) return true;
+    return BOOK_PARTICLES.has(String(wordTokens[1] || '').toLowerCase());
+  }
+
   function bookTitleFromFile(filename) {
     return String(filename || '')
       .replace(/\.[^.]+$/, '')
@@ -6661,10 +6828,27 @@
         summary.hidden = true;
       } else {
         summary.hidden = false;
-        summary.textContent = `已识别 ${data.words.length.toLocaleString()} 个词（整本保存，不截断）。点「保存到书架」后，书名和单词会存在本机浏览器里。`;
+        const lineNote = data.lines ? `原文共 ${data.lines.toLocaleString()} 行，` : '';
+        const aiNote = data.aiClean
+          ? ` AI 已清理过一遍（${data.aiClean.chunks} 段，${data.aiClean.tokens} tokens，约 ${aiCostText(data.aiClean.cost)}）。`
+          : '';
+        summary.textContent = `${lineNote}已识别 ${data.words.length.toLocaleString()} 个词（整本保存，不截断）。${aiNote}点「保存到书架」后，书名和单词会存在本机浏览器里。`;
       }
     }
     if (save) save.disabled = state.bookImportBusy || !data.words.length;
+    const aiButton = $('#book-import-ai');
+    if (aiButton) {
+      aiButton.disabled = state.bookImportBusy || !String(data.rawText || '').trim();
+      aiButton.classList.toggle('is-busy', Boolean(data.aiBusy));
+    }
+    const aiNote = $('#book-import-ai-note');
+    if (aiNote) {
+      const tool = aiTool();
+      const cfg = tool ? tool.config() : null;
+      aiNote.textContent = cfg && cfg.key
+        ? '已保存 AI Key：词表里夹着编号、乱码，或者数了数发现少了词，可以让 AI 把词条重新整理一遍；只发送这本书的文字，不发送学生信息。'
+        : '词表里夹着编号、乱码，或者数了数发现少了词，可以先到「设置 → AI 直连」保存 Key，再让 AI 整理一遍；只发送这本书的文字，不发送学生信息。';
+    }
   }
 
   async function openBookImport(file) {
@@ -6698,31 +6882,38 @@
     setBookImportStatus('正在打开文件…', 0);
     const save = $('#book-import-save');
     if (save) save.disabled = true;
+    const aiButton = $('#book-import-ai');
+    if (aiButton) aiButton.disabled = true;
     const dialog = $('#book-import-dialog');
     if (dialog && !dialog.open) dialog.showModal();
     try {
       await loadWordDictionary();
+      // 词汇书永远整本读，不受试卷“只识别指定页码”的设置影响。
       const result = await extractFileText(file, extension, (update) => {
         const progress = update && Number.isFinite(Number(update.progress)) ? Number(update.progress) : 0;
         setBookImportStatus((update && update.status) || '正在读取…', progress);
-      });
+      }, { bookMode: true, allPages: true });
       setBookImportStatus('正在按行整理单词和释义…', 0.96);
       let text = toDisplayText(result.text || '');
       const cleaning = cleanImportedText(text, { fileName: file.name });
       text = toDisplayText(cleaning.text);
-      const words = parseBookWordEntries(text);
+      const stats = {};
+      const words = parseBookWordEntries(text, stats);
       state.bookImport = {
         file,
         extension,
         title,
         words,
+        rawText: toDisplayText(result.text || ''),
+        lines: stats.lines || 0,
         note: [result.note || '', cleaning.removed ? `已清理 ${cleaning.removed} 行页眉、页码或噪点。` : ''].filter(Boolean).join(' '),
         pageCount: Number(result.pageCount) || 0
       };
+      const pageLabel = result.pageCount ? `全书共 ${result.pageCount} 页，` : '';
       setBookImportStatus(
         words.length
-          ? `读取完成：全书共 ${result.pageCount ? `${result.pageCount} 页，` : ''}识别到 ${words.length.toLocaleString()} 个词。`
-          : '读到文字了，但没有认出“单词 + 释义”的格式。请确认这本书是词汇表排版，或换一份更清晰的 PDF。',
+          ? `读取完成：${pageLabel}识别到 ${words.length.toLocaleString()} 个词。`
+          : '读到文字了，但没有认出“单词 + 释义”的格式。请确认这本书是词汇表排版，或换一份更清晰的 PDF；也可以保存 AI Key 后点「AI 清理词表」。',
         words.length ? 1 : 0
       );
       renderBookImportPreview();
@@ -6735,6 +6926,7 @@
       state.bookImportBusy = false;
       const button = $('#book-import-save');
       if (button) button.disabled = !state.bookImport || !state.bookImport.words.length;
+      if (state.bookImport) renderBookImportPreview();
     }
   }
 
@@ -6749,7 +6941,12 @@
   function bookLineIsHeading(line) {
     const text = String(line || '').trim();
     if (!text) return true;
-    if (/^(?:unit|list|lesson|module|chapter|part|section|book|vocabulary|word list|answer key|index|contents|appendix)\b/i.test(text)) return true;
+    // 高频词表里本来就有 list / book / answer / word 这些词。
+    // 只有整行没有中文释义时，才把 “Unit 1”“Word List” 当标题。
+    const hasGloss = /[一-鿿]/.test(text);
+    if (!hasGloss && /^(?:unit|list|lesson|module|chapter|part|section|book|vocabulary|word list|answer key|index|contents|appendix)\b/i.test(text)) return true;
+    // “Unit 1 高频词”“Lesson 3 词汇”仍然是标题，不能把 Unit 当成一个单词。
+    if (/^(?:unit|lesson|module|chapter|part|section|book)\s*\d+\b/i.test(text)) return true;
     if (/^第[一二三四五六七八九十百\d]+[章节单元课部分]/.test(text)) return true;
     if (/^(?:词汇表|单词表|附录|索引|目录|参考答案|答案|使用说明|前言|序言)/.test(text)) return true;
     if (/^[\d\s.,:;()\-–—/]+$/.test(text)) return true;
@@ -6757,12 +6954,76 @@
     return false;
   }
 
+  function stripBookLineNoise(line) {
+    let raw = String(line || '').replace(/ /g, ' ').replace(/[ \t]+/g, ' ').trim();
+    if (!raw) return '';
+    raw = raw.replace(/^[•·▪◦*※◆◇◎○●→]+\s*/, '');
+    raw = raw.replace(/^[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]+\s*/, '');
+    // 词汇书里常见的编号、点线和页码残留：1. / 1、 / 001 / 第 12 词 / 1.2.... / ……
+    raw = raw.replace(/^(?:(?:第\s*)?\d{1,4}\s*(?:[.、)）:：]\s*|\s+)){1,3}/, '');
+    raw = raw.replace(/^[.…·\-–—_=~|/\\:：]+\s*/, '');
+    return raw.trim();
+  }
+
+  function widenBookHeadwordSpacing(line) {
+    let text = String(line || '');
+    // “abandon/əˈbændən/”“abandon放弃”这种没有空格的排版很常见，先补一个空格才拆得开。
+    text = text.replace(/^([A-Za-z][A-Za-z'’.-]*)\s*(?=[/[])/, '$1 ');
+    if (text.length <= 90) {
+      text = text.replace(
+        /^([A-Za-z][A-Za-z'’.-]*(?:\s+[A-Za-z][A-Za-z'’.-]*){0,3})(?=[一-鿿])/,
+        '$1 '
+      );
+    }
+    return text;
+  }
+
+  function splitBookEntrySegments(line) {
+    let text = String(line || '').trim();
+    if (!text) return [];
+    // 同一行里挤进多条带编号的词条时，先按编号拆开，否则后面的词会被当成前一个词的释义。
+    text = text.replace(/([一-鿿，,；;、])\s*(?=(?:第\s*)?\d{1,4}\s*[.、)）:：]\s*[A-Za-z])/g, '$1\n');
+    return text.split(/\n+/).map((part) => part.trim()).filter(Boolean);
+  }
+
+  function finalizeBookEntry(entry) {
+    const rawWord = String((entry && entry.word) || '')
+      .replace(/[*_`~]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!rawWord || rawWord.length > 48) return null;
+    const tokens = rawWord.split(/\s+/);
+    if (!tokens.length || tokens.length > 4) return null;
+    if (!tokens.every(isBookHeadwordToken)) return null;
+
+    let meaning = String((entry && entry.meaning) || '').replace(/\s+/g, ' ').trim();
+    let phonetic = String((entry && entry.phonetic) || '').replace(/\s+/g, ' ').trim();
+    let pos = String((entry && entry.pos) || '').replace(/\s+/g, ' ').trim();
+    let example = String((entry && entry.example) || '').replace(/\s+/g, ' ').trim();
+    let exampleZh = String((entry && entry.exampleZh) || '').replace(/\s+/g, ' ').trim();
+
+    const found = dictionaryLookup(rawWord);
+    if (!meaning && found) meaning = found.zh || '';
+    if (!phonetic && found) phonetic = found.kk || found.ipa || '';
+    if (!pos && found) pos = found.pos || '';
+    if (!meaning) return null;
+    meaning = meaning.replace(/^[\s:：=—–\-]+/, '').slice(0, 150).trim();
+    if (!meaning) return null;
+
+    return {
+      word: rawWord,
+      phonetic: phonetic.slice(0, 60),
+      pos: pos.slice(0, 30),
+      meaning,
+      example: example.slice(0, 220),
+      exampleZh: exampleZh.slice(0, 160)
+    };
+  }
+
   function parseBookWordLine(line) {
     let raw = String(line || '').replace(/ /g, ' ').replace(/[ \t]+/g, ' ').trim();
     if (!raw || bookLineIsHeading(raw)) return null;
-    raw = raw.replace(/^[•·▪◦*※]+\s*/, '');
-    /* 常见编号：1. / 1、 / 1) / 001 / 第 12 词，空格编号也要能剥掉。 */
-    raw = raw.replace(/^(?:第\s*\d{1,4}\s*[词个条]\s*|\d{1,4}\s*[.、)）:：]\s*|\d{1,4}\s+)/, '').trim();
+    raw = widenBookHeadwordSpacing(stripBookLineNoise(raw));
     if (!raw || bookLineIsHeading(raw)) return null;
     if (raw.length > 190) return null;
 
@@ -6791,11 +7052,13 @@
       index += 1;
     }
     if (!wordTokens.length) return null;
-    let word = wordTokens.join(' ');
+    const word = wordTokens.join(' ');
     const first = wordTokens[0];
-    if (BOOK_SENTENCE_HEADS.has(first.toLowerCase())) return null;
-    if (/^[A-Z]/.test(first) && first !== 'I' && !/^[A-Z]{2,}$/.test(first)) return null;
-    if (word.length > 48) return null;
+    if (!bookHeadAllowed(wordTokens, raw)) return null;
+    // 大写开头的词条只接受短行（如 China 中国）；长句开头大写多半是例句，不是词条。
+    if (/^[A-Z]/.test(first) && first !== 'I' && !/^[A-Z]{2,}$/.test(first)) {
+      if (raw.length > 60 || !/[一-鿿]/.test(raw)) return null;
+    }
 
     let rest = tokens.slice(index).join(' ');
 
@@ -6820,39 +7083,258 @@
     }
     meaning = exampleSplit[0].trim();
 
-    const hasChinese = /[一-鿿]/.test(meaning);
-    if (!meaning || (!hasChinese && !phonetic && !raw.includes('|'))) return null;
-    if (meaning.length > 140) meaning = meaning.slice(0, 140).trim();
-
-    const found = dictionaryLookup(word);
-    if (!meaning && found) meaning = found.zh || '';
-    if (!phonetic && found) phonetic = found.kk || found.ipa || '';
-    if (!pos && found) pos = found.pos || '';
-    if (!meaning) return null;
-
-    return {
-      word,
-      phonetic,
-      pos,
-      meaning: meaning.replace(/\s+/g, ' '),
-      example: example.slice(0, 220),
-      exampleZh: exampleZh.slice(0, 160)
-    };
+    return finalizeBookEntry({ word, phonetic, pos, meaning, example, exampleZh });
   }
 
-  function parseBookWordEntries(text) {
+  function looksBookPhonetic(value) {
+    const text = String(value || '').trim();
+    if (!text) return false;
+    if (/^\/.*\/$/.test(text) || /^\[.*\]$/.test(text)) return true;
+    return /[əɪʊæɑɔɜðθʃʒŋˈˌː]/.test(text);
+  }
+
+  function looksBookPos(value) {
+    const text = String(value || '').replace(/[()（）]/g, '').trim();
+    if (!text) return false;
+    return text.split(/[\s/,&]+/).filter(Boolean).every((token) => isBookPosToken(token));
+  }
+
+  function parseAiBookWordLine(line) {
+    const raw = String(line || '').replace(/^\s*[-*•]\s*/, '').trim();
+    if (!raw || /^(?:\|?\s*:?-{2,}:?\s*\|?)+$/.test(raw)) return null;
+    const cleaned = raw.replace(/^\|/, '').replace(/\|$/, '');
+    const parts = cleaned.split('|').map((part) => part.trim().replace(/^\*\*|\*\*$/g, ''));
+    if (parts.length < 2) return parseBookWordLine(raw);
+    const word = parts[0];
+    if (!word || /^(?:单词|word|词汇)$/i.test(word)) return null;
+    // AI 偶尔会把空字段省掉，因此按内容识别音标和词性，不硬按第几列取值。
+    let phonetic = '';
+    let pos = '';
+    let meaning = '';
+    let example = '';
+    let exampleZh = '';
+    parts.slice(1).forEach((field) => {
+      if (!field) return;
+      if (!phonetic && looksBookPhonetic(field)) { phonetic = field; return; }
+      if (!pos && looksBookPos(field)) { pos = field; return; }
+      if (!meaning) { meaning = field; return; }
+      if (!example) { example = field; return; }
+      if (!exampleZh) exampleZh = field;
+    });
+    return finalizeBookEntry({ word, phonetic, pos, meaning, example, exampleZh });
+  }
+
+  function mergeBookEntry(list, seen, entry) {
+    if (!entry) return;
+    const key = normalizeWordKey(entry.word);
+    if (!key) return;
+    const existing = seen.get(key);
+    if (!existing) {
+      if (list.length >= BOOK_WORD_CAP) return;
+      seen.set(key, entry);
+      list.push(entry);
+      return;
+    }
+    // 同一个词在两栏或分页处重复出现时，不丢弃后一条，只把缺的音标、释义、例句补上。
+    ['phonetic', 'pos', 'meaning', 'example', 'exampleZh'].forEach((field) => {
+      if (!existing[field] && entry[field]) existing[field] = entry[field];
+      else if (field === 'meaning' && entry[field] && entry[field].length > existing[field].length + 4) {
+        existing[field] = entry[field];
+      }
+    });
+  }
+
+  function parseBookWordEntries(text, stats) {
     const entries = [];
-    const seen = new Set();
+    const seen = new Map();
+    let lines = 0;
+    String(text || '').split(/\r?\n+/).forEach((line) => {
+      splitBookEntrySegments(line).forEach((segment) => {
+        if (entries.length >= BOOK_WORD_CAP) return;
+        lines += 1;
+        mergeBookEntry(entries, seen, parseBookWordLine(segment));
+      });
+    });
+    if (stats && typeof stats === 'object') {
+      stats.lines = lines;
+      stats.found = entries.length;
+    }
+    return entries;
+  }
+
+  function parseAiBookEntries(text) {
+    const entries = [];
+    const seen = new Map();
     String(text || '').split(/\r?\n+/).forEach((line) => {
       if (entries.length >= BOOK_WORD_CAP) return;
-      const entry = parseBookWordLine(line);
-      if (!entry) return;
-      const key = normalizeWordKey(entry.word);
-      if (!key || seen.has(key)) return;
-      seen.add(key);
-      entries.push(entry);
+      mergeBookEntry(entries, seen, parseAiBookWordLine(line));
     });
     return entries;
+  }
+
+  function mergeBookWordLists(localWords, aiWords) {
+    // AI 通常能补回两栏串行时漏掉的词；以词数多的一份为主，再把另一份独有的词补进去。
+    const primary = (aiWords || []).length >= (localWords || []).length ? (aiWords || []) : (localWords || []);
+    const secondary = primary === aiWords ? (localWords || []) : (aiWords || []);
+    const entries = [];
+    const seen = new Map();
+    primary.forEach((entry) => mergeBookEntry(entries, seen, entry));
+    secondary.forEach((entry) => mergeBookEntry(entries, seen, entry));
+    return entries;
+  }
+
+  function splitBookAiChunks(text, limit = 5200) {
+    const chunks = [];
+    let current = '';
+    String(text || '').split(/\r?\n/).forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      if (trimmed.length > limit) {
+        if (current) { chunks.push(current); current = ''; }
+        for (let index = 0; index < trimmed.length; index += limit) {
+          chunks.push(trimmed.slice(index, index + limit));
+        }
+        return;
+      }
+      if (current && current.length + trimmed.length + 1 > limit) {
+        chunks.push(current);
+        current = '';
+      }
+      current += `${current ? '\n' : ''}${trimmed}`;
+    });
+    if (current) chunks.push(current);
+    return chunks;
+  }
+
+  function bookAiPrompt(chunk, index, total) {
+    return [
+      '你是英语词汇书整理助手。下面是一本词汇书的原始文字，可能来自两栏 PDF，夹着编号、页码、页眉、乱码和点线。',
+      '请只提取真正的词条，整理成一行一条，用竖线分隔，固定六个字段：',
+      '单词 | 音标 | 词性 | 中文释义 | 英文例句 | 例句中文',
+      '要求：',
+      '1. 删除题号、页码、“1.”“2.”“3.”、省略号、点线、页眉页脚、单元标题、广告、版权信息和乱码。',
+      '2. 按原书顺序保留每一个单词；不要合并、拆分或改写单词。',
+      '3. 释义、音标、例句都只从原文提取；原文没有就留空，绝对不要编造。',
+      '4. 一行只放一个词条；释义里的换行压成一行，不写 Markdown 表格，不写解释。',
+      '5. 如果某个词条被截断、只有半个词或缺少可读内容，直接跳过，不要猜。',
+      '',
+      `这是第 ${index} / ${total} 段，只整理本段出现的词条：`,
+      chunk
+    ].join('\n');
+  }
+
+  function offerAiCleanBook() {
+    const data = state.bookImport;
+    if (!data) return;
+    if (state.bookImportBusy) { toast('正在读取或整理，请稍等。', 'error'); return; }
+    const rawText = String(data.rawText || '').trim();
+    if (!rawText) { toast('这本书没有可发送的文字。扫描版 PDF 请先确认本地 OCR 已完成。', 'error', 7000); return; }
+    const tool = aiTool();
+    const cfg = tool ? tool.config() : null;
+    if (!cfg || !cfg.key) {
+      toast('先到「设置 → AI 直连」保存 Key，再回来点「AI 清理词表」。', 'error', 8000);
+      return;
+    }
+    const chunks = splitBookAiChunks(rawText);
+    if (!chunks.length) { toast('没有可整理的词表文字。', 'error'); return; }
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let cost = 0;
+    chunks.forEach((chunk, index) => {
+      const maxOutput = Math.min(3200, Math.max(1200, Math.ceil(chunk.length / 1.3)));
+      const estimate = tool.estimate(bookAiPrompt(chunk, index + 1, chunks.length).length, maxOutput);
+      inputTokens += estimate.inputTokens;
+      outputTokens += estimate.maxOutputTokens;
+      cost += estimate.cost;
+    });
+    openConfirm({
+      title: '让 AI 清理这本词表？',
+      message: `会把《${data.title || '这本词汇书'}》的词表文字约 ${rawText.length.toLocaleString()} 字发送给 DeepSeek，分 ${chunks.length} 段整理：去掉编号和乱码，按“单词 | 音标 | 词性 | 释义 | 例句”重新排好；只发送这本书的文字，不发送学生信息。预计最多约 ${inputTokens + outputTokens} tokens，约 ${aiCostText(cost)}，实际按返回用量记账。点「取消」就保留现在的识别结果。`,
+      confirmText: '开始清理',
+      danger: false,
+      onConfirm: () => runAiCleanBook(chunks),
+      onCancel: () => setBookImportStatus('已保留本机识别结果；需要时再点「AI 清理词表」。')
+    });
+  }
+
+  async function runAiCleanBook(chunks) {
+    const data = state.bookImport;
+    const tool = aiTool();
+    if (!data || !tool || !chunks.length) return;
+    if (state.bookImportBusy) return;
+    state.bookImportBusy = true;
+    data.aiBusy = true;
+    state.bookImport = data;
+    const before = data.words.length;
+    const aiWords = [];
+    let tokens = 0;
+    let cost = 0;
+    let failed = 0;
+    let lastError = '';
+    renderBookImportPreview();
+    const save = $('#book-import-save');
+    if (save) save.disabled = true;
+    try {
+      for (let index = 0; index < chunks.length; index += 1) {
+        setBookImportStatus(
+          `AI 正在清理第 ${index + 1} / ${chunks.length} 段（去掉编号和乱码，整理成词条）…`,
+          (index / chunks.length) * 1
+        );
+        const chunk = chunks[index];
+        const maxOutput = Math.min(3200, Math.max(1200, Math.ceil(chunk.length / 1.3)));
+        try {
+          const result = await tool.call([
+            { role: 'system', content: '你是严谨的词汇书排版校对员。只提取原文已有的单词和释义，不编造、不改写、不合并词条，严格按“单词 | 音标 | 词性 | 中文释义 | 英文例句 | 例句中文”一行一条输出。' },
+            { role: 'user', content: bookAiPrompt(chunk, index + 1, chunks.length) }
+          ], maxOutput, '资料库 · 词汇书清理');
+          tokens += Number(result.tokens) || 0;
+          cost += Number(result.cost) || 0;
+          const parsed = parseAiBookEntries(result.text);
+          aiWords.push(...parsed);
+          setBookImportStatus(
+            `AI 已整理 ${index + 1} / ${chunks.length} 段，累计 ${aiWords.length.toLocaleString()} 个词…`,
+            (index + 1) / chunks.length
+          );
+        } catch (error) {
+          failed += 1;
+          lastError = String(error && error.message ? error.message : error);
+          console.error('AI 词汇书清理失败', error);
+        }
+      }
+      if (!aiWords.length) {
+        throw new Error(lastError || 'AI 没有返回可用的词条，请换一段文字或稍后再试。');
+      }
+      const merged = mergeBookWordLists(data.words, aiWords);
+      data.words = merged;
+      data.aiClean = {
+        at: nowIso(),
+        chunks: chunks.length,
+        failed,
+        tokens,
+        cost
+      };
+      data.note = [
+        data.note,
+        `AI 清理过词表：${chunks.length} 段${failed ? `，其中 ${failed} 段失败` : ''}，本次 ${tokens} tokens，约 ${aiCostText(cost)}。`
+      ].filter(Boolean).join(' ');
+      state.bookImport = data;
+      renderBookImportPreview();
+      setBookImportStatus(
+        `AI 清理完成：直接整理出 ${aiWords.length.toLocaleString()} 个词，合并后共 ${merged.length.toLocaleString()} 个词（本机原先 ${before.toLocaleString()} 个）` +
+        `${failed ? `；有 ${failed} 段失败，可再点一次补齐` : ''}。本次 ${tokens} tokens，约 ${aiCostText(cost)}。`,
+        1
+      );
+      toast(`AI 清理完成，合并后 ${merged.length.toLocaleString()} 个词。请核对后再保存。`, 'ok', 8000);
+      renderAiSettings();
+    } catch (error) {
+      console.error(error);
+      setBookImportStatus(`AI 清理失败：${error.message || error}。已保留本机识别结果。`, 0);
+      toast(`AI 清理失败：${error.message || error}`, 'error', 9000);
+    } finally {
+      data.aiBusy = false;
+      state.bookImportBusy = false;
+      renderBookImportPreview();
+    }
   }
 
   async function saveBookImport() {
@@ -7897,7 +8379,7 @@
         html += `<section class="q-editor-section"><h3>${escapeHtml(section.title)}</h3>${itemHtml}</section>`;
       }
     });
-    body.innerHTML = html || `<div class="q-editor-empty">这份资料还没有识别出可编辑的题目。可以先在卡片上点“修改信息”，补充正文后保存，系统会重新分题。</div>`;
+    body.innerHTML = html || `<div class="q-editor-empty">这份资料还没有识别出可编辑的题目。可以先在卡片上点“修改信息”，补充正文后保存，保存后会重新分题。</div>`;
     const count = $('#question-editor-count');
     if (count) count.textContent = `${total} 道/空 · ${edit.kind === 'paper' ? '练习卷' : '资料库'}`;
     const title = $('#question-editor-title');
@@ -8609,12 +9091,12 @@
     let reason = '';
     let uncertain = false;
     if (detected.length >= 2) {
-      sections = mergePaperSplitSections(detected.map((section) => ({
+      sections = repairSplitSections(mergePaperSplitSections(detected.map((section) => ({
         type: normalizeType(section.type),
         heading: section.heading || typeLabel(section.type),
         content: section.content,
         selected: true
-      })));
+      }))));
       if (sections.every((section) => section.type === 'other')) {
         uncertain = true;
         reason = '所有大题都没认准题型';
@@ -8740,6 +9222,86 @@
     }, []);
   }
 
+  function sectionOptionStats(content) {
+    const lines = String(content || '')
+      .replace(/\r\n?/g, '\n')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    let optionLines = 0;
+    let choiceRows = 0;
+    let bareChoiceRows = 0;
+    let numbered = 0;
+    lines.forEach((line) => {
+      if (/^[A-G][.、．)）]\s*\S/.test(line)) {
+        optionLines += 1;
+        choiceRows += 1;
+        bareChoiceRows += 1;
+        return;
+      }
+      const numberMatch = line.match(/^\d{1,3}\s*[.、．)）]\s*/);
+      if (!numberMatch) return;
+      numbered += 1;
+      const tail = line.slice(numberMatch[0].length);
+      const hit = tail.search(/[A-D]\s*[.、．)）]/);
+      if (hit >= 0) {
+        choiceRows += 1;
+        // 题号后几乎直接就是 A/B/C/D，说明这是完形填空那种“选项块”，不是带题干的单选。
+        if (hit <= 14) bareChoiceRows += 1;
+      }
+    });
+    return { lines: lines.length, optionLines, numbered, choiceRows, bareChoiceRows };
+  }
+
+  function repairSplitSections(sections) {
+    // 完形填空最容易被拆坏：短文、题目、选项本是同一道大题，AI 或标题规则
+    // 有时会把后面的选项块、阅读块各算成一个题型。这里把它们接回完形，
+    // 保证老师在题库里看到的是一整道完形，而不是三份残缺的资料。
+    const out = [];
+    (sections || []).forEach((section) => {
+      if (!section || !String(section.content || '').trim()) return;
+      const type = normalizeType(section.type);
+      const headingType = sectionTypeFromLine(section.heading || '');
+      const stats = sectionOptionStats(section.content);
+      const optionsOnly = stats.lines >= 4
+        && stats.optionLines >= Math.max(4, stats.lines * 0.6)
+        && stats.numbered === 0;
+      // 题号后紧跟 A/B/C/D 的选项块，也算“只有选项”，否则完形选项会被当成单选。
+      const bareChoiceBlock = stats.lines >= 4
+        && stats.choiceRows >= Math.max(4, stats.lines * 0.5)
+        && stats.bareChoiceRows >= Math.max(3, stats.choiceRows * 0.6);
+      const hasBlanks = /_{2,}|\(\s*\)|（\s*）|\b\d{1,2}\s*_{2,}/.test(section.content);
+      const clozeLike = hasBlanks
+        && /(?:^|\n)\s*\d{1,3}\s*[.、．)）]/.test(section.content)
+        && stats.choiceRows >= 3;
+      const prev = out[out.length - 1];
+      const prevHasBlanks = Boolean(prev)
+        && /_{2,}|\(\s*\)|（\s*）|\b\d{1,2}\s*_{2,}/.test(prev.content || '');
+      const prevIsCloze = Boolean(prev) && normalizeType(prev.type) === 'cloze';
+      const prevLooksCloze = Boolean(prev)
+        && (prevIsCloze || (normalizeType(prev.type) === 'reading' && prevHasBlanks));
+      const blockedHeading = /五选五|七选五|语法填空|短文填空|短文填词|选词填空|书面表达|写作/.test(section.heading || '');
+      const continueCloze = prevLooksCloze
+        && (
+          optionsOnly
+          || bareChoiceBlock
+          || ((!headingType) && ['cloze', 'reading', 'single', 'other'].includes(type))
+          || (['reading', 'single', 'other'].includes(type) && clozeLike && !blockedHeading)
+        );
+      if (continueCloze) {
+        prev.content = `${prev.content}\n\n${section.content}`;
+        if (!prev.heading) prev.heading = section.heading;
+        if (!prevIsCloze && /_{2,}|\(\s*\)|（\s*）|\b\d{1,2}\s*_{2,}/.test(prev.content)) {
+          // 原先误标成阅读的完形短文，接回选项后改回完形，题库里才能按题型找得到。
+          prev.type = 'cloze';
+        }
+        return;
+      }
+      out.push({ ...section, type });
+    });
+    return out;
+  }
+
   function paperSplitSectionsFromAi(payload, body) {
     const raw = Array.isArray(payload && payload.sections) ? payload.sections : [];
     const entries = [];
@@ -8775,7 +9337,7 @@
         selected: true
       };
     }).filter(Boolean);
-    return mergePaperSplitSections(sections);
+    return repairSplitSections(mergePaperSplitSections(sections));
   }
 
   function parsePaperSplitJson(raw) {
@@ -10093,10 +10655,12 @@ Li Hua`,
         renderBank();
       }, 160));
     }
-    const bankType = $('#bank-type');
-    if (bankType) {
-      bankType.addEventListener('change', () => {
-        state.bank.type = bankType.value;
+    const bankTypeTabs = $('#bank-type-tabs');
+    if (bankTypeTabs) {
+      bankTypeTabs.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-bank-type]');
+        if (!button) return;
+        state.bank.type = button.dataset.bankType || '';
         renderBank();
       });
     }
@@ -10178,11 +10742,19 @@ Li Hua`,
     }
     const bookImportSave = $('#book-import-save');
     if (bookImportSave) bookImportSave.addEventListener('click', saveBookImport);
+    const bookImportAi = $('#book-import-ai');
+    if (bookImportAi) bookImportAi.addEventListener('click', offerAiCleanBook);
     $$('[data-book-close]').forEach((button) => {
       button.addEventListener('click', () => {
         const dialog = button.closest('dialog');
         if (dialog && dialog.open) dialog.close();
       });
+    });
+    $$('[data-paper-thumb-close]').forEach((button) => {
+      button.addEventListener('click', closePaperThumbDialog);
+    });
+    $$('[data-visual-close]').forEach((button) => {
+      button.addEventListener('click', closeVisualDialog);
     });
     const bookImportDialog = $('#book-import-dialog');
     if (bookImportDialog) {
@@ -10663,7 +11235,23 @@ Li Hua`,
           }
           break;
         case 'bank-compose':
+        case 'bank-preview':
           await composePaperFromBank();
+          break;
+        case 'bank-open-practice':
+          if (!state.currentPaper) {
+            toast('先挑题并点「预览排版」。', 'error');
+            break;
+          }
+          closePaperThumbDialog();
+          go('practice');
+          renderPaper(state.currentPaper);
+          toast('确认版式没问题，就点「存入练习卷」。', 'ok', 5000);
+          break;
+        case 'view-visual':
+          event.preventDefault();
+          event.stopPropagation();
+          openVisualDialog(button.dataset.visualId || '');
           break;
         case 'bank-save-usb':
           await exportBankToUsb(false);
