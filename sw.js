@@ -1,5 +1,5 @@
 /* 顺势 · 离线缓存：联网时永远取最新，断网时用上次看过的版本。 */
-const CACHE = 'shunshi-pwa-v37';
+const CACHE = 'shunshi-pwa-v38';
 const CORE = [
   './',
   './index.html',
@@ -70,6 +70,11 @@ self.addEventListener('activate', (event) => {
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
+});
+
+/* 页面发现新版本在等待时，会发消息让它立刻接管，不用等所有标签页关掉。 */
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 /* 网络偶尔会卡住不返回；最多等 8 秒，超时就先用上次缓存，别让页面一直转圈。 */
