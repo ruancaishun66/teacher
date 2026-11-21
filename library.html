@@ -2609,6 +2609,11 @@
       <path d="M6 3h8l4 4v14H6V3Z"/>
       <path d="M14 3v5h4M9 13h6M9 17h6"/>
     </symbol>
+    <symbol id="i-image" viewBox="0 0 24 24">
+      <rect x="3" y="4" width="18" height="16" rx="2.5"/>
+      <circle cx="9" cy="10" r="1.6"/>
+      <path d="m5 18 5-5 3 3 3-3 3 3"/>
+    </symbol>
     <symbol id="i-calendar" viewBox="0 0 24 24">
       <rect x="3" y="5" width="18" height="16" rx="2.5"/>
       <path d="M8 3v4M16 3v4M3 10h18"/>
@@ -2830,13 +2835,21 @@
               <svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>
               换一组
             </button>
-            <button class="btn btn-blue" type="button" data-action="download-word" disabled>
+            <button class="btn btn-blue" type="button" data-action="download-word" disabled title="下载可编辑的 Word。原题图片会缩到页宽，答案区排版以 PDF 为准。">
               <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
               下载 Word
             </button>
-            <button class="btn btn-outline" type="button" data-action="print-pdf" disabled>
+            <button class="btn btn-outline" type="button" data-action="print-pdf" disabled title="在弹出的打印窗口选「另存为 PDF」，原题图片和排版会完整保留。">
               <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
               导出 PDF
+            </button>
+            <button class="btn btn-outline" type="button" data-action="toggle-paper-visual" disabled>
+              <svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg>
+              切换文字版
+            </button>
+            <button class="btn btn-outline" type="button" data-action="download-visuals" disabled title="把每道题的原样图片打包成 ZIP，可单独插到课件或别的文档里。">
+              <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
+              题目图片 ZIP
             </button>
             <button class="btn btn-primary" type="button" data-action="save-paper" disabled>
               <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>
@@ -3240,7 +3253,7 @@
         <button class="dialog-close" type="submit" value="cancel" aria-label="关闭">×</button>
       </div>
       <div class="split-dialog-body">
-        <p class="split-lead">上传 Word / PDF 后会自动读取文字并准备识别：已保存 Key 时先显示预计费用，你确认后才调用 AI 精准判断题型、拆开大题；没有 Key 或 AI 失败时，自动用本机规则兜底。AI 只发送题目正文（会先尽量剔除答案区），不含学生信息；记录只留在教师端。</p>
+        <p class="split-lead">上传 Word / PDF 后会自动读取文字并准备识别：已保存 Key 时先显示预计费用，你确认后才调用 AI 精准判断题型、拆开大题；没有 Key 或 AI 失败时，自动用本机规则兜底。AI 只发送题目正文（会先尽量剔除答案区），不含学生信息；记录只留在教师端。PDF / Word 默认按原文件把每道题切成图片，字体、题号、选项和分栏都保留原样，切图只在本机完成。</p>
         <div class="split-file-zone" id="paper-split-file-drop">
           <span class="split-file-icon" aria-hidden="true">
             <svg class="icon"><use href="#i-upload"/></svg>
@@ -3289,6 +3302,10 @@
         <label class="split-options-line">
           <input type="checkbox" id="paper-split-make-papers" checked>
           <span>同时生成可布置的练习卷：每个题型生成一份，教师端发布中心 →「练习卷」里可以直接选。取消勾选则只入资料库。</span>
+        </label>
+        <label class="split-options-line">
+          <input type="checkbox" id="paper-split-keep-original" checked>
+          <span><b>保留原题排版（推荐）</b>：按 PDF / Word 原来的位置把题目切成图片，字体、题号、选项和分栏都照原样。图片只存这台电脑，不上传、不调用 AI；会多花几秒，也占一些空间。</span>
         </label>
         <p class="form-note split-usb-note" id="paper-split-usb-note"></p>
       </div>
@@ -3397,8 +3414,9 @@
 
   <script src="vendor/jszip.min.js"></script>
   <script>window.SHUNSHI_TEACHER_AI = true;</script>
-  <script src="portal.js?v=20261121a"></script>
-  <script src="library.js?v=20261121a"></script>
+  <script src="portal.js?v=20261121d"></script>
+  <script src="question-visual.js?v=20261121d"></script>
+  <script src="library.js?v=20261121d"></script>
 <script src="pwa.js" defer></script>
 </body>
 </html>

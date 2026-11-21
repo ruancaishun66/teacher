@@ -1531,16 +1531,16 @@
         if (item.passage && item.kind !== 'question') {
           lines.push(remapNumberedBlanks(item.passage, item.numberMap || {}));
         }
-        const questions = (item.questions || []).filter((question) => question.paperNumber);
+        const questions = (item.questions || []).filter((question) => paperQuestionNumber(paper, question));
         if (questions.length && questions.every((question) => question.stem)) {
           questions.forEach((question) => {
-            lines.push(`${question.paperNumber}. ${question.stem}`);
+            lines.push(`${paperQuestionNumber(paper, question)}. ${question.stem}`);
             (question.options || []).forEach((option) => {
               lines.push(`${option.letter}. ${option.text}`);
             });
           });
         } else {
-          lines.push(remapNumberedBlanks(item.content || '', item.numberMap || {}));
+          lines.push(remapNumberedBlanks(item.content || '', paperNumberMap(paper, item)));
         }
         if (item.answer) lines.push(`原始答案：${item.answer}`);
       });
@@ -1861,7 +1861,7 @@
       (paper.sections || []).forEach((section) => {
         section.items.forEach((item) => {
           (item.questions || []).forEach((question) => {
-            const number = question.paperNumber;
+            const number = paperQuestionNumber(paper, question);
             const detail = details[number] || null;
             const answer = (detail && detail.answer) || answers[number] || '';
             if (answer && !question.answer) {
@@ -1873,8 +1873,9 @@
               explained += 1;
             }
           });
-          Object.entries(item.numberMap || {}).forEach(([sourceNumber, number]) => {
-            if ((item.questions || []).some((question) => Number(question.paperNumber) === Number(number))) return;
+          Object.entries(item.numberMap || {}).forEach(([sourceNumber, mapped]) => {
+            const number = paperBlankNumber(paper, sourceNumber, mapped) || mapped;
+            if ((item.questions || []).some((question) => Number(paperQuestionNumber(paper, question)) === Number(number))) return;
             const detail = details[number] || null;
             const answer = (detail && detail.answer) || answers[number] || '';
             if (!answer && !(detail && detail.explanation)) return;
@@ -4263,6 +4264,131 @@
     }).level;
   }
 
+  function itemHasOriginalVisual(item) {
+    return !!(item && Array.isArray(item.visuals) && item.visuals.length);
+  }
+
+  function paperVisualFields(items) {
+    const list = Array.isArray(items) ? items : [];
+    const count = list.filter(itemHasOriginalVisual).length;
+    const available = list.length > 0 && count === list.length;
+    return {
+      visualAvailable: available,
+      visualMode: available ? 'original' : 'text',
+      visualCount: count
+    };
+  }
+
+  async function attachOriginalVisuals(source, items, onProgress) {
+    const list = Array.isArray(items) ? items : [];
+    if (!source || !source.blob || !list.length) {
+      return { attached: 0, total: list.length, note: '' };
+    }
+    const extension = String(source.extension || '').toLowerCase();
+    if (extension !== 'pdf' && extension !== 'docx') {
+      return { attached: 0, total: list.length, note: '' };
+    }
+    if (!window.ShunshiVisual) {
+      return { attached: 0, total: list.length, note: '原样排版组件没有加载，请刷新页面后再试。' };
+    }
+    try {
+      const result = await window.ShunshiVisual.build(source.blob, {
+        extension,
+        items: list,
+        onProgress
+      });
+      return result || { attached: 0, total: list.length, note: '' };
+    } catch (error) {
+      console.error('Original visuals failed:', error);
+      return {
+        attached: 0,
+        total: list.length,
+        note: `原题图片没有生成：${error.message || error}。文字已经正常入库。`
+      };
+    }
+  }
+
+  async function buildMaterialVisuals(material) {
+    if (!material || !material.originalBlob) {
+      toast('这份资料没有保存原文件，无法按原样切图。重新上传一次 PDF / Word 即可。', 'error', 7000);
+      return;
+    }
+    const extension = String(material.sourceExtension || '').toLowerCase();
+    if (extension !== 'pdf' && extension !== 'docx') {
+      toast('只有 PDF 或 Word 资料才能按原样切图。', 'error');
+      return;
+    }
+    const items = state.items.filter((item) => item.materialId === material.id);
+    if (!items.length) {
+      toast('这份资料还没有题组，先逐题查看确认题目已经入库。', 'error');
+      return;
+    }
+    const button = document.querySelector(`.material-card[data-id="${material.id}"] [data-action="build-visuals"]`);
+    if (button) button.disabled = true;
+    toast('正在按原文件生成题目图片，只在本机处理，请稍等…', 'ok', 7000);
+    const result = await attachOriginalVisuals(
+      { blob: material.originalBlob, extension },
+      items
+    );
+    const attached = result.attached || 0;
+    if (!attached) {
+      if (button) button.disabled = false;
+      toast(result.note || '没有生成原题图片，请确认原文件不是扫描版。', 'error', 8000);
+      return;
+    }
+    for (const item of items) {
+      await dbPut('items', item);
+    }
+    material.visualCount = attached;
+    if (!/原题图片/.test(material.note || '')) {
+      material.note = `${material.note || ''} 已按原文件生成 ${attached} 组原题图片。`.trim();
+    }
+    await dbPut('materials', material);
+    // 已经生成的练习卷里存的是题组副本，要把图片同步过去，练习卷才能切到原图版。
+    const papers = state.papers.filter((paper) => (paper.materialIds || []).includes(material.id));
+    for (const paper of papers) {
+      (paper.sections || []).forEach((section) => {
+        (section.items || []).forEach((snapshot) => {
+          const source = items.find((item) => item.id === snapshot.originalId || item.id === snapshot.id);
+          if (!source || !itemHasOriginalVisual(source)) return;
+          snapshot.visuals = JSON.parse(JSON.stringify(source.visuals));
+          snapshot.visualSource = source.visualSource;
+        });
+      });
+      Object.assign(paper, paperVisualFields((paper.sections || []).flatMap((section) => section.items || [])));
+      const record = { ...paper };
+      delete record.html;
+      delete record.wordBlob;
+      await dbPut('papers', record);
+    }
+    await reloadAndRender();
+    const note = attached < items.length
+      ? `已生成 ${attached} 组原题图片；有 ${items.length - attached} 组没对上原位置，仍用文字排版。`
+      : `已生成 ${attached} 组原题图片，打开练习卷就会按原样排版。`;
+    toast(note, 'ok', 9000);
+  }
+
+  function paperQuestionNumber(paper, question) {
+    if (!question) return '';
+    if (paper && paper.visualMode === 'original' && question.number != null) {
+      return question.number;
+    }
+    return question.paperNumber || question.number || '';
+  }
+
+  function paperBlankNumber(paper, sourceNumber, mapped) {
+    if (paper && paper.visualMode === 'original') return Number(sourceNumber);
+    return mapped;
+  }
+
+  function paperNumberMap(paper, item) {
+    const map = item && item.numberMap ? item.numberMap : {};
+    if (!paper || paper.visualMode !== 'original') return map;
+    const original = {};
+    Object.keys(map).forEach((key) => { original[key] = Number(key); });
+    return original;
+  }
+
   function snapshotItem(item) {
     const copy = JSON.parse(JSON.stringify(item));
     copy.originalId = item.id;
@@ -4581,6 +4707,7 @@
       aiVocab: []
     };
     paper.vocab = buildPaperVocabulary(paper);
+    Object.assign(paper, paperVisualFields(sections.flatMap((section) => section.items)));
     return paper;
   }
 
@@ -4810,7 +4937,21 @@
     return String.fromCharCode(65 + (index % 5));
   }
 
-  function renderPaperItem(item, section, index) {
+  function renderOriginalItem(item) {
+    const images = (item.visuals || []).map((visual, index) => {
+      // Word 不认 CSS 的 100% 宽度，会把图片按原始像素铺开而右侧被裁掉；
+      // 同时写上 width/height 属性，Word 会按 620 像素宽缩放，网页里仍由 CSS 控制。
+      const ratio = (Number(visual.height) || 1) / Math.max(1, Number(visual.width) || 1);
+      const wordHeight = Math.max(1, Math.round(620 * ratio));
+      return `<img class="question-visual" src="${escapeAttr(visual.url)}" width="620" height="${wordHeight}" alt="原题图片 ${index + 1}"${index ? ' loading="lazy"' : ''}>`;
+    }).join('');
+    return `<div class="question-visual-block">${images}</div>`;
+  }
+
+  function renderPaperItem(item, section, index, paper) {
+    if (paper && paper.visualMode === 'original' && itemHasOriginalVisual(item)) {
+      return renderOriginalItem(item);
+    }
     if (section.type === 'writing') {
       const writingQuestion = (item.questions || [])[0];
       const paperNumber = (writingQuestion && writingQuestion.paperNumber) || item.writingNumber;
@@ -5031,11 +5172,12 @@
     (paper.sections || []).forEach((section) => {
       section.items.forEach((item) => {
         (item.questions || []).forEach((question) => {
-          if (!question.paperNumber) return;
+          const questionNumber = paperQuestionNumber(paper, question);
+          if (!questionNumber) return;
           // 书面表达只保留下面那条带“参考范文 / 写作提示”的条目，避免同一题出现两次。
           if (section.type === 'writing') return;
           add({
-            number: question.paperNumber,
+            number: questionNumber,
             answer: question.answer || (item.questions.length === 1 ? item.answer : '') || '',
             explanation: question.explanation || (item.questions.length === 1 ? item.explanation : '') || '',
             skill: question.skill || item.skill || '',
@@ -5045,7 +5187,8 @@
             question
           });
         });
-        Object.entries(item.numberMap || {}).forEach(([sourceNumber, number]) => {
+        Object.entries(item.numberMap || {}).forEach(([sourceNumber, mapped]) => {
+          const number = paperBlankNumber(paper, sourceNumber, mapped);
           if (!number) return;
           const value = item.blankAnswers ? item.blankAnswers[sourceNumber] : null;
           add({
@@ -5063,7 +5206,7 @@
         if (section.type === 'writing') {
           const writingQuestion = (item.questions || [])[0];
           add({
-            number: (writingQuestion && writingQuestion.paperNumber) || item.writingNumber || '',
+            number: (writingQuestion && paperQuestionNumber(paper, writingQuestion)) || item.writingNumber || '',
             answer: item.answer || (writingQuestion && writingQuestion.answer) || '',
             explanation: item.explanation || (writingQuestion && writingQuestion.explanation) || '',
             skill: 'writing',
@@ -5230,7 +5373,7 @@
       const count = sectionQuestionCount(section);
       const countText = section.type === 'writing' ? '共 1 篇' : `共 ${count} 小题`;
       const note = sectionNoteFor(section);
-      const items = section.items.map((item, itemIndex) => renderPaperItem(item, section, itemIndex)).join('');
+      const items = section.items.map((item, itemIndex) => renderPaperItem(item, section, itemIndex, paper)).join('');
       return `<section class="exam-section">` +
         `<div class="section-heading">` +
         `<h2><span class="section-index">${cnSectionNumber(index)}、</span>${escapeHtml(paperSectionLabel(section))}` +
@@ -5326,6 +5469,9 @@
 
       .question-block { margin-top: 16px; padding-bottom: 2px; break-inside: avoid; page-break-inside: avoid; }
       .passage-block + .question-block { margin-top: 13px; }
+      .question-visual-block { margin-top: 14px; }
+      .question-visual { display: block; width: 100%; height: auto; margin: 0 0 12px; break-inside: avoid; page-break-inside: avoid; }
+      .question-visual:last-child { margin-bottom: 0; }
       .question-stem { margin: 0; line-height: 1.8; text-align: left; }
       .question-number { font-weight: 700; }
       .question-gap { margin: 0; height: 4px; font-size: 4pt; line-height: 4pt; }
@@ -5455,7 +5601,8 @@
 
   function makePaperWordBlob(paper) {
     const styles = docStyles() + paperStyles() +
-      `@media print { .sheet { width:auto; min-height:0; margin:0; padding:0; box-shadow:none; } .watermark-layer { position:fixed; inset:0; } }`;
+      `.watermark-layer { display:none !important; } ` +
+      `@media print { .sheet { width:auto; min-height:0; margin:0; padding:0; box-shadow:none; } }`;
     const html = '<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" ' +
       'xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
       `<head><meta charset="utf-8"><meta http-equiv="Content-Type" content="text/html; charset=utf-8">` +
@@ -5573,6 +5720,13 @@
         ? `<i class="dot"></i><span>识别 ${material.confidence}%</span>`
         : '';
       const difficulty = materialDifficultyText(material);
+      const extension = String(material.sourceExtension || '').toLowerCase();
+      const canBuildVisuals = material.originalBlob
+        && (extension === 'pdf' || extension === 'docx')
+        && Number(material.visualCount || 0) < Math.max(1, count);
+      const visualButton = canBuildVisuals
+        ? `<button class="icon-btn" type="button" data-action="build-visuals" title="按原文件生成原题图片" aria-label="按原文件生成原题图片"><svg class="icon" aria-hidden="true"><use href="#i-image"/></svg></button>`
+        : '';
       const originalButton = material.originalBlob
         ? `<button class="icon-btn" type="button" data-action="download-original" title="下载原文件" aria-label="下载原文件"><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg></button>`
         : '';
@@ -5597,7 +5751,7 @@
         `<button class="icon-btn" type="button" data-action="ai-clean" title="AI 清理杂物 / 重新分类" aria-label="AI 清理杂物并重新分类"><svg class="icon" aria-hidden="true"><use href="#i-flash"/></svg></button>` +
         `<button class="icon-btn" type="button" data-action="ai-split" title="豆包精排 / 重新分题" aria-label="豆包精排并重新分题"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg></button>` +
         `<button class="icon-btn" type="button" data-action="edit" title="修改信息" aria-label="修改资料信息"><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg></button>` +
-        `${originalButton}${processedButton}` +
+        `${visualButton}${originalButton}${processedButton}` +
         `<button class="icon-btn danger" type="button" data-action="delete-material" title="删除资料" aria-label="删除资料"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg></button>` +
         `</div></article>`;
     }).join('');
@@ -5691,13 +5845,23 @@
     const meta = $('#paper-meta-label');
     if (meta) {
       const level = paper.level ? ` · 目标难度 ${paper.level.min}–${paper.level.max}` : '';
-      meta.textContent = `${paper.grade || '综合'} · ${paper.questionTotal || paper.total} 小题${level} · ${formatDate(paper.createdAt, true)}`;
+      const visual = paper.visualAvailable
+        ? (paper.visualMode === 'original' ? ' · 原样排版' : ' · 文字排版')
+        : '';
+      meta.textContent = `${paper.grade || '综合'} · ${paper.questionTotal || paper.total} 小题${level}${visual} · ${formatDate(paper.createdAt, true)}`;
     }
-    const buttons = ['reshuffle', 'download-word', 'print-pdf', 'save-paper', 'ai-analysis', 'ai-vocab', 'download-vocab', 'download-dictation', 'download-long-sentences'];
+    const buttons = ['reshuffle', 'download-word', 'print-pdf', 'save-paper', 'ai-analysis', 'ai-vocab', 'download-vocab', 'download-dictation', 'download-long-sentences', 'toggle-paper-visual', 'download-visuals'];
     buttons.forEach((action) => {
       const button = $(`[data-action="${action}"]`);
       if (button) button.disabled = false;
     });
+    const toggle = $('[data-action="toggle-paper-visual"]');
+    if (toggle) {
+      toggle.style.display = paper.visualAvailable ? '' : 'none';
+      toggle.textContent = paper.visualMode === 'original' ? '切换文字版' : '切回原图';
+    }
+    const visuals = $('[data-action="download-visuals"]');
+    if (visuals) visuals.style.display = paper.visualAvailable ? '' : 'none';
     requestAnimationFrame(() => fitPaperFrame(frame));
   }
 
@@ -5714,10 +5878,14 @@
     }
     const meta = $('#paper-meta-label');
     if (meta) meta.textContent = '生成后会在这里排版预览。';
-    ['reshuffle', 'download-word', 'print-pdf', 'save-paper', 'ai-analysis', 'ai-vocab', 'download-vocab', 'download-dictation', 'download-long-sentences'].forEach((action) => {
+    ['reshuffle', 'download-word', 'print-pdf', 'save-paper', 'ai-analysis', 'ai-vocab', 'download-vocab', 'download-dictation', 'download-long-sentences', 'toggle-paper-visual', 'download-visuals'].forEach((action) => {
       const button = $(`[data-action="${action}"]`);
       if (button) button.disabled = true;
     });
+    const toggle = $('[data-action="toggle-paper-visual"]');
+    if (toggle) toggle.style.display = 'none';
+    const visuals = $('[data-action="download-visuals"]');
+    if (visuals) visuals.style.display = 'none';
   }
 
   /* ------------------------------------------------------------------------
@@ -5914,21 +6082,99 @@
     if (!paper) return;
     await loadWordDictionary();
     paper.vocab = buildPaperVocabulary(paper);
-    const html = buildStandalonePaperHtml(paper);
-    const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
-    const opened = window.open(url, '_blank');
-    if (!opened) {
-      URL.revokeObjectURL(url);
-      toast('浏览器拦截了新窗口，请允许此站点打开弹窗。', 'error');
-      return;
-    }
-    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    // 在页面内预览，才能直接用「切换文字版 / 题目图片 / 打印 PDF」这些按钮。
+    state.currentPaper = paper;
+    state.currentParsed = null;
+    renderPaper(paper);
+    go('practice');
   }
 
   function downloadPaperWord(paper) {
     if (!paper) return;
     const blob = makePaperWordBlob(paper);
     downloadBlob(blob, paperFilename(paper, '.doc'));
+  }
+
+  async function togglePaperVisual() {
+    const paper = state.currentPaper;
+    if (!paper || !paper.visualAvailable) {
+      toast('这份练习没有原题图片。', 'error');
+      return;
+    }
+    paper.visualMode = paper.visualMode === 'original' ? 'text' : 'original';
+    renderPaper(paper);
+    await updateSavedPaper(paper);
+    toast(paper.visualMode === 'original'
+      ? '已切回原图排版，题号按原卷印刷题号。'
+      : '已切换为统一文字排版，题号会重新连续编号。');
+  }
+
+  function dataUrlToBlob(url) {
+    const match = /^data:([^;,]+)?(;base64)?,([\s\S]*)$/.exec(String(url || ''));
+    if (!match) return null;
+    const type = match[1] || 'image/jpeg';
+    let binary = '';
+    if (match[2]) {
+      binary = atob(match[3]);
+    } else {
+      binary = decodeURIComponent(match[3]);
+    }
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return new Blob([bytes], { type });
+  }
+
+  async function downloadPaperVisuals(paper) {
+    if (!paper || !paper.visualAvailable) {
+      toast('这份练习没有原题图片。', 'error');
+      return;
+    }
+    if (!window.JSZip) {
+      toast('打包组件未加载，请刷新页面后重试。', 'error');
+      return;
+    }
+    const zip = new window.JSZip();
+    const manifest = [
+      `练习：${paper.title}`,
+      `导出时间：${formatDate(nowIso(), true)}`,
+      '说明：每张图片都是从原 PDF / Word 按题切下来的，保留原字体、题号、选项和分栏。',
+      ''
+    ];
+    let fileCount = 0;
+    (paper.sections || []).forEach((section, sectionIndex) => {
+      section.items.forEach((item, itemIndex) => {
+        if (!item.visuals || !item.visuals.length) return;
+        const question = (item.questions || [])[0];
+        const number = (question && paperQuestionNumber(paper, question))
+          || (item.sourceNumbers && item.sourceNumbers[0])
+          || `${sectionIndex + 1}-${itemIndex + 1}`;
+        const label = typeShort(section.type) || '题目';
+        item.visuals.forEach((visual, visualIndex) => {
+          const blob = dataUrlToBlob(visual.url);
+          if (!blob) return;
+          const suffix = visualIndex ? `-${visualIndex + 1}` : '';
+          const name = `题目图片/${String(sectionIndex + 1).padStart(2, '0')}-${label}-${number}${suffix}.jpg`;
+          zip.file(name, blob);
+          fileCount += 1;
+        });
+        manifest.push(`${sectionIndex + 1}.${itemIndex + 1}  ${label} · 题号 ${number}  ${item.visuals.length} 张`);
+      });
+    });
+    if (!fileCount) {
+      toast('没有可导出的题目图片。', 'error');
+      return;
+    }
+    zip.file('题目图片/说明.txt', manifest.join('\n'));
+    try {
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+      downloadBlob(blob, `${safeFilename(`${paper.title}-题目图片`)}.zip`);
+      toast(`已打包 ${fileCount} 张题目图片。`, 'ok', 6000);
+    } catch (error) {
+      console.error(error);
+      toast(`题目图片打包失败：${error.message || error}`, 'error', 6000);
+    }
   }
 
   /* ------------------------------------------------------------------------
@@ -7288,11 +7534,39 @@
       toast('没有可入库的题目。', 'error', 7000);
       return;
     }
+    const keepOriginal = $('#paper-split-keep-original')
+      ? $('#paper-split-keep-original').checked
+      : true;
+    let visualNote = '';
+    let visualCount = 0;
+    if (keepOriginal && splitSource && ['pdf', 'docx'].includes(String(splitSource.extension || '').toLowerCase())) {
+      const visualButton = $('#paper-split-save');
+      if (visualButton) visualButton.textContent = '正在生成原图…';
+      setPaperSplitStatus('正在按原文件把题目切成图片（只在本机处理，不上传）…');
+      const visual = await attachOriginalVisuals(splitSource, allItems, (message) => {
+        if (!message) return;
+        if (typeof message === 'string') {
+          setPaperSplitStatus(message);
+          return;
+        }
+        if (message.status) {
+          const percent = Math.round((Number(message.progress) || 0) * 100);
+          setPaperSplitStatus(`${message.status}${percent ? ` ${percent}%` : ''}`);
+        }
+      });
+      visualCount = visual.attached || 0;
+      if (visualCount) {
+        visualNote = `已按原文件生成 ${visualCount} 组原题图片${visual.note ? `；${visual.note}` : '。'}`;
+      } else if (visual.note) {
+        visualNote = visual.note;
+      }
+    }
     const usedTypes = Array.from(groups.keys());
     material.type = usedTypes.length === 1 ? usedTypes[0] : 'paper';
     material.sectionTypes = usedTypes;
     material.tags = unique([...usedTypes.map((type) => typeShort(type)), grade, '智能识别', split.source === 'ai' ? 'AI 识别' : '本机识别'].filter(Boolean));
-    material.note = `智能识别：原文 ${split.sections.length} 个题型，已入库 ${usedTypes.length} 个（${usedTypes.map((type) => typeShort(type)).join('、')}）。${split.source === 'ai' ? '题型边界由 AI 定位，原文只保存在本机。' : '本机规则识别，未调用 AI。'}`;
+    material.note = `智能识别：原文 ${split.sections.length} 个题型，已入库 ${usedTypes.length} 个（${usedTypes.map((type) => typeShort(type)).join('、')}）。${split.source === 'ai' ? '题型边界由 AI 定位，原文只保存在本机。' : '本机规则识别，未调用 AI。'}${visualNote ? ` ${visualNote}` : ''}`;
+    material.visualCount = visualCount;
     material.questionCount = allItems.length;
     material.processedBlob = makeMaterialBlob(material);
     material.processedSize = material.processedBlob ? material.processedBlob.size : 0;
@@ -7330,6 +7604,7 @@
           aiVocab: []
         };
         paper.vocab = buildPaperVocabulary(paper);
+        Object.assign(paper, paperVisualFields(sections[0].items));
         paperRecords.push(paper);
       }
     }
@@ -8453,6 +8728,11 @@ Li Hua`,
         case 'apply-split':
           await applySplitResult();
           break;
+        case 'build-visuals': {
+          const material = findMaterial(id);
+          await buildMaterialVisuals(material);
+          break;
+        }
         case 'download-original': {
           const material = findMaterial(id);
           downloadOriginal(material);
@@ -8487,6 +8767,12 @@ Li Hua`,
           break;
         case 'print-pdf':
           printCurrentPaper();
+          break;
+        case 'toggle-paper-visual':
+          await togglePaperVisual();
+          break;
+        case 'download-visuals':
+          await downloadPaperVisuals(state.currentPaper);
           break;
         case 'save-paper':
           await saveCurrentPaper();
