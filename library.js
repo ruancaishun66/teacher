@@ -238,6 +238,7 @@
     filters: { q: '', type: '', grade: '', level: '', sort: 'newest' },
     bank: { q: '', type: '', grade: '', materialId: '' },
     bankSelection: new Set(),
+    bankStudents: new Set(),
     bookCache: new Map(),
     bookSelection: new Map(),
     currentBook: null,
@@ -2322,6 +2323,18 @@
     state.items = items;
     state.papers = papers.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     state.books = books.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    // 旧版本重新拼的卷子可能保留原样排版，题号里会出现好几个 21。
+    // 只对“确实有重复原卷题号”的旧练习卷切到连续编号，单份原卷不受影响。
+    for (const paper of state.papers) {
+      if (!paper || paper.visualMode !== 'original') continue;
+      if (!paperHasDuplicateSourceNumbers(paper.sections || [])) continue;
+      paper.visualMode = 'text';
+      paper.renumbered = true;
+      const record = { ...paper };
+      delete record.html;
+      delete record.wordBlob;
+      await dbPut('papers', record);
+    }
     // 已删除的题组/词汇书不要继续留在勾选集合里。
     const itemIds = new Set(state.items.map((item) => item.id));
     state.bankSelection.forEach((id) => { if (!itemIds.has(id)) state.bankSelection.delete(id); });
@@ -3956,6 +3969,76 @@
     return segments;
   }
 
+  /* ------------------------------------------------------------------------
+     听力不交给 AI：录音题既没法在文字里做题，又最占篇幅。
+     发送前用占位行代替，AI 只整理其余大题；结果回来后把原文接回原位。
+     ------------------------------------------------------------------------ */
+
+  const AI_LISTENING_MARKER = '〖听力原文已在本机保留，未发送给 AI〗';
+
+  function listeningSectionsForAi(text) {
+    const source = String(text || '').replace(/\r\n?/g, '\n');
+    return detectExamSections(source)
+      .filter((section) => section.type === 'listening' && String(section.content || '').trim())
+      .map((section) => ({
+        type: 'listening',
+        heading: section.heading || '听力理解',
+        // raw 保留原文前后的换行，接回去时不会把下一大题标题粘在听力最后一行后面。
+        raw: source.slice(section.start, section.end),
+        content: String(section.content || '').trim(),
+        start: section.start,
+        end: section.end
+      }));
+  }
+
+  function textWithoutListeningForAi(text) {
+    const source = String(text || '').replace(/\r\n?/g, '\n');
+    const removed = listeningSectionsForAi(source);
+    if (!removed.length) {
+      return { text: source, removed, removedChars: 0 };
+    }
+    let out = '';
+    let cursor = 0;
+    removed.forEach((section) => {
+      if (section.start < cursor) return;
+      out += source.slice(cursor, section.start);
+      // 占位行单独成行，AI 整理后更容易原样保留；接回听力时再按 raw 还原。
+      out += `\n${AI_LISTENING_MARKER}\n`;
+      cursor = section.end;
+    });
+    out += source.slice(cursor);
+    return {
+      text: out.replace(/\n{3,}/g, '\n\n').trim(),
+      removed,
+      removedChars: removed.reduce((sum, section) => sum + String(section.content || '').length, 0)
+    };
+  }
+
+  function restoreListeningText(text, removed) {
+    const list = Array.isArray(removed) ? removed.filter((section) => section && (section.raw || section.content)) : [];
+    let out = String(text || '');
+    if (!list.length) return out;
+    const bodyOf = (section) => String(section.raw || section.content || '');
+    let index = 0;
+    while (index < list.length) {
+      const at = out.indexOf(AI_LISTENING_MARKER);
+      if (at < 0) break;
+      const before = out.slice(0, at);
+      const after = out.slice(at + AI_LISTENING_MARKER.length);
+      let piece = bodyOf(list[index]);
+      // AI 可能把占位行前后的换行吃掉，接回时补上，避免下一大题标题黏在听力最后一行。
+      if (before && !/\n$/.test(before) && !/^\n/.test(piece)) piece = `\n${piece}`;
+      if (after && !/^\n/.test(after) && !/\n\s*$/.test(piece)) piece += '\n';
+      out = before + piece + after;
+      index += 1;
+    }
+    if (index < list.length) {
+      // AI 把占位行删掉时，宁可把听力原文放到最前面，也不能丢。
+      out = [...list.slice(index).map(bodyOf), out].filter(Boolean).join('\n\n');
+    }
+    return out;
+  }
+
   function splitReadingPassages(sectionText, type) {
     const source = String(sectionText || '').replace(/\r\n?/g, '\n');
     const lines = source.split('\n');
@@ -4855,14 +4938,62 @@
     return !!(item && Array.isArray(item.visuals) && item.visuals.length);
   }
 
-  function paperVisualFields(items) {
+  function paperSourceNumberSequence(sections) {
+    const numbers = [];
+    (Array.isArray(sections) ? sections : []).forEach((section) => {
+      const type = normalizeType(section && section.type);
+      ((section && section.items) || []).forEach((item) => {
+        if (!item) return;
+        if (type === 'writing') {
+          const number = Number(item.writingNumber);
+          if (Number.isFinite(number) && number > 0) numbers.push(number);
+          return;
+        }
+        const questionNumbers = (item.questions || [])
+          .map((question) => Number(question && question.number))
+          .filter(Number.isFinite);
+        const blankNumbers = collectBlankNumbers(item.content || '');
+        unique([...questionNumbers, ...blankNumbers])
+          .sort((a, b) => a - b)
+          .forEach((number) => numbers.push(number));
+      });
+    });
+    return numbers;
+  }
+
+  function paperNeedsRenumber(sections) {
+    // 只有“原卷从第 1 题起、题号连续”的整卷才保留原卷题号；
+    // 从题库重新拼的卷子、只抽了其中几道、或把几份卷子混在一起时，
+    // 一律从第 1 题重新连续编号，避免出现无数个“21 题”。
+    const numbers = paperSourceNumberSequence(sections);
+    if (!numbers.length) return false;
+    for (let index = 0; index < numbers.length; index += 1) {
+      if (numbers[index] !== index + 1) return true;
+    }
+    return false;
+  }
+
+  function paperHasDuplicateSourceNumbers(sections) {
+    const seen = new Set();
+    return paperSourceNumberSequence(sections).some((number) => {
+      if (seen.has(number)) return true;
+      seen.add(number);
+      return false;
+    });
+  }
+
+  function paperVisualFields(items, sections) {
     const list = Array.isArray(items) ? items : [];
     const count = list.filter(itemHasOriginalVisual).length;
     const available = list.length > 0 && count === list.length;
+    const renumbered = Array.isArray(sections) ? paperNeedsRenumber(sections) : false;
     return {
       visualAvailable: available,
-      visualMode: available ? 'original' : 'text',
-      visualCount: count
+      // 原图里印着原卷题号，和重新编号冲突；重新拼的卷子默认走文字版，
+      // 老师仍可点“切回原图”自己选。
+      visualMode: available && !renumbered ? 'original' : 'text',
+      visualCount: count,
+      renumbered
     };
   }
 
@@ -4942,7 +5073,13 @@
           snapshot.visualSource = source.visualSource;
         });
       });
-      Object.assign(paper, paperVisualFields((paper.sections || []).flatMap((section) => section.items || [])));
+      const fields = paperVisualFields(
+        (paper.sections || []).flatMap((section) => section.items || []),
+        paper.sections || []
+      );
+      // 老师如果亲手切过“原图 / 文字版”，同步图片时不要把这个选择改回去。
+      if (paper.visualPinned) fields.visualMode = paper.visualMode === 'original' ? 'original' : 'text';
+      Object.assign(paper, fields);
       const record = { ...paper };
       delete record.html;
       delete record.wordBlob;
@@ -5305,7 +5442,7 @@
       aiVocab: []
     };
     paper.vocab = buildPaperVocabulary(paper);
-    Object.assign(paper, paperVisualFields(sections.flatMap((section) => section.items)));
+    Object.assign(paper, paperVisualFields(sections.flatMap((section) => section.items), sections));
     return paper;
   }
 
@@ -6491,6 +6628,36 @@
     ].filter(Boolean).join('\n').toLowerCase();
   }
 
+  function bankItemSort(a, b) {
+    const typeA = TYPES[normalizeType(a.type)] || TYPES.other;
+    const typeB = TYPES[normalizeType(b.type)] || TYPES.other;
+    if (typeA.order !== typeB.order) return typeA.order - typeB.order;
+    const materialA = findMaterial(a.materialId);
+    const materialB = findMaterial(b.materialId);
+    const createdA = materialA ? String(materialA.createdAt) : '';
+    const createdB = materialB ? String(materialB.createdAt) : '';
+    if (createdA !== createdB) return createdA.localeCompare(createdB);
+    return (Number(a.order) || 0) - (Number(b.order) || 0);
+  }
+
+  function bankOrdinalMap() {
+    // 题库里同一个题型跨很多份卷子，原卷题号会反复出现“21”。
+    // 这里给每道题一个本题型内的固定序号，老师看到的是“第 12 组”，
+    // 原卷题号只放在小字里备查。
+    const map = new Map();
+    const groups = new Map();
+    state.items.forEach((item) => {
+      const type = normalizeType(item.type);
+      if (!groups.has(type)) groups.set(type, []);
+      groups.get(type).push(item);
+    });
+    groups.forEach((list) => {
+      list.sort(bankItemSort);
+      list.forEach((item, index) => map.set(item.id, index + 1));
+    });
+    return map;
+  }
+
   function filteredBankItems(ignoreType = false) {
     const query = state.bank.q.trim().toLowerCase();
     const type = normalizeType(state.bank.type);
@@ -6502,21 +6669,161 @@
       if (state.bank.materialId && item.materialId !== state.bank.materialId) return false;
       if (query && !bankSearchText(item).includes(query)) return false;
       return true;
-    }).sort((a, b) => {
-      const typeA = TYPES[normalizeType(a.type)] || TYPES.other;
-      const typeB = TYPES[normalizeType(b.type)] || TYPES.other;
-      if (typeA.order !== typeB.order) return typeA.order - typeB.order;
-      const materialA = findMaterial(a.materialId);
-      const materialB = findMaterial(b.materialId);
-      const createdA = materialA ? String(materialA.createdAt) : '';
-      const createdB = materialB ? String(materialB.createdAt) : '';
-      if (createdA !== createdB) return createdA.localeCompare(createdB);
-      return (Number(a.order) || 0) - (Number(b.order) || 0);
-    });
+    }).sort(bankItemSort);
   }
 
   function bankSelectionItems() {
     return state.items.filter((item) => state.bankSelection.has(item.id));
+  }
+
+  /* ---------------------------- 学生练习记录对照 ---------------------------- */
+
+  const BANK_STUDENTS_KEY = 'shunshi.bank.students.v1';
+  let bankStudentStatsCache = null;
+
+  function loadBankStudentSelection() {
+    try {
+      const raw = localStorage.getItem(BANK_STUDENTS_KEY);
+      const ids = raw ? JSON.parse(raw) : [];
+      state.bankStudents = new Set(Array.isArray(ids) ? ids.map(String).filter(Boolean) : []);
+    } catch (error) {
+      state.bankStudents = new Set();
+    }
+  }
+
+  function saveBankStudentSelection() {
+    try {
+      localStorage.setItem(BANK_STUDENTS_KEY, JSON.stringify(Array.from(state.bankStudents)));
+    } catch (error) {
+      // 浏览器不给写时只是记不住勾选，不影响本题库。
+    }
+  }
+
+  function teacherStudentsForBank() {
+    try {
+      const raw = localStorage.getItem('shunshi.teacher.v1');
+      if (!raw) return [];
+      const data = JSON.parse(raw);
+      return Array.isArray(data.students) ? data.students.filter((student) => student && student.id) : [];
+    } catch (error) {
+      console.error('读取教师端学生记录失败', error);
+      return [];
+    }
+  }
+
+  function bankReviewStemKey(stem) {
+    let text = String(stem || '').toLowerCase()
+      .replace(/^\s*\d{1,3}\s*[.、．)）]\s*/, '')
+      .replace(/[^a-z0-9一-鿿]+/g, ' ')
+      .trim();
+    if (!text) return '';
+    // 语法填空/五选五老记录只有“第 21 空”，跨卷子会对错号，宁可不硬配。
+    if (/^第?\s*\d+\s*空$/.test(text)) return '';
+    return text.slice(0, 90);
+  }
+
+  function bankStudentData() {
+    if (bankStudentStatsCache) return bankStudentStatsCache;
+    const students = teacherStudentsForBank();
+    const map = new Map();
+    students.forEach((student) => {
+      const entry = {
+        id: String(student.id),
+        name: student.name || '未命名学生',
+        avatar: student.avatar || '🦊',
+        grade: student.grade || '',
+        byItem: new Map(),
+        byStem: new Map(),
+        lastAt: ''
+      };
+      (student.tasks || []).forEach((task) => {
+        if (!task || task.status !== 'done') return;
+        const at = String(task.submittedAt || task.importedAt || '');
+        if (at > entry.lastAt) entry.lastAt = at;
+        (task.review || []).forEach((review) => {
+          if (!review) return;
+          const itemId = String(review.itemId || '');
+          const stemKey = itemId ? '' : bankReviewStemKey(review.stem);
+          if (!itemId && !stemKey) return;
+          const bucket = itemId ? entry.byItem : entry.byStem;
+          const key = itemId || stemKey;
+          const stat = bucket.get(key) || { attempts: 0, correct: 0, wrong: 0, lastAt: '', tasks: new Set() };
+          stat.attempts += 1;
+          if (review.ok) stat.correct += 1;
+          else stat.wrong += 1;
+          if (at > stat.lastAt) stat.lastAt = at;
+          if (task.id) stat.tasks.add(String(task.id));
+          bucket.set(key, stat);
+        });
+      });
+      map.set(entry.id, entry);
+    });
+    bankStudentStatsCache = { students, map };
+    return bankStudentStatsCache;
+  }
+
+  function bankItemStudentStats(item) {
+    if (!state.bankStudents.size) return [];
+    const data = bankStudentData();
+    const itemId = String(item.id || '');
+    const stemKeys = unique((item.questions || []).map((question) => bankReviewStemKey(question && question.stem)).filter(Boolean));
+    return Array.from(state.bankStudents).map((id) => {
+      const student = data.map.get(String(id));
+      if (!student) return null;
+      const agg = { attempts: 0, correct: 0, wrong: 0, lastAt: '', tasks: new Set() };
+      const merge = (stat) => {
+        if (!stat) return;
+        agg.attempts += stat.attempts;
+        agg.correct += stat.correct;
+        agg.wrong += stat.wrong;
+        if (stat.lastAt > agg.lastAt) agg.lastAt = stat.lastAt;
+        stat.tasks.forEach((taskId) => agg.tasks.add(taskId));
+      };
+      merge(student.byItem.get(itemId));
+      stemKeys.forEach((key) => merge(student.byStem.get(key)));
+      return { student, attempts: agg.attempts, correct: agg.correct, wrong: agg.wrong, lastAt: agg.lastAt, taskCount: agg.tasks.size };
+    }).filter(Boolean);
+  }
+
+  function renderBankStudentPicker() {
+    const chips = $('#bank-student-chips');
+    const hint = $('#bank-student-hint');
+    if (!chips) return;
+    const data = bankStudentData();
+    const students = data.students.slice().sort((a, b) => String(a.grade || '').localeCompare(String(b.grade || '')) || String(a.name).localeCompare(String(b.name), 'zh-CN'));
+    if (!students.length) {
+      chips.innerHTML = '<span class="bank-student-empty">教师端还没有学生记录。先在教师端添加学生并导入一次汇报，这里就能看到每个人的练习情况。</span>';
+      if (hint) hint.textContent = '学生记录只存在这台电脑的浏览器里，不会上传。';
+      return;
+    }
+    const valid = new Set(students.map((student) => student.id));
+    Array.from(state.bankStudents).forEach((id) => { if (!valid.has(String(id))) state.bankStudents.delete(id); });
+    chips.innerHTML = students.map((student) => {
+      const checked = state.bankStudents.has(student.id);
+      return `<label class="bank-student-chip${checked ? ' is-checked' : ''}">` +
+        `<input type="checkbox" data-bank-student="${escapeAttr(student.id)}" ${checked ? 'checked' : ''}>` +
+        `<span>${escapeHtml(student.avatar || '🦊')} ${escapeHtml(student.name)}${student.grade ? `<em>${escapeHtml(student.grade)}</em>` : ''}</span>` +
+        `</label>`;
+    }).join('');
+    if (hint) {
+      hint.textContent = state.bankStudents.size
+        ? `已选 ${state.bankStudents.size} 位；每道题下面会显示累计练习、答对和答错次数。`
+        : '勾选学生后，每道题下面会显示他练过几次、对几次、错几次。';
+    }
+  }
+
+  function bankItemStudentStatsHtml(item) {
+    const rows = bankItemStudentStats(item);
+    if (!rows.length) return '';
+    return `<div class="bank-student-status">${rows.map((row) => {
+      const name = `${row.student.avatar || '🦊'} ${row.student.name}`;
+      if (!row.attempts) {
+        return `<span class="bank-student-stat is-empty"><b>${escapeHtml(name)}</b>：还没练过</span>`;
+      }
+      const last = row.lastAt ? ` · 最近 ${escapeHtml(formatDate(row.lastAt))}` : '';
+      return `<span class="bank-student-stat"><b>${escapeHtml(name)}</b>：练过 ${row.attempts} 次` +
+        ` · <i class="ok">对 ${row.correct}</i> · <i class="bad">错 ${row.wrong}</i>${last}</span>`;
+    }).join('')}</div>`;
   }
 
   function renderBankPickbar() {
@@ -6539,6 +6846,7 @@
   function renderBank() {
     const list = $('#bank-list');
     if (!list) return;
+    renderBankStudentPicker();
     const tabs = $('#bank-type-tabs');
     const materialSelect = $('#bank-material');
     if (materialSelect) {
@@ -6609,18 +6917,23 @@
     if (summary) {
       summary.textContent = `${def.label} ${typeQuestions} 道；全部资料一共 ${allQuestions} 道。点上面的题型可以切换。`;
     }
+    const ordinals = bankOrdinalMap();
     list.innerHTML = `<section class="bank-group">` +
       `<div class="bank-group-head"><h2>${escapeHtml(def.label)}</h2><span>${items.length} 组 · ${typeQuestions} 道题</span></div>` +
-      `<div class="bank-items">${items.map(bankItemHtml).join('')}</div>` +
+      `<div class="bank-items">${items.map((item) => bankItemHtml(item, ordinals.get(item.id))).join('')}</div>` +
       `</section>`;
     renderBankPickbar();
   }
 
-  function bankItemHtml(item) {
+  function bankItemHtml(item, ordinal = 0) {
     const material = findMaterial(item.materialId);
     const checked = state.bankSelection.has(item.id);
     const numbers = bankItemNumbers(item);
-    const numberLabel = numbers.length === 1 ? numbers[0] : (numbers.length ? `${numbers[0]}–${numbers[numbers.length - 1]}` : '题目');
+    const sourceLabel = numbers.length === 1 ? numbers[0] : (numbers.length ? `${numbers[0]}–${numbers[numbers.length - 1]}` : '');
+    const questionsForLabel = Array.isArray(item.questions) ? item.questions : [];
+    const numberLabel = ordinal
+      ? `第 ${ordinal} ${questionsForLabel.length > 1 || item.kind === 'set' ? '组' : '题'}`
+      : (sourceLabel || '题目');
     const stem = bankStemOf(item);
     const options = bankOptionsOf(item);
     const questions = Array.isArray(item.questions) ? item.questions : [];
@@ -6659,13 +6972,15 @@
           `<span class="bank-visual-note">${visuals.length > 1 ? `共 ${visuals.length} 张，点开看全部` : '原题排版，点开看大图'}</span>` +
         `</div>`
       : '';
-    const meta = [
+    const metaParts = [
       material ? material.title : '未命名资料',
       item.grade || (material ? material.grade : '') || '未标注',
-      `难度 ${itemDifficultyOf(item)}`
-    ].filter(Boolean).map((part) => escapeHtml(part)).join('<i class="dot"></i>');
+      `难度 ${itemDifficultyOf(item)}`,
+      numbers.length ? `原卷 ${sourceLabel}` : ''
+    ].filter(Boolean);
+    const meta = metaParts.map((part) => escapeHtml(part)).join('<i class="dot"></i>');
     return `<label class="bank-item${checked ? ' is-checked' : ''}" data-bank-item="${escapeAttr(item.id)}">` +
-      `<input type="checkbox" data-bank-pick="${escapeAttr(item.id)}" ${checked ? 'checked' : ''} aria-label="勾选题目 ${escapeAttr(numberLabel)}">` +
+      `<input type="checkbox" data-bank-pick="${escapeAttr(item.id)}" ${checked ? 'checked' : ''} aria-label="勾选题目 ${escapeAttr(sourceLabel || numberLabel)}">` +
       `<span class="bank-number">${escapeHtml(numberLabel)}</span>` +
       `<div class="bank-body">` +
         `<p class="bank-stem">${escapeHtml(stem || item.title || '（点开看小题）')}</p>` +
@@ -6673,6 +6988,7 @@
         passageHtml +
         groupQuestions +
         visualHtml +
+        bankItemStudentStatsHtml(item) +
         `<div class="bank-item-meta">${meta}` +
           `<button class="bank-edit-btn" type="button" data-bank-edit="${escapeAttr(item.id)}" title="修改这道题的题干、选项或答案">编辑</button>` +
         `</div>` +
@@ -6754,7 +7070,7 @@
       aiVocab: []
     };
     paper.vocab = buildPaperVocabulary(paper);
-    Object.assign(paper, paperVisualFields(sections.flatMap((section) => section.items)));
+    Object.assign(paper, paperVisualFields(sections.flatMap((section) => section.items), sections));
     const result = $('#command-result');
     if (result) {
       result.innerHTML = `<span>这次挑了</span>` +
@@ -6774,7 +7090,8 @@
     const title = $('#paper-thumb-title');
     if (title) title.textContent = `${paper.title || '练习卷'} · 排版预览`;
     const hint = $('#paper-thumb-hint');
-    if (hint) hint.textContent = `一共 ${total} 道题。这是缩略预览，可以在框里上下滚动；看着合适就去保存，不合适就回去继续挑。`;
+    const renumberNote = paper.renumbered ? ' 题号已按这份卷子从第 1 题连续重排，不再沿用原卷题号。' : '';
+    if (hint) hint.textContent = `一共 ${total} 道题。这是缩略预览，可以在框里上下滚动；看着合适就去保存，不合适就回去继续挑。${renumberNote}`;
     if (!dialog.open) dialog.showModal();
   }
 
@@ -8018,7 +8335,8 @@
       const visual = paper.visualAvailable
         ? (paper.visualMode === 'original' ? ' · 原样排版' : ' · 文字排版')
         : '';
-      meta.textContent = `${paper.grade || '综合'} · ${paper.questionTotal || paper.total} 小题${level}${visual} · ${formatDate(paper.createdAt, true)}`;
+      const renumbered = paper.renumbered && paper.visualMode !== 'original' ? ' · 已按本卷重新编号' : '';
+      meta.textContent = `${paper.grade || '综合'} · ${paper.questionTotal || paper.total} 小题${level}${visual}${renumbered} · ${formatDate(paper.createdAt, true)}`;
     }
     const buttons = ['reshuffle', 'download-word', 'print-pdf', 'save-paper', 'ai-analysis', 'ai-vocab', 'download-vocab', 'download-dictation', 'download-long-sentences', 'toggle-paper-visual', 'download-visuals'];
     buttons.forEach((action) => {
@@ -8277,6 +8595,7 @@
       return;
     }
     paper.visualMode = paper.visualMode === 'original' ? 'text' : 'original';
+    paper.visualPinned = true;
     renderPaper(paper);
     await updateSavedPaper(paper);
     toast(paper.visualMode === 'original'
@@ -8464,9 +8783,10 @@
       '1. 删除页眉、页脚、页码、学校名、网站广告、水印、无关的考试须知等杂物；保留标题、大题说明、短文、题目、选项、答案与解析。',
       '2. 修复 OCR 造成的断行、错位和多余空格；每题另起一行，选项 A/B/C/D 各占一行或紧凑排列，保持题号清晰。',
       '3. 不要改编题目，不要新增或删除题目，不要编造答案。无法判断的内容保持原样。',
-      '4. 判断题型，只能从这些键里选一个：single, cloze, reading, five, grammar, dialogue, picture, writing, listening, other。',
-      '5. 判断年级：七年级、八年级、九年级、高一、高二、高三、中考、高考；无法判断就留空。',
-      '6. 只输出下面四个标记，不要写解释、不要用 Markdown 代码块。',
+      `4. 如果正文里出现 ${AI_LISTENING_MARKER}，那是老师本机保留的听力原文占位行，必须原样保留在原位置，不要改写、移动或删除。`,
+      '5. 判断题型，只能从这些键里选一个：single, cloze, reading, five, grammar, dialogue, picture, writing, listening, other。听力原文不在这里，不要凭占位行判断成听力；按其余题目判断。',
+      '6. 判断年级：七年级、八年级、九年级、高一、高二、高三、中考、高考；无法判断就留空。',
+      '7. 只输出下面四个标记，不要写解释、不要用 Markdown 代码块。',
       '【标题】不超过 30 字的资料标题',
       '【题型】上面的英文键',
       '【年级】年级或留空',
@@ -8481,12 +8801,16 @@
   async function applyAiClean(material, text) {
     const tool = aiTool();
     if (!tool) { toast('AI 模块没有加载，请刷新页面。', 'error'); return; }
-    const source = String(text || '').slice(0, 5000);
-    const cut = String(text || '').length > 5000;
+    const skip = textWithoutListeningForAi(text);
+    const source = skip.text.slice(0, 5000);
+    const cut = skip.text.length > 5000;
+    const listeningNote = skip.removed.length
+      ? `听力部分 ${skip.removedChars} 字已在本机保留，不会发送，整理后会自动接回原位；`
+      : '';
     const estimate = tool.estimate(source.length + 900, 1800);
     openConfirm({
       title: '用 AI 整理这份资料？',
-      message: `将把正文约 ${source.length} 字${cut ? '（已截取前 5000 字）' : ''}发送给 DeepSeek，清理杂物、重新分类并整理排版。预计最多约 ${estimate.inputTokens + estimate.maxOutputTokens} tokens，约 ${aiCostText(estimate.cost)}。只在你确认后调用。`,
+      message: `${listeningNote}将把其余正文约 ${source.length} 字${cut ? '（已截取前 5000 字）' : ''}发送给 DeepSeek，清理杂物、重新分类并整理排版。预计最多约 ${estimate.inputTokens + estimate.maxOutputTokens} tokens，约 ${aiCostText(estimate.cost)}。只在你确认后调用。`,
       confirmText: '开始整理',
       danger: false,
       onConfirm: async () => {
@@ -8502,7 +8826,7 @@
           const typeKey = aiTypeKey(String(parsed['题型'] || '').trim());
           const grade = GRADE_OPTIONS.includes(String(parsed['年级'] || '').trim()) ? String(parsed['年级']).trim() : material.grade;
           const title = String(parsed['标题'] || '').trim().slice(0, 80) || material.title;
-          const fullText = toDisplayText(parsed['正文']);
+          const fullText = toDisplayText(restoreListeningText(parsed['正文'], skip.removed));
           const split = splitAnswerSection(fullText);
           const body = toDisplayText(normalizePaperLayout(split.body));
           const answers = toDisplayText(split.answers);
@@ -8517,7 +8841,7 @@
             body,
             answers,
             answerMap: {},
-            note: [material.note, '已用 AI 清理并重新分类，请核对题目和答案。'].filter(Boolean).join(' '),
+            note: [material.note, `已用 AI 清理并重新分类，请核对题目和答案。${skip.removed.length ? '听力原文留在本机，没有发给 AI。' : ''}`].filter(Boolean).join(' '),
             updatedAt: nowIso()
           };
           if (updated.processedBlob) {
@@ -8529,7 +8853,7 @@
           await saveMaterialWithItems(updated, items);
           await reloadAndRender();
           renderAiSettings();
-          toast(`整理完成：${typeLabel(typeKey)} · ${grade || '年级未标注'} · 本次 ${result.tokens} tokens · 约 ${aiCostText(result.cost)}。请打开“逐题编辑”核对。`, 'ok', 9000);
+          toast(`整理完成：${typeLabel(typeKey)} · ${grade || '年级未标注'} · 本次 ${result.tokens} tokens · 约 ${aiCostText(result.cost)}${skip.removed.length ? ' · 听力未发送' : ''}。请打开“逐题编辑”核对。`, 'ok', 9000);
         } catch (error) {
           console.error(error);
           toast(`AI 整理失败：${error.message || error}`, 'error', 8500);
@@ -9661,8 +9985,18 @@
     return out;
   }
 
-  function paperSplitSectionsFromAi(payload, body) {
+  function paperSplitSectionsFromAi(payload, body, listeningExtras = []) {
     const raw = Array.isArray(payload && payload.sections) ? payload.sections : [];
+    const extras = (Array.isArray(listeningExtras) ? listeningExtras : [])
+      .filter((section) => section && section.type === 'listening' && String(section.content || '').trim())
+      .map((section) => ({
+        type: 'listening',
+        heading: section.heading || typeLabel('listening'),
+        start: Math.max(0, Number(section.start) || 0),
+        end: Math.max(0, Number(section.end) || 0)
+      }))
+      .sort((a, b) => a.start - b.start);
+    const insideListening = (index) => extras.some((section) => index >= section.start && index < section.end);
     const entries = [];
     raw.forEach((item) => {
       if (!item) return;
@@ -9673,9 +10007,14 @@
       let index = paperSplitFindIndex(body, start);
       if (index < 0 && heading) index = paperSplitFindIndex(body, heading);
       if (index < 0) return;
+      // 听力区间里的定位一律作废，改用本机保留下来的整段听力。
+      if (insideListening(index)) return;
       entries.push({ type, heading: heading || typeLabel(type), start: index });
     });
-    entries.sort((a, b) => a.start - b.start);
+    extras.forEach((section) => {
+      entries.push({ type: 'listening', heading: section.heading, start: section.start, local: true });
+    });
+    entries.sort((a, b) => a.start - b.start || Number(b.local) - Number(a.local));
     const kept = [];
     entries.forEach((entry) => {
       const last = kept[kept.length - 1];
@@ -9719,12 +10058,13 @@
       '你是英语试卷排版助手。下面可能是一道题、一份只有一种题型的专题卷，或一整套综合试卷。请按题型分段，只返回一个 JSON 对象，不要解释，不要 Markdown，不要改写原文。',
       '返回格式：',
       '{"title":"试卷标题，没有就空字符串","grade":"高一","sections":[{"type":"single","heading":"这一大题的标题，原文有标题就逐字复制，没有就按题型起名","start":"这一大题正文开头的 12-30 个字，必须逐字复制原文，用来定位"}]}',
-      'type 只能取：single(单项选择)、cloze(完形填空)、reading(阅读理解)、five(五选五/七选五)、grammar(语法填空)、dialogue(情景交际)、picture(看图写话)、writing(书面表达)、listening(听力)、other(其他)。',
+      'type 只能取：single(单项选择)、cloze(完形填空)、reading(阅读理解)、five(五选五/七选五)、grammar(语法填空)、dialogue(情景交际)、picture(看图写话)、writing(书面表达)、other(其他)。',
       '规则：',
       '1. 按原文顺序列出每一道大题；同一大题只列一次。',
       '2. 阅读理解的 A/B/C 多篇合并成一条 reading。',
       '3. 答案区、解析区不要算作题型。',
       '4. start 必须能在原文中找到；不要返回题目正文。',
+      `5. 听力部分已在发送前由本机保留，不会出现在原文里。不要为听力列 section，也不要输出 listening；${AI_LISTENING_MARKER} 只是占位行，不要把它当成题目。`,
       '',
       '试卷原文：',
       body
@@ -9746,7 +10086,8 @@
       '4. 阅读理解每篇的篇目标签 A/B/C/D 单独占一行；文章每个自然段之间空一行。',
       '5. 完形填空、五选五、短文填词的短文保持完整，空格用 ______ 表示，题号保留。',
       '6. 删除页眉、页脚、学校名、页码、网站广告和水印；保留试卷标题、大题说明、分值、中文提示和答案区。',
-      '7. 只输出整理后的正文，不要解释，不要写“以下是整理稿”，不要用 Markdown 代码块。',
+      `7. 如果出现 ${AI_LISTENING_MARKER}，那是老师本机保留的听力占位行，必须原样保留在原位置，不要改写、移动或删除；也不要补写听力内容。`,
+      '8. 只输出整理后的正文，不要解释，不要写“以下是整理稿”，不要用 Markdown 代码块。',
       '',
       `当前是第 ${index}/${total} 段，只整理这一段，不要补上其他段的内容。`,
       '',
@@ -9820,7 +10161,7 @@
     return missing <= Math.max(1, Math.floor(before.size * 0.2));
   }
 
-  async function runPaperReflow(prepared, chunks, fallbackState) {
+  async function runPaperReflow(prepared, chunks, fallbackState, listeningExtras = []) {
     const tool = aiTool();
     if (!tool) { toast('AI 模块没有加载，请刷新页面。', 'error'); return; }
     if (state.paperSplitBusy || state.paperSplitPreparing) return;
@@ -9854,7 +10195,7 @@
         tokens += Number(result.tokens) || 0;
         cost += Number(result.cost) || 0;
       }
-      const reflowed = toDisplayText(results.join('\n\n'));
+      const reflowed = toDisplayText(restoreListeningText(results.join('\n\n'), listeningExtras));
       if (textarea) textarea.value = [reflowed, prepared.answers].filter(Boolean).join('\n\n');
       const ready = preparePaperSplitText();
       if (!ready) throw new Error('AI 整理后的正文为空。');
@@ -9865,7 +10206,8 @@
       renderPaperSplitPreview();
       paperSplitRevealPreview();
       const counts = local.state.sections.map((section) => `${typeShort(section.type)} ${section._questionCount || 0} 题`).join('、');
-      setPaperSplitStatus(`AI 重新编排完成：${local.state.sections.length} 个题型（${counts}）· 本次 ${tokens} tokens · 约 ${aiCostText(cost)}。请核对后确认入库。`);
+      const listeningNote = listeningExtras.length ? ' 听力原文留在本机，没有发给 AI。' : '';
+      setPaperSplitStatus(`AI 重新编排完成：${local.state.sections.length} 个题型（${counts}）· 本次 ${tokens} tokens · 约 ${aiCostText(cost)}。${listeningNote}请核对后确认入库。`);
       toast('AI 重新编排完成，请核对题型和题数。', 'ok', 6500);
       renderAiSettings();
     } catch (error) {
@@ -9894,7 +10236,8 @@
       toast('先到「设置 → AI 直连」保存 Key，才能让 AI 重新编排。', 'error', 7000);
       return;
     }
-    const chunks = splitReflowChunks(prepared.body);
+    const skip = textWithoutListeningForAi(prepared.body);
+    const chunks = splitReflowChunks(skip.text);
     if (!chunks.length) {
       toast('没有可整理的正文，请先上传文件或粘贴题目。', 'error');
       return;
@@ -9910,17 +10253,20 @@
     const fileName = state.paperSplitSource && state.paperSplitSource.name
       ? `「${state.paperSplitSource.name}」`
       : '这份资料';
+    const listeningNote = skip.removed.length
+      ? `；听力部分 ${skip.removedChars} 字已在本机保留，不会发送，整理后会自动接回原位`
+      : '';
     openConfirm({
       title: '用 AI 重新编排这份资料？',
-      message: `会把${fileName}的题目正文约 ${prepared.body.length} 字发送给 DeepSeek，分 ${chunks.length} 段整理换行、题号、选项和大题标题；不会发送学生信息。预计最多约 ${inputTokens + outputTokens} tokens，约 ${aiCostText(estimateCost)}，实际按返回用量记账。点「取消」就保留现在的本机识别结果。`,
+      message: `会把${fileName}的题目正文约 ${skip.text.length} 字发送给 DeepSeek，分 ${chunks.length} 段整理换行、题号、选项和大题标题${listeningNote}；不会发送学生信息。预计最多约 ${inputTokens + outputTokens} tokens，约 ${aiCostText(estimateCost)}，实际按返回用量记账。点「取消」就保留现在的本机识别结果。`,
       confirmText: '开始重新编排',
       danger: false,
-      onConfirm: () => runPaperReflow(prepared, chunks, state.paperSplit),
+      onConfirm: () => runPaperReflow(prepared, chunks, state.paperSplit, skip.removed),
       onCancel: () => setPaperSplitStatus('已保留本机识别结果；需要时再点「AI 重新编排」。')
     });
   }
 
-  async function runPaperSplitAi(prepared, prompt, fallbackState) {
+  async function runPaperSplitAi(prepared, prompt, fallbackState, listeningExtras = []) {
     const tool = aiTool();
     state.paperSplitBusy = true;
     const recognizeButton = $('#paper-split-recognize');
@@ -9938,7 +10284,7 @@
         { role: 'user', content: prompt }
       ], 2000, '资料库 · 智能识别');
       const payload = parsePaperSplitJson(result.text);
-      const sections = paperSplitSectionsFromAi(payload, prepared.body);
+      const sections = paperSplitSectionsFromAi(payload, prepared.body, listeningExtras);
       if (!sections.length) {
         throw new Error('AI 没有定位到可用的大题边界，请手动核对。');
       }
@@ -9960,7 +10306,8 @@
       const ocrHint = state.paperSplitOcr
         ? ' 扫描件如果题号、选项粘连，可点「AI 重新编排」。'
         : '';
-      setPaperSplitStatus(`AI 识别出 ${sections.length} 个题型 · 本次 ${result.tokens} tokens · 约 ${aiCostText(result.cost)}。请核对题型和题数。${more}${ocrHint}`);
+      const listeningNote = listeningExtras.length ? ' 听力原文留在本机，没有发给 AI。' : '';
+      setPaperSplitStatus(`AI 识别出 ${sections.length} 个题型 · 本次 ${result.tokens} tokens · 约 ${aiCostText(result.cost)}。请核对题型和题数。${listeningNote}${more}${ocrHint}`);
       toast('AI 识别完成，请核对预览后入库。', 'ok', 5000);
     } catch (error) {
       console.error(error);
@@ -9982,19 +10329,23 @@
     if (state.paperSplitBusy || state.paperSplitPreparing) return;
     const tool = aiTool();
     if (!tool) return;
-    const source = prepared.body.slice(0, SPLIT_AI_MAX_CHARS);
-    const truncated = prepared.body.length > source.length;
+    const skip = textWithoutListeningForAi(prepared.body);
+    const source = skip.text.slice(0, SPLIT_AI_MAX_CHARS);
+    const truncated = skip.text.length > source.length;
     const prompt = paperSplitAiPrompt(source);
     const estimate = tool.estimate(prompt.length, 2000);
     const fileName = state.paperSplitSource && state.paperSplitSource.name
       ? `「${state.paperSplitSource.name}」`
       : '这份资料';
+    const listeningNote = skip.removed.length
+      ? `；听力部分 ${skip.removedChars} 字已在本机保留，不会发送`
+      : '';
     openConfirm({
       title: reason ? '本机拿不准，用 AI 精准识别？' : '用 AI 精准识别这份资料？',
-      message: `会把${fileName}的题目正文约 ${source.length} 字发送给 DeepSeek（会先尽量剔除答案区，不含学生信息）${truncated ? `；原文较长，只发送前 ${SPLIT_AI_MAX_CHARS} 字，后面的内容可能认不到` : ''}。预计最多约 ${estimate.inputTokens + estimate.maxOutputTokens} tokens，约 ${aiCostText(estimate.cost)}；实际按返回用量记账。点「取消」就继续用本机识别结果。`,
+      message: `会把${fileName}的题目正文约 ${source.length} 字发送给 DeepSeek（会先尽量剔除答案区${listeningNote}，不含学生信息）${truncated ? `；原文较长，只发送前 ${SPLIT_AI_MAX_CHARS} 字，后面的内容可能认不到` : ''}。预计最多约 ${estimate.inputTokens + estimate.maxOutputTokens} tokens，约 ${aiCostText(estimate.cost)}；实际按返回用量记账。点「取消」就继续用本机识别结果。`,
       confirmText: '用 AI 识别',
       danger: false,
-      onConfirm: () => runPaperSplitAi(prepared, prompt, fallbackState),
+      onConfirm: () => runPaperSplitAi(prepared, prompt, fallbackState, skip.removed),
       onCancel: () => setPaperSplitStatus('已保留本机识别结果；核对题型和题数后，可以直接确认入库。')
     });
   }
@@ -10140,7 +10491,7 @@
           aiVocab: []
         };
         paper.vocab = buildPaperVocabulary(paper);
-        Object.assign(paper, paperVisualFields(sections[0].items));
+        Object.assign(paper, paperVisualFields(sections[0].items, sections));
         paperRecords.push(paper);
       }
     }
@@ -11061,6 +11412,32 @@ Li Hua`,
         renderBankPickbar();
       });
     }
+    const bankStudentChips = $('#bank-student-chips');
+    if (bankStudentChips) {
+      bankStudentChips.addEventListener('change', (event) => {
+        const input = event.target.closest('[data-bank-student]');
+        if (!input) return;
+        const id = String(input.dataset.bankStudent || '');
+        if (!id) return;
+        if (input.checked) state.bankStudents.add(id);
+        else state.bankStudents.delete(id);
+        saveBankStudentSelection();
+        renderBank();
+      });
+    }
+    const bankStudentRefresh = $('[data-action="bank-students-refresh"]');
+    if (bankStudentRefresh) {
+      bankStudentRefresh.addEventListener('click', () => {
+        bankStudentStatsCache = null;
+        renderBank();
+        toast('已重新读取教师端的学生记录。', 'ok', 3000);
+      });
+    }
+    window.addEventListener('storage', (event) => {
+      if (event.key !== 'shunshi.teacher.v1' && event.key !== null) return;
+      bankStudentStatsCache = null;
+      if (state.view === 'bank') renderBank();
+    });
 
     const bookPick = $('#book-pick');
     const bookFile = $('#book-file');
@@ -11654,6 +12031,7 @@ Li Hua`,
     ensureGradeOptions();
     populateTypeSelects();
     bindEvents();
+    loadBankStudentSelection();
     hydrateSettingsUI();
     renderAiSettings();
     loadWordDictionary();

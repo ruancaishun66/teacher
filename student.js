@@ -3625,6 +3625,7 @@
         };
         review.push({
           n: question.n,
+          itemId: String(block.itemId || ''),
           stem: String(question.stem || '').slice(0, 160),
           userAnswer: String(answer || ''),
           userText: optionText(answer).slice(0, 120),

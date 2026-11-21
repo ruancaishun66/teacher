@@ -1552,6 +1552,32 @@
 .book-preview-cells { display: flex; gap: 5px; flex-wrap: wrap; }
 .book-preview-cell { padding: 3px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; background: rgba(79,168,179,0.13); color: #2f6e76; }
 .book-preview-cell.is-grammar { background: rgba(196,106,63,0.13); color: #9a4f2c; }
+.book-progress { margin: 4px 0 7px; }
+.book-progress-label { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 0.74rem; color: var(--muted); margin-bottom: 5px; }
+.book-progress-label b { font-size: 0.78rem; color: var(--ink, #24333a); }
+.book-progress-track { height: 7px; border-radius: 999px; background: rgba(79,168,179,0.16); overflow: hidden; }
+.book-progress-track i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #4fa8b3, #74c7a5); transition: width 0.3s ease; }
+.book-history-line, .book-next-line { margin: 0 0 5px; font-size: 0.76rem; line-height: 1.55; color: var(--muted); }
+.book-next-line { color: #2f6e76; font-weight: 600; }
+.book-used-details { margin: 2px 0 9px; font-size: 0.76rem; }
+.book-used-details summary { cursor: pointer; color: var(--muted); padding: 2px 0; }
+.book-used-details summary:hover { color: #2f6e76; }
+.book-used-chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 7px 0 5px; }
+.book-used-chip { padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; background: rgba(116,199,165,0.16); color: #2f6e76; }
+.book-used-chip.is-wrong { background: rgba(208,92,76,0.14); color: #a63d31; }
+.book-used-details small, .book-used-empty { display: block; font-size: 0.7rem; color: var(--muted); line-height: 1.5; }
+.word-book-line { margin-top: 3px; font-size: 0.74rem; color: var(--muted); }
+.word-book-line b { color: #2f6e76; }
+.practice-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; margin: 0 0 12px; }
+.practice-total-card { padding: 12px 14px; border: 1px solid var(--line); border-radius: 13px; background: var(--panel-soft, #fff); }
+.practice-total-card h4 { margin: 0 0 6px; font-size: 0.84rem; }
+.practice-total-card p { margin: 0 0 3px; font-size: 0.8rem; line-height: 1.6; }
+.practice-total-card small { font-size: 0.7rem; color: var(--muted); line-height: 1.5; }
+.practice-total-card i { font-style: normal; font-weight: 700; }
+.practice-total-card i.ok { color: #2c7f68; }
+.practice-total-card i.bad { color: #b5473a; }
+.history-table i.ok { color: #2c7f68; font-style: normal; font-weight: 700; }
+.history-table i.bad { color: #b5473a; font-style: normal; font-weight: 700; }
 .word-stars { display: inline-flex; align-items: center; gap: 7px; margin-left: 8px; vertical-align: middle; }
 .word-stars span, .word-star-big { color: #d9a441; letter-spacing: 1px; font-size: 0.86rem; }
 .word-stars b { font-size: 0.76rem; color: var(--muted); }

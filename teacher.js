@@ -823,6 +823,9 @@
       const items = section.items || [];
       items.forEach((item, itemIndex) => {
         const id = `B${sectionIndex + 1}-${itemIndex + 1}`;
+        // 题组快照里保留了题库原题 id；学生作答时一起带回，
+        // 老师端就能按“同一道题”累计练过几次、对几次、错几次。
+        const itemId = String(item.originalId || item.id || '');
         const itemTitle = String(item.title || '');
         const letterMatch = itemTitle.match(/([A-E])\s*篇/);
         const label = items.length > 1 && letterMatch
@@ -834,7 +837,7 @@
           const number = (question && question.paperNumber) || item.writingNumber || '';
           let prompt = cleanTaskText(item.content || item.passage || '');
           if (number) prompt = `${number}. ${prompt.replace(/^\s*\d{1,3}\s*[.、．)）]\s*/, '')}`;
-          blocks.push({ id, type, label, prompt, questions: [] });
+          blocks.push({ id, itemId, type, label, prompt, questions: [] });
           return;
         }
 
@@ -880,13 +883,13 @@
         );
 
         if (questions.length) {
-          blocks.push({ id, type, label, passage, questions });
+          blocks.push({ id, itemId, type, label, passage, questions });
           return;
         }
 
         const freeText = cleanTaskText(item.content || item.passage || '');
         if (freeText) {
-          blocks.push({ id, type, label, passage: freeText, questions: [], freeResponse: true });
+          blocks.push({ id, itemId, type, label, passage: freeText, questions: [], freeResponse: true });
         }
       });
     });
@@ -3868,7 +3871,8 @@
             wordStats: words
           }
         : null;
-      return { student, task, tasks, words };
+      const coverage = student ? bookUsedWordSummary(student, assignment.words || []) : null;
+      return { student, task, tasks, words, coverage };
     });
     const done = rows.filter((row) => row.task);
     const scores = [];
@@ -3891,6 +3895,11 @@
       ? (assignment.slotCount || (assignment.slots || []).length || 1) * rows.length
       : rows.length;
     const doneTasks = done.reduce((sum, row) => sum + (assignment.bookMode ? row.tasks.length : 1), 0);
+    const coverages = rows.map((row) => row.coverage).filter((coverage) => coverage && coverage.total);
+    const coverageAvg = coverages.length ? Math.round(mean(coverages.map((coverage) => coverage.percent))) : null;
+    const coverageLow = coverages.length
+      ? coverages.slice().sort((a, b) => a.percent - b.percent)[0]
+      : null;
     return {
       rows,
       total: rows.length,
@@ -3899,7 +3908,9 @@
       totalTasks,
       completion: totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0,
       avgScore: scores.length ? Math.round(mean(scores)) : null,
-      wrong
+      wrong,
+      coverageAvg,
+      coverageLow
     };
   }
 
@@ -3948,6 +3959,9 @@
       const wrongHtml = stats.wrong.length
         ? `高频错词：${stats.wrong.slice(0, 8).map((word) => `<span class="word-wrong-chip">${S.escapeHtml(word.w)}${word.count > 1 ? ` ×${word.count}` : ''}</span>`).join('')}`
         : '还没有收到汇报，交回后这里会出现高频错词。';
+      const coverageHtml = assignment.bookMode && stats.coverageAvg != null
+        ? `<div class="word-book-line">这本书学生平均已练 <b>${stats.coverageAvg}%</b>${stats.coverageLow && stats.coverageLow.percent < stats.coverageAvg ? ` · 最低 ${stats.coverageLow.percent}%` : ''}</div>`
+        : '';
       const stars = completionStars(percent, stats.avgScore);
       const starHtml = assignment.bookMode
         ? `<div class="word-stars" title="完成度与正确率综合星级"><span>${'★'.repeat(stars)}${'☆'.repeat(5 - stars)}</span><b>${percent}%</b></div>`
@@ -3963,6 +3977,7 @@
             `<span>${stats.avgScore == null ? '平均正确率 —' : `平均正确率 ${stats.avgScore}%`}</span>` +
           `</div>` +
           `<div class="word-wrong-line">${wrongHtml}</div>` +
+          coverageHtml +
         `</div>` +
         `<div class="assignment-progress">` +
           `<div class="progress-label"><span>${assignment.bookMode ? `任务完成 ${stats.doneTasks} / ${stats.totalTasks}` : '已交汇报'}</span><b>${assignment.bookMode ? `${stats.done} / ${total} 人` : `${stats.done} / ${total}`}</b></div>` +
@@ -4754,6 +4769,72 @@
     };
   }
 
+  function bookUsedWordSummary(student, words) {
+    const bookKeys = new Set((words || []).map(bookWordKey).filter(Boolean));
+    const used = new Map();
+    let attempts = 0;
+    let correct = 0;
+    let wrong = 0;
+    let lastAt = '';
+    (student && student.tasks || []).forEach((task) => {
+      if (!task || !Array.isArray(task.wordStats) || !task.wordStats.length) return;
+      const at = String(task.submittedAt || task.importedAt || '');
+      task.wordStats.forEach((word) => {
+        const key = bookWordKey(word);
+        if (!key || (bookKeys.size && !bookKeys.has(key))) return;
+        attempts += 1;
+        if (word.ok) correct += 1;
+        else wrong += 1;
+        if (at > lastAt) lastAt = at;
+        const row = used.get(key) || {
+          w: word.w || key,
+          zh: word.zh || '',
+          attempts: 0,
+          correct: 0,
+          wrong: 0,
+          lastAt: '',
+          lastOk: null
+        };
+        row.attempts += 1;
+        if (word.ok) row.correct += 1;
+        else row.wrong += 1;
+        if (at >= row.lastAt) {
+          row.lastAt = at;
+          row.lastOk = word.ok ? true : (word.reviewOk == null ? false : Boolean(word.reviewOk));
+        }
+        used.set(key, row);
+      });
+    });
+    const total = bookKeys.size || (words || []).length;
+    const rows = Array.from(used.values()).sort((a, b) => String(b.lastAt).localeCompare(String(a.lastAt)));
+    return {
+      total,
+      used: rows.length,
+      remaining: Math.max(0, total - rows.length),
+      percent: total ? Math.round((rows.length / total) * 100) : 0,
+      attempts,
+      correct,
+      wrong,
+      lastAt,
+      rows
+    };
+  }
+
+  function bookUsedWordsHtml(history) {
+    if (!history.used) {
+      return `<p class="book-used-empty">还没有打卡记录。第一次布置时，系统会按学生水平从这本书里挑词。</p>`;
+    }
+    const chips = history.rows.slice(0, 14).map((row) => {
+      const mark = row.lastOk ? '✓' : '✗';
+      return `<span class="book-used-chip${row.lastOk ? '' : ' is-wrong'}">${S.escapeHtml(row.w)}${row.attempts > 1 ? ` ×${row.attempts}` : ''} ${mark}</span>`;
+    }).join('');
+    return `<details class="book-used-details">` +
+      `<summary>已练过的词（最近 ${Math.min(history.rows.length, 14)} 个，共 ${history.used} 个）</summary>` +
+      `<div class="book-used-chips">${chips}</div>` +
+      `<small>✓ 表示最近一次答对，✗ 表示最近一次答错；×N 表示累计练过 N 次。</small>` +
+    `</details>`;
+  }
+
   function bookPreviewHtml(student) {
     if (!bookWords.length) {
       return `<p class="hint">先导入并解析词汇书，这里会显示每位学生的分配依据。</p>`;
@@ -4767,9 +4848,38 @@
       return `<span class="book-preview-cell is-words">D${index + 1} · ${count} 词</span>`;
     }).join('');
     const total = Object.values(alloc.byIndex).reduce((sum, words) => sum + words.length, 0);
+    const history = bookUsedWordSummary(student, bookWords);
+    const source = bookSourceAssignmentId
+      ? (data.assignments || []).find((assignment) => assignment.id === bookSourceAssignmentId)
+      : null;
+    const sourceSlotTotal = source
+      ? (source.slots || []).filter((slot) => slot.type === 'words').length || Number(source.slotCount) || 0
+      : 0;
+    const submittedSlots = source
+      ? new Set((student.tasks || [])
+        .filter((task) => task.status === 'done' && task.assignmentId === source.id && task.mode === 'words')
+        .map((task) => String(task.wordSlot || task.planDay || ''))
+        .filter(Boolean)).size
+      : 0;
+    const weekLine = source && sourceSlotTotal
+      ? `上次周任务已交 ${Math.min(submittedSlots, sourceSlotTotal)}/${sourceSlotTotal} 个单词栏`
+      : '';
+    const historyLine = history.used
+      ? `本书已练 ${history.used}/${history.total} 词（${history.percent}%）· 累计 ${history.attempts} 词次 · 对 ${history.correct} 错 ${history.wrong}`
+      : `本书还没有 ${student.name} 的打卡记录`;
+    const advice = history.remaining > 0
+      ? `还剩 ${history.remaining} 个词没练；下次继续建周任务即可，系统会自动跳过已练词。`
+      : (history.total ? '这本书已经全部练过，下一轮建议用“错词回炉”或换一本书。' : '');
     return `<div class="book-preview-row" data-book-preview="${S.escapeHtml(student.id)}">` +
       `<div class="book-preview-student"><b>${S.escapeHtml(student.avatar || '🦊')} ${S.escapeHtml(student.name)}</b><small>Lv.${alloc.profile.level} · ${S.escapeHtml(alloc.profile.difficulty.label)} · 本周 ${total} 词${alloc.recycled ? ' · 词汇书已循环补词' : ''}</small></div>` +
       `<p class="book-preview-note">${S.escapeHtml(alloc.profile.note)}</p>` +
+      `<div class="book-progress">` +
+        `<div class="book-progress-label"><span>这本书的累计进度</span><b>${history.used} / ${history.total} 词 · ${history.percent}%</b></div>` +
+        `<div class="book-progress-track"><i style="width:${history.percent}%"></i></div>` +
+      `</div>` +
+      `<p class="book-history-line">${S.escapeHtml(historyLine)}${weekLine ? ` · ${S.escapeHtml(weekLine)}` : ''}</p>` +
+      (advice ? `<p class="book-next-line">${S.escapeHtml(advice)}</p>` : '') +
+      bookUsedWordsHtml(history) +
       `<div class="book-preview-cells">${cells}</div>` +
     `</div>`;
   }
@@ -4863,10 +4973,15 @@
       const wrongHtml = wrong.length
         ? wrong.slice(0, 8).map((word) => `<span class="word-wrong-chip">${S.escapeHtml(word.w)}</span>`).join('')
         : (task ? '无' : '—');
+      const coverage = row.coverage;
+      const coverageHtml = coverage && coverage.total
+        ? `${coverage.used}/${coverage.total}<br><span class="hint">${coverage.percent}%${coverage.lastAt ? ` · 最近 ${S.fmtDate(coverage.lastAt)}` : ''}</span>`
+        : '—';
       return `<tr>` +
         `<td><strong>${S.escapeHtml(row.student.name)}</strong><br><span class="hint">${S.escapeHtml(row.student.id)}</span></td>` +
         `<td>${task ? '已交汇报' : '未交'}</td>` +
         (isBook ? `<td>${row.tasks.length} / ${slotCount}</td>` : '') +
+        (isBook ? `<td>${coverageHtml}</td>` : '') +
         `<td>${task ? `${task.correct || 0} / ${task.total || row.words.length}` : '—'}</td>` +
         `<td class="${scoreClass}">${score == null ? '—' : score + '%'}</td>` +
         `<td>${wrongHtml}</td>` +
@@ -4889,7 +5004,7 @@
         `<span>平均一次答对率 <b>${stats.avgScore == null ? '—' : stats.avgScore + '%'}</b></span>` +
       `</div>` +
       (stats.done
-        ? `<table class="word-detail-table"><thead><tr><th>学生</th><th>状态</th>${isBook ? '<th>任务栏</th>' : ''}<th>一次答对</th><th>正确率</th><th>错词</th></tr></thead><tbody>${rows}</tbody></table>`
+        ? `<table class="word-detail-table"><thead><tr><th>学生</th><th>状态</th>${isBook ? '<th>任务栏</th><th>本书进度</th>' : ''}<th>一次答对</th><th>正确率</th><th>错词</th></tr></thead><tbody>${rows}</tbody></table>`
         : `<div class="word-detail-empty">还没有收到这个任务的汇报。学生在学生端完成后生成汇报码，老师导入后这里才会更新；学生答题时的进度条是实时的，但跨设备不会自动同步。</div>`) +
       common;
     S.openDialog($('#word-detail-dialog'));
@@ -5136,7 +5251,11 @@
           reviewAgg[key].wrong += 1;
           if (!String(review.userAnswer || '').trim()) reviewAgg[key].blank += 1;
         }
-        allReviews.push(review);
+        allReviews.push({
+          ...review,
+          taskTitle: task.title || '',
+          submittedAt: task.submittedAt || task.importedAt || ''
+        });
       });
     });
 
@@ -5307,7 +5426,7 @@
 
     return {
       attrs, values, assessed, gradedCount, tasks, avgScore, streak, active30, submitRate, reportDays,
-      blockRows, reviewRows, wrongReviews, totalReviews, wrongCount, blankCount, wordStats,
+      blockRows, reviewRows, wrongReviews, allReviews, totalReviews, wrongCount, blankCount, wordStats,
       strengths, weaknesses, styleTitle, bloomLabel, bloomHighRatio, trend, risks, zpd, html, plain
     };
   }
@@ -5433,12 +5552,111 @@
       (flags.length ? `<small class="integrity-flag">${S.escapeHtml(flags[0])}</small>` : '');
   }
 
+  function practiceReviewKey(review) {
+    if (!review) return '';
+    const itemId = String(review.itemId || '');
+    if (itemId) return `i:${itemId}`;
+    const stem = String(review.stem || '').toLowerCase()
+      .replace(/^\s*\d{1,3}\s*[.、．)）]\s*/, '')
+      .replace(/[^a-z0-9一-鿿]+/g, ' ')
+      .trim();
+    if (!stem || /^第?\s*\d+\s*空$/.test(stem)) return '';
+    return `s:${stem.slice(0, 90)}`;
+  }
+
+  function studentPracticeTotals(profile) {
+    const words = (profile && profile.wordStats) || [];
+    const wordKeys = new Set();
+    let wordCorrect = 0;
+    let wordWrong = 0;
+    let wordLast = '';
+    words.forEach((word) => {
+      const key = bookWordKey(word);
+      if (key) wordKeys.add(key);
+      if (word.ok) wordCorrect += 1;
+      else wordWrong += 1;
+      const at = String(word.submittedAt || '');
+      if (at > wordLast) wordLast = at;
+    });
+    const reviews = (profile && profile.allReviews) || [];
+    const questionKeys = new Set();
+    let questionCorrect = 0;
+    let questionWrong = 0;
+    let questionUnmatched = 0;
+    let questionLast = '';
+    reviews.forEach((review) => {
+      if (review.ok) questionCorrect += 1;
+      else questionWrong += 1;
+      const key = practiceReviewKey(review);
+      if (key) questionKeys.add(key);
+      else questionUnmatched += 1;
+      const at = String(review.submittedAt || '');
+      if (at > questionLast) questionLast = at;
+    });
+    return {
+      word: { attempts: words.length, correct: wordCorrect, wrong: wordWrong, distinct: wordKeys.size, lastAt: wordLast },
+      question: { attempts: reviews.length, correct: questionCorrect, wrong: questionWrong, distinct: questionKeys.size, unmatched: questionUnmatched, lastAt: questionLast }
+    };
+  }
+
+  function practiceTotalsHtml(totals) {
+    const cards = [];
+    if (totals.question.attempts) {
+      const q = totals.question;
+      cards.push(`<div class="practice-total-card">` +
+        `<h4>题目累计</h4>` +
+        `<p>练过 <b>${q.attempts}</b> 题次 · 对 <i class="ok">${q.correct}</i> · 错 <i class="bad">${q.wrong}</i>${q.distinct ? ` · 覆盖 ${q.distinct} 道不同题` : ''}</p>` +
+        `<small>${q.lastAt ? `最近一次 ${S.fmtDate(q.lastAt)}` : '暂无日期'}${q.unmatched ? ` · ${q.unmatched} 道旧记录没有题干，暂不能按题合并` : ''}</small>` +
+        `</div>`);
+    }
+    if (totals.word.attempts) {
+      const w = totals.word;
+      cards.push(`<div class="practice-total-card">` +
+        `<h4>单词累计</h4>` +
+        `<p>练过 <b>${w.distinct}</b> 个不同单词 · 累计 ${w.attempts} 词次 · 对 <i class="ok">${w.correct}</i> · 错 <i class="bad">${w.wrong}</i></p>` +
+        `<small>${w.lastAt ? `最近一次 ${S.fmtDate(w.lastAt)}` : '暂无日期'}</small>` +
+        `</div>`);
+    }
+    return cards.length ? `<div class="practice-totals">${cards.join('')}</div>` : '';
+  }
+
+  function wordPracticeRows(profile) {
+    const map = new Map();
+    ((profile && profile.wordStats) || []).forEach((word) => {
+      const key = bookWordKey(word);
+      if (!key) return;
+      const row = map.get(key) || {
+        w: word.w || key,
+        zh: word.zh || '',
+        attempts: 0,
+        correct: 0,
+        wrong: 0,
+        lastAt: '',
+        lastOk: null,
+        taskTitle: word.taskTitle || ''
+      };
+      row.attempts += 1;
+      if (word.ok) row.correct += 1;
+      else row.wrong += 1;
+      const at = String(word.submittedAt || '');
+      if (at >= row.lastAt) {
+        row.lastAt = at;
+        row.lastOk = word.ok ? true : (word.reviewOk == null ? false : Boolean(word.reviewOk));
+        row.taskTitle = word.taskTitle || row.taskTitle;
+      }
+      map.set(key, row);
+    });
+    return Array.from(map.values()).sort((a, b) => String(b.lastAt).localeCompare(String(a.lastAt)));
+  }
+
   function renderDetailTasks(student, profile) {
     const tasks = (student.tasks || []).slice().sort((a, b) => String(b.submittedAt || '').localeCompare(String(a.submittedAt || '')));
     if (!tasks.length) {
       $('#detail-task-table').innerHTML = emptyState('还没有任务记录', '导入汇报后，任务历史会出现在这里。');
       return;
     }
+    const totals = studentPracticeTotals(profile);
+    const totalsHtml = practiceTotalsHtml(totals);
     const suspicious = tasks.filter((task) => task.integrityScore != null && Number(task.integrityScore) < 55);
     const integrityNote = suspicious.length
       ? `<div class="integrity-alert"><b>有 ${suspicious.length} 次任务出现疑似乱选信号</b>` +
@@ -5459,7 +5677,7 @@
         `<td>${integrityBadge(task)}</td>` +
       `</tr>`;
     }).join('');
-    let html = integrityNote + `<table class="history-table"><thead><tr><th>任务</th><th>提交</th><th>得分</th><th>答对</th><th>用时</th><th>答题可信度</th></tr></thead><tbody>${rows}</tbody></table>`;
+    let html = totalsHtml + integrityNote + `<table class="history-table"><thead><tr><th>任务</th><th>提交</th><th>得分</th><th>答对</th><th>用时</th><th>答题可信度</th></tr></thead><tbody>${rows}</tbody></table>`;
 
     if (profile.wrongReviews.length) {
       html += `<h3 class="dialog-subtitle" style="margin-top:20px;">最近错题</h3>` +
@@ -5473,24 +5691,23 @@
         `</tbody></table>`;
     }
     const wordTasks = tasks.filter((task) => Array.isArray(task.wordStats) && task.wordStats.length);
+    const wordRows = wordPracticeRows(profile);
     if (wordTasks.length) {
-      const wordRows = [];
-      wordTasks.forEach((task) => {
-        task.wordStats.filter((word) => !word.ok).forEach((word) => {
-          wordRows.push({ ...word, taskTitle: task.title || '单词打卡', submittedAt: task.submittedAt || '' });
-        });
-      });
+      const wrongRows = wordRows.filter((row) => row.wrong > 0);
       html += `<h3 class="dialog-subtitle" style="margin-top:20px;">单词打卡记录</h3>` +
-        `<p class="hint" style="margin-bottom:8px;">共 ${wordTasks.length} 次单词任务，累计错词 ${wordRows.length} 个。一次答对率按第一次作答计算，错词重练不计入得分。</p>`;
+        `<p class="hint" style="margin-bottom:8px;">共 ${wordTasks.length} 次单词任务，练过 ${wordRows.length} 个不同单词，其中 ${wrongRows.length} 个错过。一次答对率按第一次作答计算，错词重练不计入得分。</p>`;
       if (wordRows.length) {
-        html += `<table class="history-table"><thead><tr><th>单词</th><th>释义</th><th>任务</th><th>提交</th></tr></thead><tbody>` +
-          wordRows.slice(0, 24).map((word) => (
-            `<tr><td><strong>${S.escapeHtml(word.w || '')}</strong></td>` +
-            `<td>${S.escapeHtml(word.zh || '—')}</td>` +
-            `<td>${S.escapeHtml(word.taskTitle)}</td>` +
-            `<td>${S.escapeHtml(word.submittedAt ? S.fmtDate(word.submittedAt) : '—')}</td></tr>`
+        html += `<table class="history-table"><thead><tr><th>单词</th><th>释义</th><th>练过</th><th>对 / 错</th><th>最近结果</th><th>最近任务</th></tr></thead><tbody>` +
+          wordRows.slice(0, 40).map((row) => (
+            `<tr><td><strong>${S.escapeHtml(row.w || '')}</strong></td>` +
+            `<td>${S.escapeHtml(row.zh || '—')}</td>` +
+            `<td>${row.attempts} 次</td>` +
+            `<td><i class="ok">${row.correct}</i> / <i class="bad">${row.wrong}</i></td>` +
+            `<td>${row.lastOk == null ? '—' : row.lastOk ? '<span class="answer-ok">对</span>' : '<span class="answer-wrong">错</span>'}${row.lastAt ? ` · ${S.escapeHtml(S.fmtDate(row.lastAt))}` : ''}</td>` +
+            `<td>${S.escapeHtml(row.taskTitle || '—')}</td></tr>`
           )).join('') +
-          `</tbody></table>`;
+          `</tbody></table>` +
+          (wordRows.length > 40 ? `<p class="hint">只显示最近练过的 40 个单词，共 ${wordRows.length} 个。</p>` : '');
       } else {
         html += `<p class="hint">单词任务全部一次答对，没有错词。</p>`;
       }
