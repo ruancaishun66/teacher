@@ -1,5 +1,5 @@
 /* 顺势 · 离线缓存：先用上次看过的版本立即打开，再在后台更新。 */
-const CACHE = 'shunshi-pwa-v49';
+const CACHE = 'shunshi-pwa-v51';
 const CORE = [
   './',
   './index.html',
@@ -22,6 +22,9 @@ const CORE = [
   './grammar-advanced.js',
   './grammar-extra.js',
   './word-examples.js',
+  './qr.js',
+  './vendor/qrcode-generator.js',
+  './vendor/jsqr.js',
   './pwa.js',
   './guide/img/add-student.webp',
   './guide/img/ai-ledger.png',

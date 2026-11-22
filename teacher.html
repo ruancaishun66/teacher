@@ -8,7 +8,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>顺势 · 教师端｜因势利导，循循善诱</title>
 <link rel="icon" href="logo.svg?v=20261118c" type="image/svg+xml">
-<link rel="stylesheet" href="portal.css?v=20261122a">
+<link rel="stylesheet" href="portal.css?v=20261122b">
 <link rel="stylesheet" href="teacher.css?v=20261122c">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -1170,6 +1170,31 @@
         </div>
       </div>
 
+      <div class="word-policy-row">
+        <div class="field">
+          <label for="word-daily-cap">每天总词量上限</label>
+          <input class="input" id="word-daily-cap" type="number" min="20" max="300" step="10" value="80">
+        </div>
+        <div class="field">
+          <label for="word-review-cap">每天复习上限</label>
+          <input class="input" id="word-review-cap" type="number" min="5" max="120" step="5" value="30">
+        </div>
+        <div class="field">
+          <label for="word-review-day">每周回顾日</label>
+          <select class="input" id="word-review-day">
+            <option value="0" selected>周日（推荐）</option>
+            <option value="1">周一</option>
+            <option value="2">周二</option>
+            <option value="3">周三</option>
+            <option value="4">周四</option>
+            <option value="5">周五</option>
+            <option value="6">周六</option>
+            <option value="-1">不设回顾日</option>
+          </select>
+        </div>
+        <p class="word-policy-note" id="word-policy-note">新词按上面的“每天最多词数”走；旧词复习会自动排进剩余额度，积压时向后顺延，不会某一天突然堆几百个。每周回顾日会把快到期的一小批词提前复习，顺手削平下周高峰。</p>
+      </div>
+
       <div class="word-assign-grid">
         <div class="field">
           <label for="word-xp">完成经验</label>
@@ -1360,6 +1385,7 @@
       <p class="hint">如果提示“没有这个学号”，请先在“学生”里添加该生并设置相同密码。</p>
     </div>
     <div class="p-dialog-foot">
+      <button class="p-btn ghost qr-inline-btn" type="button" id="import-report-scan">扫码导入</button>
       <button class="p-btn ghost" type="button" data-close>取消</button>
       <button class="p-btn" type="button" id="import-report-btn">校验并导入</button>
     </div>
@@ -1565,9 +1591,12 @@
 <script src="insights-core.js"></script>
 <script src="insights.js"></script>
 <script>window.SHUNSHI_TEACHER_AI = true;</script>
-<script src="portal.js?v=20261121a"></script>
+<script src="portal.js?v=20261122a"></script>
+<script src="vendor/qrcode-generator.js"></script>
+<script src="vendor/jsqr.js"></script>
+<script src="qr.js?v=20261122a"></script>
 <script src="word-examples.js"></script>
-<script src="teacher.js?v=20261122g"></script>
+<script src="teacher.js?v=20261122i"></script>
 <script src="pwa.js?v=20261121b" defer></script>
 </body>
 </html>

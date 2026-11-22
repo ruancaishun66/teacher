@@ -974,7 +974,8 @@
         ...base,
         mode: 'words',
         wordTotal: studentWords.length,
-        words: S.packWordList(studentWords, glossary)
+        words: S.packWordList(studentWords, glossary),
+        reviewPolicy: assignment.reviewPolicy || REVIEW_POLICY_DEFAULTS
       });
     }
     return S.packCode({
@@ -998,7 +999,8 @@
       createdAt: assignment.createdAt,
       mode: 'words',
       wordTotal: studentWords.length,
-      words: S.packWordList(studentWords, glossary)
+      words: S.packWordList(studentWords, glossary),
+      reviewPolicy: assignment.reviewPolicy || REVIEW_POLICY_DEFAULTS
     };
   }
 
@@ -1036,9 +1038,31 @@
 
   /* 纯码默认折叠：老师平时发“微信消息”里的链接即可，学生点开自动导入。 */
   function codeTextareaHtml(code) {
-    return `<details class="code-raw"><summary>纯码备用（一般不用复制）</summary>` +
+    return `<p class="code-qr-tip">扫码导入：让学生用学生端的“扫码导入”扫这张图；码长时会自动轮播，扫完所有帧即可。</p>` +
+      `<div class="code-qr" data-qr></div>` +
+      `<details class="code-raw"><summary>纯码备用（一般不用复制）</summary>` +
       `<textarea class="code-text" readonly>${S.escapeHtml(code)}</textarea>` +
     `</details>`;
+  }
+
+  let codeQrMounts = [];
+
+  function mountCodeQrs(container, items) {
+    codeQrMounts.forEach((mount) => { if (mount && mount.stop) mount.stop(); });
+    codeQrMounts = [];
+    if (!container || !window.ShunshiQR) return;
+    (items || []).forEach((item, index) => {
+      if (!item || !item.code) return;
+      const holder = container.querySelector(`.code-card[data-code-index="${index}"] [data-qr]`);
+      if (!holder) return;
+      const mount = window.ShunshiQR.mount(holder, item.code, { size: 210 });
+      codeQrMounts.push(mount);
+    });
+  }
+
+  function stopCodeQrs() {
+    codeQrMounts.forEach((mount) => { if (mount && mount.stop) mount.stop(); });
+    codeQrMounts = [];
   }
 
   function codeMessageFor(item) {
@@ -1246,7 +1270,7 @@
         return `<div class="code-card"><div class="code-card-head"><strong>${S.escapeHtml(item.student.name)} · ${S.escapeHtml(item.student.id)}</strong></div>` +
           `<p class="hint warn">${S.escapeHtml(item.error)}</p></div>`;
       }
-      return `<div class="code-card">` +
+      return `<div class="code-card" data-code-index="${index}">` +
         `<div class="code-card-head">` +
           `<div><strong>${S.escapeHtml(item.student.name)}</strong> <span>${S.escapeHtml(item.student.id)} · ${item.count} 个任务</span></div>` +
           codeCardButtons(item, index) +
@@ -1254,6 +1278,7 @@
         codeTextareaHtml(item.code) +
       `</div>`;
     }).join('');
+    mountCodeQrs($('#codes-list'), items);
     S.openDialog($('#codes-dialog'));
   }
 
@@ -1282,7 +1307,7 @@
       const note = item.grammarDays
         ? `${wordNote} · 语法 ${item.grammarDays} 天`
         : `${wordNote} · 语法已学完，只含单词`;
-      return `<div class="code-card">` +
+      return `<div class="code-card" data-code-index="${index}">` +
         `<div class="code-card-head">` +
           `<div><strong>${S.escapeHtml(item.student.name)}</strong> <span>${S.escapeHtml(item.student.id)} · ${note}</span></div>` +
           codeCardButtons(item, index) +
@@ -1290,6 +1315,7 @@
         codeTextareaHtml(item.code) +
       `</div>`;
     }).join('');
+    mountCodeQrs($('#codes-list'), items);
     S.openDialog($('#codes-dialog'));
   }
 
@@ -1618,11 +1644,19 @@
         const log = dayLog[day];
         const checked = ((student.profile && student.profile.checkins) || []).includes(day);
         let cls = '';
+        let risk = '';
         let tip = `${student.name} · ${S.fmtDate(day)}：`;
         if (log) {
           cls = 'is-report';
           reportCount += 1;
           tip += `已交今日汇报（${log.taskCount || 0} 个任务${log.avgScore != null ? `，均分 ${log.avgScore}` : ''}）`;
+          const integrity = log.integrity;
+          if (integrity && integrity.level && integrity.level !== 'good') {
+            cls += ' has-risk';
+            risk = `<i class="daily-risk ${integrity.level === 'bad' ? 'is-bad' : 'is-warn'}" title="${S.escapeHtml((integrity.flags || []).join('；') || integrity.summary || '答题信号异常')}">!</i>`;
+            tip += ` · 答题可信度 ${integrity.score == null ? '—' : integrity.score}`;
+            if (integrity.flags && integrity.flags.length) tip += `（${integrity.flags.slice(0, 2).join('、')}）`;
+          }
         } else if (tasks.length) {
           cls = 'is-task';
           taskOnlyCount += 1;
@@ -1634,7 +1668,7 @@
           tip += '没有记录';
         }
         if (day === today) cls += ' is-today';
-        return `<span class="daily-cell ${cls}" title="${S.escapeHtml(tip)}">${day === today ? '今' : Number(day.slice(8, 10))}</span>`;
+        return `<span class="daily-cell ${cls}" title="${S.escapeHtml(tip)}">${day === today ? '今' : Number(day.slice(8, 10))}${risk}</span>`;
       }).join('');
       const weekReports = days.filter((day) => dayLog[day]).length;
       return `<div class="daily-row" data-student-id="${S.escapeHtml(student.id)}" tabindex="0" role="button" title="打开 ${S.escapeHtml(student.name)} 的详情">` +
@@ -1651,6 +1685,7 @@
       `<div class="daily-board-foot">` +
         `<span class="daily-legend"><i class="lg-report"></i>已交今日汇报 ${reportCount}</span>` +
         `<span class="daily-legend"><i class="lg-task"></i>做了任务没交汇报 ${taskOnlyCount}</span>` +
+        `<span class="daily-legend"><i class="lg-risk"></i>答题信号异常（悬停看原因）</span>` +
         `<span class="daily-legend"><i class="lg-none"></i>没有记录</span>` +
         `<span class="daily-board-tip">点任意一行，查看这个学生的详情和画像。</span>` +
       `</div>`;
@@ -3666,7 +3701,7 @@
         return `<div class="code-card"><div class="code-card-head"><strong>${S.escapeHtml(item.student.name)} · ${S.escapeHtml(item.student.id)}</strong></div>` +
           `<p class="hint warn">${S.escapeHtml(item.error)}</p></div>`;
       }
-      return `<div class="code-card">` +
+      return `<div class="code-card" data-code-index="${index}">` +
         `<div class="code-card-head">` +
           `<div><strong>${S.escapeHtml(item.student.name)}</strong> <span>${S.escapeHtml(item.student.id)}</span></div>` +
           codeCardButtons(item, index) +
@@ -3674,6 +3709,7 @@
         codeTextareaHtml(item.code) +
       `</div>`;
     }).join('');
+    mountCodeQrs($('#codes-list'), items);
     S.openDialog($('#codes-dialog'));
   }
 
@@ -3854,6 +3890,7 @@
       level: lv,
       createdAt: S.nowIso(),
       wordSourceId: wordAssignment ? wordAssignment.id : '',
+      reviewPolicy: hasWords ? (wordAssignment.reviewPolicy || REVIEW_POLICY_DEFAULTS) : null,
       days
     };
   }
@@ -3880,6 +3917,9 @@
       words: S.packWordList(day.words || [], glossary),
       avgDifficulty: day.avgDifficulty || null
     };
+    if (day.kind === 'words') {
+      task.reviewPolicy = plan.reviewPolicy || REVIEW_POLICY_DEFAULTS;
+    }
     /* 语法课由学生端按 grammarDay 用同一份 grammar-data.js 重建，
        不再把 5 个关卡整包塞进代码里；练习卷没有固定课程数据，仍需带题目。 */
     if (day.kind === 'grammar') {
@@ -4098,7 +4138,7 @@
       }
       const dayCount = (item.plan.days || []).length;
       const kindLabel = item.plan.kind === 'grammar' ? '语法' : 'Lv.' + item.plan.level;
-      return `<div class="code-card">` +
+      return `<div class="code-card" data-code-index="${index}">` +
         `<div class="code-card-head">` +
           `<div><strong>${S.escapeHtml(item.student.name)}</strong> <span>${S.escapeHtml(item.student.id)} · ${dayCount} 天 · ${S.escapeHtml(kindLabel)}</span></div>` +
           codeCardButtons(item, index) +
@@ -4106,6 +4146,7 @@
         codeTextareaHtml(item.code) +
       `</div>`;
     }).join('');
+    mountCodeQrs($('#codes-list'), items);
     S.openDialog($('#codes-dialog'));
   }
 
@@ -5486,6 +5527,14 @@
     $('#word-xp').value = '80';
     $('#word-start').value = S.todayIso();
     $('#word-per-day').value = '50';
+    const dailyCapInput = $('#word-daily-cap');
+    if (dailyCapInput) dailyCapInput.value = String(REVIEW_POLICY_DEFAULTS.dailyCap);
+    const reviewCapInput = $('#word-review-cap');
+    if (reviewCapInput) reviewCapInput.value = String(REVIEW_POLICY_DEFAULTS.reviewCap);
+    const reviewDayInput = $('#word-review-day');
+    if (reviewDayInput) reviewDayInput.value = String(REVIEW_POLICY_DEFAULTS.weeklyReviewDay);
+    const policyNote = $('#word-policy-note');
+    if (policyNote) policyNote.textContent = '新词按上面的“每天最多词数”走；旧词复习会自动排进剩余额度，积压时向后顺延，不会某一天突然堆几百个。每周回顾日会把快到期的一小批词提前复习，顺手削平下周高峰。';
     $('#word-input').value = '';
     $('#word-preview').innerHTML = '<p class="hint">粘贴单词后点“生成预览”，会从本机释义库补全音标和中文意思。</p>';
     $('#word-build-count').textContent = '0 个词';
@@ -5581,11 +5630,48 @@
 
   const WORD_PER_DAY_MIN = 4;
   const WORD_PER_DAY_MAX = 200;
+  const REVIEW_POLICY_DEFAULTS = {
+    dailyCap: 80,
+    reviewCap: 30,
+    weeklyReviewDay: 0,
+    spreadDays: 3
+  };
 
   function wordPerDayValue() {
     const input = $('#word-per-day');
     const raw = Number(input && input.value);
     return clamp(Number.isFinite(raw) && raw > 0 ? Math.round(raw) : 50, WORD_PER_DAY_MIN, WORD_PER_DAY_MAX);
+  }
+
+  /* 新词和旧词共用“每天总词量”这个上限：
+     先保证当天的新词，再拿剩下的额度排复习；复习额度不够时，学生端会把积压顺延到后面几天。
+     老师不用自己算，只要定一个每天大概能承受的总量。 */
+  function wordReviewPolicy() {
+    const capInput = $('#word-daily-cap');
+    const reviewInput = $('#word-review-cap');
+    const dayInput = $('#word-review-day');
+    const capRaw = Number(capInput && capInput.value);
+    const reviewRaw = Number(reviewInput && reviewInput.value);
+    const dayRaw = Number(dayInput && dayInput.value);
+    const newPerDay = wordPerDayValue();
+    const dailyCap = clamp(Number.isFinite(capRaw) && capRaw > 0 ? Math.round(capRaw) : Math.max(REVIEW_POLICY_DEFAULTS.dailyCap, newPerDay), 20, 300);
+    const reviewCap = clamp(Number.isFinite(reviewRaw) && reviewRaw > 0 ? Math.round(reviewRaw) : REVIEW_POLICY_DEFAULTS.reviewCap, 5, 120);
+    return {
+      version: 1,
+      newPerDay,
+      dailyCap,
+      reviewCap,
+      weeklyReviewDay: Number.isFinite(dayRaw) ? clamp(dayRaw, -1, 6) : REVIEW_POLICY_DEFAULTS.weeklyReviewDay,
+      spreadDays: REVIEW_POLICY_DEFAULTS.spreadDays
+    };
+  }
+
+  function reviewPolicyText(policy) {
+    const p = policy || wordReviewPolicy();
+    const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    return `每天最多 ${p.dailyCap} 词（新词优先），复习最多 ${p.reviewCap} 词` +
+      (p.weeklyReviewDay >= 0 ? `；${dayNames[p.weeklyReviewDay]}做每周回顾` : '') +
+      '；积压自动向后顺延。';
   }
 
   /* 按“每天最多词数”从头往后切：前面的天尽量装满，最后一天放余数。
@@ -5799,6 +5885,7 @@
       level: studentWordLevel(student),
       createdAt: S.nowIso(),
       wordAssignmentId: assignment.id,
+      reviewPolicy: assignment.reviewPolicy || REVIEW_POLICY_DEFAULTS,
       days
     };
   }
@@ -5878,6 +5965,7 @@
       perDay,
       dayCount: chunks.length,
       multiDay,
+      reviewPolicy: wordReviewPolicy(),
       /* 多天模式必须覆盖全部词，不再按学生水平减词；单天模式保留原来的自适应。 */
       adaptive: multiDay ? false : Boolean(($('#word-adaptive') || {}).checked)
     };
@@ -6435,6 +6523,7 @@
       bookAssignmentId: assignment.id,
       studentNote: alloc.profile.note,
       recycled: alloc.recycled,
+      reviewPolicy: assignment.reviewPolicy || REVIEW_POLICY_DEFAULTS,
       days
     };
   }
@@ -6812,7 +6901,8 @@
       xp: Number(profile.xp) || xpOfStudent(student),
       level: S.levelInfo(Number(profile.xp) || xpOfStudent(student)).level,
       checkinStreak: S.streakFromCheckins(profile.checkins || []),
-      checkin: isDaily ? Boolean(daily.checkin) : null
+      checkin: isDaily ? Boolean(daily.checkin) : null,
+      integrity: isDaily && daily.integrity ? daily.integrity : null
     };
     const reportIndex = (student.reports || []).findIndex((report) => report.reportId === summary.reportId);
     if (reportIndex >= 0) student.reports[reportIndex] = summary;
@@ -6827,7 +6917,8 @@
         taskCount: summary.taskCount,
         avgScore: summary.avgScore,
         checkin: Boolean(daily.checkin),
-        streak: Number(daily.checkinStreak) || 0
+        streak: Number(daily.checkinStreak) || 0,
+        integrity: summary.integrity || null
       };
     }
     student.lastReportAt = summary.generatedAt;
@@ -7350,6 +7441,14 @@
     }
     const totals = studentPracticeTotals(profile);
     const totalsHtml = practiceTotalsHtml(totals);
+    const latestDaily = (student.reports || [])
+      .filter((report) => report.scope === 'daily' && report.integrity)
+      .sort((a, b) => String(b.reportDay || '').localeCompare(String(a.reportDay || '')))[0];
+    const dailyIntegrityNote = latestDaily && latestDaily.integrity.level && latestDaily.integrity.level !== 'good'
+      ? `<div class="integrity-alert"><b>${S.fmtDate(latestDaily.reportDay)} 的答题可信度 ${latestDaily.integrity.score == null ? '—' : latestDaily.integrity.score} 分</b>` +
+        `<span>${S.escapeHtml((latestDaily.integrity.flags || []).join('；') || latestDaily.integrity.summary || '有轻度异常信号')}</span>` +
+        `<small>这是按当天所有任务的答题速度、选项位置、循环规律、离开页面和课前浏览时长做的本机估算，只能当提醒，不能当处分依据。</small></div>`
+      : '';
     const suspicious = tasks.filter((task) => task.integrityScore != null && Number(task.integrityScore) < 55);
     const integrityNote = suspicious.length
       ? `<div class="integrity-alert"><b>有 ${suspicious.length} 次任务出现疑似乱选信号</b>` +
@@ -7370,7 +7469,7 @@
         `<td>${integrityBadge(task)}</td>` +
       `</tr>`;
     }).join('');
-    let html = totalsHtml + integrityNote + `<table class="history-table"><thead><tr><th>任务</th><th>提交</th><th>得分</th><th>答对</th><th>用时</th><th>答题可信度</th></tr></thead><tbody>${rows}</tbody></table>`;
+    let html = totalsHtml + dailyIntegrityNote + integrityNote + `<table class="history-table"><thead><tr><th>任务</th><th>提交</th><th>得分</th><th>答对</th><th>用时</th><th>答题可信度</th></tr></thead><tbody>${rows}</tbody></table>`;
 
     if (profile.wrongReviews.length) {
       html += `<h3 class="dialog-subtitle" style="margin-top:20px;">最近错题</h3>` +
@@ -8181,6 +8280,16 @@
     }
     const wordStart = $('#word-start');
     if (wordStart) wordStart.addEventListener('change', updateWordSplitHint);
+    ['#word-daily-cap', '#word-review-cap', '#word-review-day'].forEach((selector) => {
+      const input = $(selector);
+      if (!input) return;
+      const refresh = () => {
+        const note = $('#word-policy-note');
+        if (note) note.textContent = `当前排期：${reviewPolicyText(wordReviewPolicy())} 学生端会按这个额度自动排旧词。`;
+      };
+      input.addEventListener('change', refresh);
+      input.addEventListener('input', refresh);
+    });
     $('#word-generate').addEventListener('click', generateWordAssignment);
     $('#word-extract').addEventListener('click', extractWordsFromMaterial);
     const bookAdd = $('#book-add');
@@ -8757,6 +8866,21 @@
     });
 
     $('#import-report-btn').addEventListener('click', importReportCode);
+    const codesDialog = $('#codes-dialog');
+    if (codesDialog) codesDialog.addEventListener('close', stopCodeQrs);
+    const reportScan = $('#import-report-scan');
+    if (reportScan) {
+      reportScan.addEventListener('click', () => {
+        if (!window.ShunshiQR) { S.toast('扫码组件没有加载成功，请直接粘贴汇报码。', 'error'); return; }
+        window.ShunshiQR.scan({
+          onCode: (code) => {
+            $('#import-report-code').value = code;
+            S.toast('二维码已识别，正在导入…', 'ok');
+            setTimeout(importReportCode, 220);
+          }
+        });
+      });
+    }
 
     $('#enroll-copy').addEventListener('click', async () => {
       if (!lastEnroll) return;

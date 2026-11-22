@@ -8,7 +8,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>顺势 · 学生端｜因势利导，循循善诱</title>
 <link rel="icon" href="logo.svg?v=20261118c" type="image/svg+xml">
-<link rel="stylesheet" href="portal.css?v=20261122a">
+<link rel="stylesheet" href="portal.css?v=20261122b">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
 </head>
@@ -270,9 +270,10 @@
         <label for="import-code">任务码</label>
         <textarea class="textarea" id="import-code" rows="7" placeholder="SS1.…"></textarea>
       </div>
-      <p class="hint">微信里长按复制即可，换行不影响。任务码只包含题目或单词，不含老师的资料库。单词任务导入后会直接进入闯关。</p>
+      <p class="hint">微信里长按复制即可，换行不影响。老师发了二维码时，点下面“扫码导入”直接扫，不用再复制长串代码。任务码只包含题目或单词，不含老师的资料库。</p>
     </div>
     <div class="p-dialog-foot">
+      <button class="p-btn ghost qr-inline-btn" type="button" id="import-scan">扫码导入</button>
       <button class="p-btn ghost" type="button" data-close>取消</button>
       <button class="p-btn" type="button" id="import-btn">导入任务</button>
     </div>
@@ -306,8 +307,9 @@
       </div>
       <p class="hint" id="report-scope-note">每天完成任务后生成一次“今日汇报”，老师才能看到当天的打卡情况。</p>
       <div class="field">
-        <label for="report-code">复制后发给老师</label>
+        <label for="report-code">复制后发给老师，或让老师扫下面的二维码</label>
         <textarea class="textarea" id="report-code" rows="9" readonly></textarea>
+        <div class="code-qr" id="report-qr"></div>
       </div>
       <p class="hint">今日汇报也能当作当天的进度备份；完整档案才适合换手机时恢复全部历史。</p>
     </div>
@@ -549,10 +551,13 @@
 <script src="grammar-advanced.js"></script>
 <script src="grammar-extra.js"></script>
 <script src="grammar-data.js"></script>
-<script src="portal.js?v=20261121a"></script>
+<script src="portal.js?v=20261122a"></script>
+<script src="vendor/qrcode-generator.js"></script>
+<script src="vendor/jsqr.js"></script>
+<script src="qr.js?v=20261122a"></script>
 <script src="word-examples.js"></script>
 <script src="pet-art.js"></script>
-<script src="student.js?v=20261122d"></script>
+<script src="student.js?v=20261122f"></script>
 <script src="pwa.js?v=20261121b" defer></script>
 </body>
 </html>

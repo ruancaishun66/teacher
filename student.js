@@ -6,6 +6,9 @@
   'use strict';
 
   const S = window.Shunshi;
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
   const $ = S.$;
   const $$ = S.$$;
   const STORAGE_KEY = 'shunshi.student.v1';
@@ -16,6 +19,16 @@
      “三次成功回忆后再拉开间隔”的做法；答错就回到 1 天后。 */
   const WORD_REVIEW_INTERVALS = [1, 2, 4, 7, 15, 30];
   const REVIEW_STATION_LIMIT = 60;
+  /* 新词和旧词共用每天的总量上限。老师端会把 policy 放进最新一次任务码；
+     学生端收到后重新排一遍旧词，积压不会全堆在今天。 */
+  const DEFAULT_REVIEW_POLICY = {
+    version: 1,
+    newPerDay: 50,
+    dailyCap: 80,
+    reviewCap: 30,
+    weeklyReviewDay: 0,
+    spreadDays: 3
+  };
 
   let data = loadData();
   let sessionPin = '';
@@ -26,6 +39,7 @@
   let pendingEnroll = null;
   let pendingLinkCode = '';
   let linkImportStarted = false;
+  let reportQrMount = null;
 
   function loadData() {
     const raw = S.getJSON(STORAGE_KEY, null);
@@ -52,6 +66,8 @@
       entry.lastAt = String(entry.lastAt || '');
       entry.lastRatedOn = String(entry.lastRatedOn || '');
     });
+    raw.reviewPolicy = normalizeReviewPolicy(raw.reviewPolicy);
+    raw.reviewPolicyUpdatedAt = String(raw.reviewPolicyUpdatedAt || '');
     /* 旧任务里的释义可能又长又杂；打开页面时顺手清洗成 1–2 个常用义。 */
     raw.tasks.forEach((task) => {
       if (!Array.isArray(task.words) || !task.words.length) return;
@@ -170,6 +186,16 @@
     }));
   }
 
+  /* 同一批词如果都在同一天学，原本会在同一天一起到期。
+     给 4 天以上的间隔加 0–2 天稳定“抖动”，把复习自然摊开；
+     同一个词每次算出来的日期固定，不会每天乱跳。 */
+  function spreadReviewDue(startDay, intervalDays, key) {
+    const interval = Math.max(1, Math.round(Number(intervalDays) || 1));
+    if (interval < 4) return S.addDays(startDay, interval);
+    const fuzz = hashString(`${key}|${startDay}|${interval}`) % 3;
+    return S.addDays(startDay, interval + fuzz);
+  }
+
   /* 每次打卡只给同一个词记一次“当天成绩”。同一天老师连发两份含同一个词的任务，
      不能当成两次间隔复习，否则 box 会被一天内刷高。 */
   function applyWordMemoryResult(task, word, stat) {
@@ -194,7 +220,7 @@
         entry.due = S.addDays(today, WORD_REVIEW_INTERVALS[0]);
       } else {
         entry.box = Math.min(WORD_REVIEW_INTERVALS.length - 1, (Number(entry.box) || 0) + 1);
-        entry.due = S.addDays(today, WORD_REVIEW_INTERVALS[entry.box]);
+        entry.due = spreadReviewDue(today, WORD_REVIEW_INTERVALS[entry.box], wordMemoryKey(word));
       }
     } else {
       entry.streak = 0;
@@ -218,6 +244,186 @@
     });
   }
 
+  function normalizeReviewPolicy(raw) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    const asInt = (value, fallback, min, max) => {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return fallback;
+      return Math.max(min, Math.min(max, Math.round(n)));
+    };
+    return {
+      version: 1,
+      newPerDay: asInt(source.newPerDay, DEFAULT_REVIEW_POLICY.newPerDay, 4, 200),
+      dailyCap: asInt(source.dailyCap, DEFAULT_REVIEW_POLICY.dailyCap, 20, 300),
+      reviewCap: asInt(source.reviewCap, DEFAULT_REVIEW_POLICY.reviewCap, 5, 120),
+      weeklyReviewDay: asInt(source.weeklyReviewDay, DEFAULT_REVIEW_POLICY.weeklyReviewDay, -1, 6),
+      spreadDays: asInt(source.spreadDays, DEFAULT_REVIEW_POLICY.spreadDays, 1, 14)
+    };
+  }
+
+  function reviewPolicy() {
+    return normalizeReviewPolicy(data && data.reviewPolicy);
+  }
+
+  function weekdayOf(day) {
+    return new Date(`${String(day || '').slice(0, 10)}T00:00:00`).getDay();
+  }
+
+  /* 当天还没做完的新词先占掉总词量；剩下的额度才排复习。
+     这样学生不会“新词 50 + 旧词 200”一天被压垮。 */
+  function pendingNewWordsOn(day) {
+    let total = 0;
+    (data.tasks || []).forEach((task) => {
+      if (!task || task.status === 'done' || task.reviewSession || task.mode !== 'words') return;
+      if (String(task.due || '').slice(0, 10) !== day) return;
+      total += Math.max(0, Number(task.wordTotal) || (task.words || []).length || 0);
+    });
+    return total;
+  }
+
+  function reviewCapacityFor(day, policy) {
+    const p = normalizeReviewPolicy(policy || (data && data.reviewPolicy));
+    const newWords = pendingNewWordsOn(day);
+    let cap = Math.max(5, Math.min(p.reviewCap, p.dailyCap - newWords));
+    if (p.weeklyReviewDay >= 0 && weekdayOf(day) === p.weeklyReviewDay) {
+      /* 回顾日可以多排一点，但仍然受每天总词量上限约束。 */
+      const boosted = Math.max(5, Math.min(Math.round(p.reviewCap * 1.5), p.dailyCap - newWords));
+      cap = Math.max(cap, boosted);
+    }
+    return Math.max(1, Math.min(REVIEW_STATION_LIMIT, Math.round(cap)));
+  }
+
+  function reviewPriority(a, b) {
+    return (Number(b.entry.lapses) || 0) - (Number(a.entry.lapses) || 0)
+      || (Number(a.entry.box) || 0) - (Number(b.entry.box) || 0)
+      || String(a.entry.lastAt || '').localeCompare(String(b.entry.lastAt || ''))
+      || String(a.key).localeCompare(String(b.key));
+  }
+
+  /* 把到期 / 积压的旧词按“每天复习额度”重新铺到未来两周：
+     1. 先按最该复习的顺序，放进最早还有额度的那一天；
+     2. 今天排不下的自然落到明天、后天，不会一次性全冒出来；
+     3. 每周回顾日把未来 1–2 天到期的一小批弱词提前到今天，做一次周复习，也削平下周高峰。
+     只改“下次复习日期”，不删词、不改答题记录。 */
+  function rebalanceWordMemory(policy, options) {
+    if (!data) return { moved: 0, pulled: 0, days: 0 };
+    const p = normalizeReviewPolicy(policy || data.reviewPolicy);
+    data.reviewPolicy = p;
+    const entries = wordMemoryEntries();
+    if (!entries.length) return { moved: 0, pulled: 0, days: 0 };
+    const today = S.todayIso();
+    const horizon = 14;
+    const maxSearch = 60;
+    const load = new Map();
+    const capacity = new Map();
+    const dayAt = (offset) => S.addDays(today, offset);
+    for (let offset = 0; offset <= maxSearch; offset += 1) {
+      const day = dayAt(offset);
+      capacity.set(day, reviewCapacityFor(day, p));
+      load.set(day, 0);
+    }
+
+    const candidates = [];
+    entries.forEach(({ key, entry }) => {
+      let due = String(entry.due || '').slice(0, 10);
+      if (!due) due = today;
+      if (due > dayAt(horizon)) return;
+      const earliest = due < today ? today : due;
+      /* 今天刚评过的词，最早明天再复习，不能在回顾日被提前拉回今天。 */
+      const earliestSafe = entry.lastRatedOn === today && earliest <= today ? dayAt(1) : earliest;
+      candidates.push({ key, entry, desired: earliestSafe, due, pulled: false });
+    });
+
+    /* 周回顾：只提前“快到期且还不稳”的词，最多占当天额度的 25%。 */
+    if (p.weeklyReviewDay >= 0) {
+      for (let offset = 0; offset <= horizon - 2; offset += 1) {
+        const day = dayAt(offset);
+        if (weekdayOf(day) !== p.weeklyReviewDay) continue;
+        const cap = capacity.get(day) || 0;
+        const pullLimit = Math.max(2, Math.min(10, Math.floor(cap * 0.25)));
+        if (!pullLimit) continue;
+        const soon = candidates
+          .filter((item) => !item.pulled && item.entry.lastRatedOn !== day && (
+            item.desired === dayAt(offset + 1) || item.desired === dayAt(offset + 2)
+          ))
+          .filter((item) => (Number(item.entry.box) || 0) <= 2 || (Number(item.entry.lapses) || 0) > 0)
+          .sort(reviewPriority)
+          .slice(0, pullLimit);
+        soon.forEach((item) => {
+          item.desired = day;
+          item.pulled = true;
+        });
+      }
+    }
+
+    candidates.sort((a, b) => String(a.desired).localeCompare(String(b.desired)) || reviewPriority(a, b));
+    let moved = 0;
+    let pulled = 0;
+    candidates.forEach((item) => {
+      let target = item.desired;
+      let offset = Math.max(0, Math.round((new Date(`${target}T00:00:00`) - new Date(`${today}T00:00:00`)) / 86400000));
+      let guard = 0;
+      while (guard < maxSearch) {
+        const day = dayAt(offset);
+        if ((load.get(day) || 0) < (capacity.get(day) || 1)) {
+          target = day;
+          break;
+        }
+        offset += 1;
+        guard += 1;
+      }
+      if (guard >= maxSearch) target = item.desired;
+      const day = dayAt(offset);
+      load.set(day, (load.get(day) || 0) + 1);
+      const before = String(item.entry.due || '').slice(0, 10);
+      if (before !== target) {
+        item.entry.due = target;
+        /* 只把“排到今天以后”算作顺延；昨天到期、今天补上的不算。 */
+        if (target > today && target > before) moved += 1;
+      }
+      if (item.pulled) pulled += 1;
+    });
+
+    const todayLoad = load.get(today) || 0;
+    const todayCap = capacity.get(today) || 0;
+    data.reviewSchedule = {
+      updatedAt: S.nowIso(),
+      policy: p,
+      todayLoad,
+      todayCap,
+      moved,
+      pulled,
+      note: moved
+        ? `今天排 ${todayLoad} 个旧词，其余 ${moved} 个已顺延到后面几天。`
+        : `今天旧词 ${todayLoad} 个，没有积压。`
+    };
+    if (options && options.save) save();
+    return { moved, pulled, todayLoad, todayCap, days: 0 };
+  }
+
+  /* 新任务码里带了复习排期：先存下来，再把旧词重新铺一遍。
+     这样老师下一次发码，就顺带把之前堆着的复习量处理平了。 */
+  function applyIncomingReviewPolicy(tasks) {
+    const list = Array.isArray(tasks) ? tasks : [];
+    const carrier = list.find((task) => task && task.mode === 'words' && task.reviewPolicy);
+    if (!carrier) {
+      /* 老任务码没带 policy，也按当前默认额度排一遍，避免旧机制继续堆。 */
+      if (list.some((task) => task && task.mode === 'words')) rebalanceWordMemory(data.reviewPolicy);
+      return null;
+    }
+    const p = normalizeReviewPolicy(carrier.reviewPolicy);
+    data.reviewPolicy = p;
+    data.reviewPolicyUpdatedAt = S.nowIso();
+    /* 旧的今日复习站按新额度重建，避免它还是旧的 60 词大卡。 */
+    const stationId = `RV-${S.todayIso()}`;
+    const station = findTask(stationId);
+    if (station && station.status !== 'done') {
+      data.tasks = data.tasks.filter((task) => task.id !== stationId);
+    }
+    rebalanceWordMemory(p);
+    return p;
+  }
+
   /* 今日复习站：系统自动把到期的词拼成一张单词卡，学生不用等老师另外发码。
      到期的词按“最该复习”的顺序排；答对后按 1→2→4→7→15→30 天拉开。 */
   function ensureReviewStation() {
@@ -226,6 +432,13 @@
     const stationId = `RV-${today}`;
     const keepFrom = S.addDays(today, -7);
     let changed = false;
+    const policy = reviewPolicy();
+    /* 每天第一次打开学生端时重排一次旧词；排完记下日期，避免每次渲染都改。 */
+    if (data.reviewRebalancedOn !== today) {
+      rebalanceWordMemory(policy);
+      data.reviewRebalancedOn = today;
+      changed = true;
+    }
     const nextTasks = [];
     data.tasks.forEach((task) => {
       if (!task || !task.reviewSession) { nextTasks.push(task); return; }
@@ -235,11 +448,14 @@
       if (day < keepFrom) { changed = true; return; }
       nextTasks.push(task);
     });
-    if (changed) data.tasks = nextTasks;
+    if (changed) {
+      data.tasks = nextTasks;
+      save();
+    }
 
     const existing = findTask(stationId);
     if (existing && existing.status === 'done') return;
-    const due = dueReviewWords(REVIEW_STATION_LIMIT);
+    const due = dueReviewWords(reviewCapacityFor(today, policy));
     const hasProgress = existing && existing.wordRun
       && ((Number(existing.wordRun.i) || 0) > 0 || Object.keys(existing.wordRun.results || {}).length > 0);
     if (!due.length) {
@@ -269,6 +485,7 @@
       wordTotal: due.length,
       wordRun: null,
       answers: {},
+      reviewPlanNote: data.reviewSchedule ? data.reviewSchedule.note : '',
       status: 'new',
       importedAt: S.nowIso()
     };
@@ -285,9 +502,14 @@
     const solid = entries.filter((item) => (
       (Number(item.entry.box) || 0) >= 4 && (Number(item.entry.streak) || 0) >= 3
     )).length;
+    const policy = reviewPolicy();
+    const schedule = data.reviewSchedule || {};
+    const loadNote = schedule.updatedAt
+      ? `今天排 ${schedule.todayLoad || 0} 个旧词${schedule.moved ? `，另有 ${schedule.moved} 个顺延` : ''}。`
+      : '';
     return `<div class="memory-strip">` +
       `<div><b>单词记忆</b><span>学过 ${entries.length} 词 · 今天到期 ${due} 词 · 已稳固 ${solid} 词</span></div>` +
-      `<small>复习间隔 1 → 2 → 4 → 7 → 15 → 30 天；答错回到 1 天后，第二天再考。</small>` +
+      `<small>复习间隔 1 → 2 → 4 → 7 → 15 → 30 天；答错回到 1 天后，第二天再考。每天复习最多约 ${policy.reviewCap} 词，${loadNote}排不下的会顺延，不会一次堆几百个。</small>` +
     `</div>`;
   }
 
@@ -2654,6 +2876,54 @@
     b.values[qid] = String(value == null ? '' : value);
   }
 
+  function longestSameRun(list) {
+    let best = 0;
+    let run = 1;
+    for (let index = 1; index < list.length; index += 1) {
+      if (list[index] === list[index - 1]) run += 1;
+      else run = 1;
+      if (run > best) best = run;
+    }
+    return list.length ? Math.max(1, best) : 0;
+  }
+
+  function cyclicPeriod(list) {
+    const values = Array.isArray(list) ? list : [];
+    if (values.length < 8) return 0;
+    for (let period = 2; period <= 4; period += 1) {
+      if (values.length < period * 3 + 1) continue;
+      let hit = 0;
+      let total = 0;
+      for (let index = period; index < values.length; index += 1) {
+        total += 1;
+        if (values[index] === values[index - period]) hit += 1;
+      }
+      if (total && hit / total >= 0.92) return period;
+    }
+    return 0;
+  }
+
+  function meanOf(list) {
+    return list.length ? list.reduce((sum, n) => sum + n, 0) / list.length : 0;
+  }
+
+  function coefficientOfVariation(list) {
+    if (list.length < 3) return 1;
+    const mean = meanOf(list);
+    if (!mean) return 1;
+    const variance = meanOf(list.map((n) => (n - mean) * (n - mean)));
+    return Math.sqrt(variance) / mean;
+  }
+
+  function prestudyIntegrityFlag(task, recommended) {
+    const p = task.prestudy;
+    if (!p || !p.completedAt) return '';
+    const seconds = Number(p.seconds) || 0;
+    const target = Number(recommended || p.recommendedSeconds) || 0;
+    if (target && seconds < Math.max(5, target * 0.2)) return `课前浏览只有 ${seconds} 秒，明显不足`;
+    return '';
+  }
+
   function computeIntegrity(task) {
     const b = ensureBehavior(task);
     const total = Math.max(1, taskQuestionCount(task));
@@ -2662,13 +2932,37 @@
     const flags = [];
     let score = 100;
     if (task.mode === 'words') {
-      const times = b.wordTimes.filter((n) => Number.isFinite(n) && n > 0);
-      const avgWord = times.length ? times.reduce((sum, n) => sum + n, 0) / times.length : per;
+      const run = task.wordRun || {};
+      const resultKeys = Object.keys(run.results || {}).sort((a, b) => Number(a) - Number(b));
+      const ordered = resultKeys.map((key) => run.results[key]).filter(Boolean);
+      const times = (ordered.length ? ordered.map((item) => Number(item.seconds)) : b.wordTimes)
+        .filter((n) => Number.isFinite(n) && n > 0);
+      const avgWord = times.length ? meanOf(times) : per;
       const firstOk = (task.wordStats || []).filter((word) => word.ok).length;
       const accuracy = total ? firstOk / total : 0;
+      const positions = ordered.map((item) => Number(item.optionIndex)).filter((n) => Number.isFinite(n));
+      const samePositionRun = longestSameRun(positions);
+      const positionMode = positions.length ? Math.max(...Object.values(positions.reduce((acc, value) => {
+        acc[value] = (acc[value] || 0) + 1;
+        return acc;
+      }, {}))) : 0;
+      const samePositionRatio = positions.length ? positionMode / positions.length : 0;
+      const cycle = cyclicPeriod(positions);
+      const cv = coefficientOfVariation(times);
       if (avgWord < 1.2) { score -= 32; flags.push('单词点击速度异常快'); }
       else if (avgWord < 2.2) { score -= 14; flags.push('单词作答偏快'); }
       if (accuracy <= 0.4 && avgWord < 2.5) { score -= 18; flags.push('速度偏快且正确率接近随机'); }
+      if (positions.length >= 8 && samePositionRun >= Math.max(6, Math.ceil(positions.length * 0.7))) {
+        score -= 22;
+        flags.push(`连续 ${samePositionRun} 题选同一位置`);
+      } else if (positions.length >= 10 && samePositionRatio >= 0.75) {
+        score -= 14;
+        flags.push('选项位置高度集中在同一处');
+      }
+      if (cycle) { score -= 18; flags.push(`选项呈规律循环（每 ${cycle} 题一轮）`); }
+      if (times.length >= 10 && cv < 0.2) { score -= 10; flags.push('答题节奏过于机械'); }
+      const preFlag = prestudyIntegrityFlag(task);
+      if (preFlag) { score -= 12; flags.push(preFlag); }
       if (b.focusLost >= 3) { score -= 8; flags.push(`答题中离开页面 ${b.focusLost} 次`); }
       return {
         score: Math.max(0, Math.min(100, score)),
@@ -2676,7 +2970,10 @@
         secondsPerItem: Math.round((avgWord || per) * 10) / 10,
         changedRatio: 0,
         focusLost: b.focusLost,
-        sameOptionRatio: 0,
+        sameOptionRatio: Math.round(samePositionRatio * 100) / 100,
+        longestSameOption: samePositionRun,
+        pattern: cycle ? `每${cycle}题循环` : '',
+        consistency: Math.round(cv * 100) / 100,
         elapsed: Math.round(elapsed)
       };
     }
@@ -2687,13 +2984,19 @@
       return acc;
     }, {}))) : 0;
     const sameRatio = letters.length ? sameCount / letters.length : 0;
+    const longestLetter = longestSameRun(letters);
+    const letterCycle = cyclicPeriod(letters);
     const changed = Object.values(b.changes).reduce((sum, n) => sum + Number(n || 0), 0);
     const changedRatio = total ? changed / total : 0;
     if (per < 3) { score -= 34; flags.push('整体答题速度异常快'); }
     else if (per < 6) { score -= 15; flags.push('答题速度偏快'); }
     if (changedRatio > 0.8) { score -= 12; flags.push('大量题目反复改答案'); }
     if (letters.length >= 5 && sameRatio >= 0.85) { score -= 24; flags.push('绝大多数题选同一个选项'); }
+    if (longestLetter >= 6) { score -= 16; flags.push(`连续 ${longestLetter} 题选同一选项`); }
+    if (letterCycle) { score -= 16; flags.push(`选项呈规律循环（每 ${letterCycle} 题一轮）`); }
     if (task.score != null && task.score <= 30 && total >= 8) { score -= 12; flags.push('正确率接近随机猜测'); }
+    const preFlag = prestudyIntegrityFlag(task);
+    if (preFlag) { score -= 10; flags.push(preFlag); }
     if (b.focusLost >= 3) { score -= 10; flags.push(`答题中离开页面 ${b.focusLost} 次`); }
     return {
       score: Math.max(0, Math.min(100, score)),
@@ -2702,6 +3005,8 @@
       changedRatio: Math.round(changedRatio * 100) / 100,
       focusLost: b.focusLost,
       sameOptionRatio: Math.round(sameRatio * 100) / 100,
+      longestSameOption: longestLetter,
+      pattern: letterCycle ? `每${letterCycle}题循环` : '',
       elapsed: Math.round(elapsed)
     };
   }
@@ -2715,10 +3020,11 @@
     activeTaskId = id;
     lastAutoSpeakKey = '';
     taskStartedAt = Date.now();
-    startBehaviorSession(task);
+    /* 浏览阶段不算答题时间：学生点“开始打卡”后才开始计答题用时。 */
+    if (!prestudyPlanFor(task)) startBehaviorSession(task);
     S.openDialog($('#task-dialog'));
     renderRunner(task);
-    if (task.status !== 'done') startTimer();
+    if (task.status !== 'done' && !prestudyPlanFor(task)) startTimer();
     else stopTimer();
   }
 
@@ -2980,6 +3286,11 @@
   }
 
   function renderRunner(task) {
+    if (prestudyPlanFor(task)) {
+      renderPrestudy(task);
+      return;
+    }
+    stopPrestudyTimer();
     if (task.mode === 'words') {
       renderWordRunner(task);
       return;
@@ -3391,6 +3702,182 @@
     }
   }
 
+  /* ------------------------------- 打卡前浏览 ------------------------------- */
+
+  let prestudyTimerId = null;
+
+  function stopPrestudyTimer() {
+    if (prestudyTimerId) clearInterval(prestudyTimerId);
+    prestudyTimerId = null;
+  }
+
+  function prestudyPlanFor(task) {
+    if (!task || task.status === 'done' || task.reviewSession) return null;
+    const run = task.mode === 'words' ? task.wordRun : null;
+    const alreadyStarted = (run && (Number(run.i) > 0 || Number(run.reviewI) > 0 || Object.keys(run.results || {}).length > 0))
+      || Object.keys((task.behavior && task.behavior.values) || {}).length > 0;
+    if (alreadyStarted) return null;
+    if (task.prestudy && task.prestudy.completedAt) return null;
+    if (task.mode === 'words') {
+      const count = (task.words || []).length || Number(task.wordTotal) || 0;
+      if (!count) return null;
+      return {
+        kind: 'words',
+        count,
+        recommendedSeconds: clamp(Math.round(count * 3 + 10), 30, 480),
+        minSeconds: clamp(Math.round((count * 3 + 10) * 0.2), 8, 40)
+      };
+    }
+    if (task.mode === 'grammar' && task.lesson) {
+      const points = [task.lesson.sentence, task.lesson.rule, task.lesson.tip].filter(Boolean).length;
+      return {
+        kind: 'grammar',
+        count: points,
+        recommendedSeconds: clamp(20 + points * 15, 45, 300),
+        minSeconds: 12
+      };
+    }
+    const total = taskQuestionCount(task);
+    return {
+      kind: 'general',
+      count: total,
+      recommendedSeconds: clamp(15 + total * 2, 20, 150),
+      minSeconds: 6
+    };
+  }
+
+  function ensurePrestudy(task, plan) {
+    if (!task.prestudy || typeof task.prestudy !== 'object') {
+      task.prestudy = {
+        recommendedSeconds: plan.recommendedSeconds,
+        minSeconds: plan.minSeconds,
+        startedAt: S.nowIso(),
+        seconds: 0,
+        completedAt: '',
+        early: false,
+        kind: plan.kind
+      };
+      save();
+    }
+    return task.prestudy;
+  }
+
+  function prestudyWordsHtml(task) {
+    return `<div class="prestudy-list">` +
+      (task.words || []).map((word) => (
+        `<div class="prestudy-word">` +
+          `<b>${S.escapeHtml(word.w)}</b>${word.kk ? `<em>${S.escapeHtml(word.kk)}</em>` : ''}` +
+          `<span>${S.escapeHtml(S.meaningLabel(word.w, word.zh, word.pos))}</span>` +
+          (word.ex ? `<small>${S.escapeHtml(word.ex)}${word.exZh ? `<br>${S.escapeHtml(word.exZh)}` : ''}</small>` : '') +
+        `</div>`
+      )).join('') +
+    `</div>`;
+  }
+
+  function prestudyLessonHtml(task) {
+    const lesson = task.lesson || {};
+    const points = [];
+    if (lesson.sentence) points.push(`<li><b>例句</b>：${S.escapeHtml(lesson.sentence)}${lesson.translation ? `<br><span class="hint">${S.escapeHtml(lesson.translation)}</span>` : ''}</li>`);
+    if (lesson.rule) points.push(`<li><b>规则</b>：${S.escapeHtml(lesson.rule)}</li>`);
+    if (lesson.tip) points.push(`<li><b>易错点</b>：${S.escapeHtml(lesson.tip)}</li>`);
+    if (lesson.outputPrompt) points.push(`<li><b>本课要会写</b>：${S.escapeHtml(lesson.outputPrompt)}</li>`);
+    return `<div class="prestudy-overview">` +
+      `<b>${S.escapeHtml(lesson.title || task.title || '今日语法')}</b>` +
+      (lesson.subtitle ? `<div class="hint">${S.escapeHtml(lesson.subtitle)}</div>` : '') +
+      (points.length ? `<ul class="prestudy-points">${points.join('')}</ul>` : '<p class="hint">先看一遍本课标题和题目要求。</p>') +
+    `</div>`;
+  }
+
+  function prestudyGeneralHtml(task) {
+    const blocks = (task.blocks || []).map((block) => {
+      const count = block.type === 'writing' || block.prompt ? 1 : (block.questions || []).length;
+      return `<li>${S.escapeHtml(S.blockLabel(block.type) || '练习')}：${count} 题</li>`;
+    }).join('');
+    const passage = (task.blocks || []).map((block) => String(block.passage || '').trim()).filter(Boolean)[0] || '';
+    return `<div class="prestudy-overview">` +
+      `<b>${S.escapeHtml(task.title || '今日任务')}</b>` +
+      `<p class="hint" style="margin:6px 0;">共 ${taskQuestionCount(task)} 题。先看清题型和文章大意，再开始作答。</p>` +
+      (blocks ? `<ul class="prestudy-points">${blocks}</ul>` : '') +
+      (passage ? `<p style="margin:10px 0 0;color:var(--muted);font-size:0.76rem;line-height:1.7;">${S.escapeHtml(passage.slice(0, 420))}${passage.length > 420 ? '…' : ''}</p>` : '') +
+    `</div>`;
+  }
+
+  function renderPrestudy(task) {
+    const plan = prestudyPlanFor(task);
+    if (!plan) { renderRunner(task); return; }
+    const state = ensurePrestudy(task, plan);
+    const started = new Date(state.startedAt).getTime();
+    const bodyHtml = plan.kind === 'words'
+      ? prestudyWordsHtml(task)
+      : plan.kind === 'grammar'
+        ? prestudyLessonHtml(task)
+        : prestudyGeneralHtml(task);
+    const intro = plan.kind === 'words'
+      ? `今天要打卡 ${plan.count} 个词。先从头到尾看一遍，混个眼熟；看完点右下角开始。`
+      : plan.kind === 'grammar'
+        ? '先看一遍今天的语法点和例句，再开始做题。'
+        : '先看一眼今天的题型和文章大意，再开始作答。';
+    $('#runner-title').textContent = task.title || '打卡前浏览';
+    $('#runner-sub').textContent = '打卡前浏览 · 看完就可以开始';
+    $('#runner-report').hidden = true;
+    $('#submit-task').hidden = true;
+    $('#runner-count').textContent = '浏览中';
+    $('#runner-fill').style.width = '0%';
+    $('#runner-body').innerHTML =
+      `<div class="prestudy">` +
+        `<div class="prestudy-head">` +
+          `<div><h2>先看一遍，再开始</h2><p>${S.escapeHtml(intro)}</p></div>` +
+          `<div class="prestudy-timer"><b id="prestudy-time">--:--</b><span>建议浏览时间</span></div>` +
+        `</div>` +
+        `<div class="prestudy-track"><i id="prestudy-fill"></i></div>` +
+        bodyHtml +
+        `<div class="prestudy-foot">` +
+          `<small>建议时间由系统按今天的词量 / 知识点自动算。提前看完可以直接开始；不点开始就继续看，不会自动跳走。</small>` +
+          `<button class="p-btn prestudy-start" type="button" id="prestudy-start" disabled>先看一会儿…</button>` +
+        `</div>` +
+      `</div>`;
+    stopPrestudyTimer();
+    const startBtn = $('#prestudy-start');
+    const timeEl = $('#prestudy-time');
+    const fillEl = $('#prestudy-fill');
+    const tick = () => {
+      const elapsed = Math.max(0, (Date.now() - started) / 1000);
+      const remain = Math.max(0, plan.recommendedSeconds - elapsed);
+      const mm = Math.floor(remain / 60);
+      const ss = Math.floor(remain % 60);
+      if (timeEl) timeEl.textContent = `${mm}:${String(ss).padStart(2, '0')}`;
+      if (fillEl) fillEl.style.width = `${Math.min(100, (elapsed / plan.recommendedSeconds) * 100)}%`;
+      if (startBtn) {
+        const ready = elapsed >= plan.minSeconds;
+        if (ready && startBtn.disabled) {
+          startBtn.disabled = false;
+          startBtn.textContent = remain > 0 ? '我已浏览完，开始打卡' : '浏览时间到，开始打卡';
+          startBtn.classList.add('is-ready');
+        }
+        if (ready && remain <= 0 && startBtn.textContent !== '浏览时间到，开始打卡') {
+          startBtn.textContent = '浏览时间到，开始打卡';
+        }
+      }
+    };
+    tick();
+    prestudyTimerId = setInterval(tick, 500);
+    startBtn.onclick = () => {
+      const seconds = Math.max(0, Math.round((Date.now() - started) / 1000));
+      task.prestudy = {
+        ...state,
+        seconds,
+        completedAt: S.nowIso(),
+        early: seconds < plan.recommendedSeconds
+      };
+      stopPrestudyTimer();
+      taskStartedAt = Date.now();
+      startBehaviorSession(task);
+      startTimer();
+      save();
+      renderRunner(task);
+    };
+  }
+
   function wordResultTable(task, run) {
     const words = task.words || [];
     return `<table class="word-result-table"><thead><tr><th>单词</th><th>释义</th><th>第一次</th><th>错词重练</th><th>下次复习</th></tr></thead><tbody>` +
@@ -3433,7 +3920,7 @@
       const petDone = task.petGain
         ? `<div class="word-summary-pet"><div class="word-summary-pet-art">${petSVG(petInfo.stage, petDisplay.id, petDisplay.fused, { thumb: true })}</div><div><b>这一轮${petDisplay.name}也吃饱了</b><span>成长 +${task.petGain} · 小鱼干 +${task.petSnacks || 0}</span></div></div>`
         : '';
-      $('#runner-body').innerHTML = resultHero(task) + `<div class="word-run">${petDone}${wordResultTable(task, run)}</div>`;
+      $('#runner-body').innerHTML = resultHero(task) + `<div class="word-run">${petDone}${wordResultTable(task, run)}${integrityStudentWarning(task)}</div>`;
       $('#runner-body').onclick = null;
       $('#runner-body').onchange = null;
       $('#runner-body').oninput = null;
@@ -3617,13 +4104,17 @@
     const picked = option.dataset.wordOption;
     const ok = picked === context.correctText;
     const behavior = ensureBehavior(task);
+    let answerSeconds = 0;
     if (run.questionShownAt) {
       const seconds = Math.max(0, (Date.now() - run.questionShownAt) / 1000);
-      if (!context.isReview) behavior.wordTimes.push(Math.round(seconds * 100) / 100);
+      answerSeconds = Math.round(seconds * 100) / 100;
+      if (!context.isReview) behavior.wordTimes.push(answerSeconds);
       run.questionShownAt = 0;
     }
     run.locked = true;
     const optionButtons = $$('#word-options .word-option');
+    const optionIndex = optionButtons.indexOf(option);
+    const optionCount = optionButtons.length;
     optionButtons.forEach((button) => {
       button.disabled = true;
       if (button.dataset.wordOption === context.correctText) button.classList.add('correct');
@@ -3644,10 +4135,17 @@
     }
 
     if (context.isReview) {
-      run.reviewResults[context.index] = { ok, answer: picked };
+      run.reviewResults[context.index] = { ok, answer: picked, seconds: answerSeconds, optionIndex, optionCount };
       run.reviewI = Number(run.reviewI) + 1;
     } else {
-      run.results[context.index] = { firstOk: ok, answer: picked, kind: context.kind };
+      run.results[context.index] = {
+        firstOk: ok,
+        answer: picked,
+        kind: context.kind,
+        seconds: answerSeconds,
+        optionIndex,
+        optionCount
+      };
       if (ok) {
         run.combo = Number(run.combo) + 1;
         run.maxCombo = Math.max(Number(run.maxCombo) || 0, run.combo);
@@ -3789,6 +4287,16 @@
         `<div class="result-stat"><b>+${task.xpEarned || 0}</b><span>EXP</span></div>` +
       `</div>` +
       (result.ungraded ? `<p class="hint">有 ${result.ungraded} 道题老师没有附答案，已记录你的作答，不计入正确率。</p>` : '') +
+      integrityStudentWarning(task) +
+    `</div>`;
+  }
+
+  function integrityStudentWarning(task) {
+    const integrity = task && task.integrity;
+    if (!integrity || Number(integrity.score) >= 55) return '';
+    const flags = Array.isArray(integrity.flags) ? integrity.flags : [];
+    return `<div class="integrity-student-warn"><b>这次答题节奏有些异常</b>` +
+      `<div>${S.escapeHtml(flags.slice(0, 3).join('、') || '系统检测到作答过快或选项过于规律')}。老师会在汇报里看到提示，请按真实水平作答。</div>` +
     `</div>`;
   }
 
@@ -3972,12 +4480,13 @@
       data.tasks.push(task);
       added += 1;
     });
+    const policy = applyIncomingReviewPolicy(tasks);
     save();
     renderAll();
     S.closeDialog($('#import-dialog'));
     $('#import-code').value = '';
     const dayCount = new Set(tasks.map((task) => Number(task.planDay)).filter(Boolean)).size;
-    S.toast(`计划已导入：${added} 个任务${dayCount ? ` · ${dayCount} 天` : ''}${kept ? `，${kept} 个已完成` : ''}。完成当天全部任务后，下一天自动解锁。`, 'ok', 7000);
+    S.toast(`计划已导入：${added} 个任务${dayCount ? ` · ${dayCount} 天` : ''}${kept ? `，${kept} 个已完成` : ''}。${policy ? '旧词复习已按新排期摊开。' : ''}完成当天全部任务后，下一天自动解锁。`, 'ok', 7000);
   }
 
   async function importTaskCode() {
@@ -4031,11 +4540,12 @@
     };
     data.tasks = data.tasks.filter((item) => item.id !== task.id);
     data.tasks.unshift(task);
+    const policy = task.mode === 'words' ? applyIncomingReviewPolicy([task]) : null;
     save();
     renderAll();
     S.closeDialog($('#import-dialog'));
     $('#import-code').value = '';
-    S.toast('任务已导入，开始吧。', 'ok');
+    S.toast(`任务已导入，开始吧。${policy ? '旧词复习已按新排期摊开。' : ''}`, 'ok');
   }
 
   function taskDay(task) {
@@ -4068,6 +4578,46 @@
     }).join('');
   }
 
+  function aggregateIntegrity(tasks) {
+    const checked = (tasks || []).filter((task) => task && task.integrity && task.integrity.score != null);
+    if (!checked.length) return null;
+    let weight = 0;
+    let weighted = 0;
+    let min = 100;
+    const flagCount = new Map();
+    checked.forEach((task) => {
+      const score = Number(task.integrity.score) || 0;
+      const total = Math.max(1, Number(task.total) || taskQuestionCount(task) || 1);
+      weight += total;
+      weighted += score * total;
+      min = Math.min(min, score);
+      (task.integrity.flags || []).forEach((flag) => {
+        const text = String(flag || '').trim();
+        if (text) flagCount.set(text, (flagCount.get(text) || 0) + 1);
+      });
+    });
+    const avg = weight ? Math.round(weighted / weight) : 0;
+    const flags = Array.from(flagCount.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([text, count]) => count > 1 ? `${text}（${count} 次）` : text)
+      .slice(0, 6);
+    const suspicious = checked.filter((task) => Number(task.integrity.score) < 55).length;
+    const level = min < 55 || avg < 60 ? 'bad' : avg < 80 || flags.length ? 'warn' : 'good';
+    return {
+      score: avg,
+      min,
+      level,
+      suspicious,
+      checked: checked.length,
+      flags,
+      summary: level === 'bad'
+        ? `有 ${suspicious || 1} 次任务出现明显异常信号，建议核对答题过程。`
+        : level === 'warn'
+          ? '有轻度异常信号，可能只是赶时间，建议看一眼。'
+          : '答题节奏和选项分布正常。'
+    };
+  }
+
   async function buildReport(scope, day) {
     if (!profile() || !sessionPin) throw new Error('档案还没有解锁。');
     const reportId = S.uid('R');
@@ -4091,7 +4641,8 @@
             const stats = [];
             tasks.forEach((task) => (task.wordStats || []).forEach((word) => stats.push(word)));
             return stats.length ? Math.round((stats.filter((word) => word.ok).length / stats.length) * 100) : null;
-          })()
+          })(),
+          integrity: aggregateIntegrity(tasks)
         }
       : null;
     return {
@@ -4175,7 +4726,20 @@
         assignmentId: task.assignmentId || '',
         wordSlot: task.wordSlot || '',
         integrityScore: task.integrity ? task.integrity.score : null,
-        integrityFlags: task.integrity ? task.integrity.flags : []
+        integrityFlags: task.integrity ? task.integrity.flags : [],
+        integrityDetail: task.integrity ? {
+          secondsPerItem: task.integrity.secondsPerItem,
+          sameOptionRatio: task.integrity.sameOptionRatio,
+          longestSameOption: task.integrity.longestSameOption,
+          pattern: task.integrity.pattern,
+          focusLost: task.integrity.focusLost
+        } : null,
+        prestudy: task.prestudy ? {
+          seconds: task.prestudy.seconds,
+          recommendedSeconds: task.prestudy.recommendedSeconds,
+          early: Boolean(task.prestudy.early),
+          kind: task.prestudy.kind
+        } : null
       }))
     };
   }
@@ -4184,6 +4748,11 @@
     const report = await buildReport(scope, day);
     const code = await S.packCode(report);
     $('#report-code').value = code;
+    const qrHolder = $('#report-qr');
+    if (qrHolder && window.ShunshiQR) {
+      if (reportQrMount && reportQrMount.stop) reportQrMount.stop();
+      reportQrMount = window.ShunshiQR.mount(qrHolder, code, { size: 190 });
+    }
     const p = profile();
     p.reportCount = Math.max(0, Number(p.reportCount) || 0) + 1;
     if (scope === 'daily') {
@@ -4521,6 +5090,19 @@
       setTimeout(() => $('#import-code').focus(), 100);
     });
     $('#import-btn').addEventListener('click', importTaskCode);
+    const importScan = $('#import-scan');
+    if (importScan) {
+      importScan.addEventListener('click', () => {
+        if (!window.ShunshiQR) { S.toast('扫码组件没有加载成功，请直接粘贴任务码。', 'error'); return; }
+        window.ShunshiQR.scan({
+          onCode: (code) => {
+            $('#import-code').value = code;
+            S.toast('二维码已识别，正在导入…', 'ok');
+            setTimeout(importTaskCode, 220);
+          }
+        });
+      });
+    }
     $('#runner-close').addEventListener('click', () => {
       const task = activeTaskId ? findTask(activeTaskId) : null;
       if (task) pauseBehaviorSession(task);
@@ -4675,8 +5257,16 @@
       const task = activeTaskId ? findTask(activeTaskId) : null;
       if (task) { pauseBehaviorSession(task); save(); }
       stopTimer();
+      stopPrestudyTimer();
       activeTaskId = null;
     });
+    const reportDialog = $('#report-dialog');
+    if (reportDialog) {
+      reportDialog.addEventListener('close', () => {
+        if (reportQrMount && reportQrMount.stop) reportQrMount.stop();
+        reportQrMount = null;
+      });
+    }
     S.bindDialogClose(document);
   }
 

@@ -6014,3 +6014,208 @@ body.fusion-open { overflow: hidden; }
   .breakdown-level > b { padding-top: 0; }
   .breakdown-sentence { font-size: 0.95rem; padding: 9px 10px; }
 }
+
+/* ------------------------------- 二维码任务钥匙 ------------------------------- */
+.qr-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 12px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  background: #fff;
+}
+.qr-canvas {
+  display: block;
+  max-width: 100%;
+  height: auto !important;
+  border-radius: 6px;
+  image-rendering: pixelated;
+}
+.qr-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+.qr-meta b { font-size: 0.8rem; color: var(--ink); }
+.qr-meta span { font-size: 0.68rem; color: var(--muted); line-height: 1.55; max-width: 300px; }
+.qr-controls { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.qr-dots { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; max-width: 300px; }
+.qr-dot {
+  width: 8px; height: 8px; padding: 0; border: 0; border-radius: 50%;
+  background: var(--line); cursor: pointer;
+}
+.qr-dot.is-on { background: var(--red); transform: scale(1.25); }
+.qr-empty { margin: 0; padding: 18px; color: var(--muted); font-size: 0.78rem; text-align: center; }
+.qr-scan-dialog { width: min(560px, calc(100% - 18px)); }
+.qr-video-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  margin-bottom: 12px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #0d2228;
+}
+.qr-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.qr-video-guide {
+  position: absolute;
+  inset: 16%;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 16px;
+  box-shadow: 0 0 0 999px rgba(5, 22, 27, 0.24);
+  pointer-events: none;
+}
+.qr-scan-status {
+  margin: 0 0 12px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: var(--blue-soft);
+  color: var(--ink);
+  font-size: 0.78rem;
+  line-height: 1.6;
+  text-align: center;
+}
+.qr-scan-status.is-ok { background: rgba(63, 143, 116, 0.14); color: var(--green); }
+.qr-scan-status.is-warn { background: rgba(143, 100, 39, 0.14); color: var(--gold); }
+.qr-scan-status.is-error { background: var(--red-soft); color: var(--red-deep); }
+.qr-scan-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.qr-inline-btn { white-space: nowrap; }
+
+/* ------------------------------- 打卡前浏览 ------------------------------- */
+.prestudy {
+  padding: 4px 2px 10px;
+}
+.prestudy-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.prestudy-head h2 { margin: 0 0 4px; font-size: 1.1rem; }
+.prestudy-head p { margin: 0; color: var(--muted); font-size: 0.78rem; line-height: 1.65; }
+.prestudy-timer {
+  min-width: 110px;
+  padding: 10px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  background: var(--panel-2);
+  text-align: center;
+}
+.prestudy-timer b { display: block; font-size: 1.35rem; line-height: 1.2; letter-spacing: 0.04em; }
+.prestudy-timer span { display: block; color: var(--muted); font-size: 0.66rem; margin-top: 2px; }
+.prestudy-track {
+  height: 7px;
+  margin: 0 0 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line-soft);
+}
+.prestudy-track i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--blue), var(--green));
+  transition: width 0.3s linear;
+}
+.prestudy-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+  max-height: min(46vh, 420px);
+  overflow: auto;
+  padding: 2px 4px 4px 2px;
+}
+.prestudy-word {
+  padding: 9px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 11px;
+  background: var(--panel-solid);
+}
+.prestudy-word b { font-size: 0.92rem; color: var(--ink); }
+.prestudy-word em {
+  margin-left: 5px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-style: normal;
+}
+.prestudy-word span { display: block; margin-top: 2px; color: var(--red-deep); font-size: 0.78rem; }
+.prestudy-word small { display: block; margin-top: 4px; color: var(--muted); font-size: 0.68rem; line-height: 1.55; }
+.prestudy-points { margin: 0; padding: 0 0 0 18px; color: var(--ink); font-size: 0.8rem; line-height: 1.8; }
+.prestudy-points li { margin-bottom: 5px; }
+.prestudy-overview {
+  padding: 12px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--panel-2);
+  font-size: 0.8rem;
+  line-height: 1.75;
+}
+.prestudy-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line-soft);
+}
+.prestudy-foot small { color: var(--muted); font-size: 0.7rem; line-height: 1.6; max-width: 420px; }
+.prestudy-start { min-width: 180px; }
+.prestudy-start[disabled] { opacity: 0.55; cursor: not-allowed; }
+.prestudy-start.is-ready { animation: prestudyPulse 1.8s ease-in-out infinite; }
+@keyframes prestudyPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(63, 143, 116, 0); }
+  50% { box-shadow: 0 0 0 7px rgba(63, 143, 116, 0.18); }
+}
+.integrity-student-warn {
+  margin-top: 14px;
+  padding: 11px 13px;
+  border: 1px solid rgba(217, 110, 81, 0.38);
+  border-radius: 12px;
+  background: var(--red-soft);
+  color: var(--red-deep);
+  font-size: 0.76rem;
+  line-height: 1.65;
+}
+@media (max-width: 560px) {
+  .prestudy-list { grid-template-columns: 1fr; max-height: 44vh; }
+  .prestudy-timer { width: 100%; }
+  .prestudy-start { width: 100%; }
+}
+
+/* 单词任务的复习排期：新词之外再给复习留额度。 */
+.word-policy-row {
+  display: grid;
+  grid-template-columns: 150px 150px 150px minmax(0, 1fr);
+  gap: 12px;
+  align-items: end;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+}
+.word-policy-note {
+  margin: 0 0 3px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.6;
+}
+@media (max-width: 860px) {
+  .word-policy-row { grid-template-columns: 1fr 1fr; }
+  .word-policy-note { grid-column: 1 / -1; }
+}
+@media (max-width: 560px) {
+  .word-policy-row { grid-template-columns: 1fr; }
+}
+
+.code-qr-tip { margin: 2px 0 8px; color: var(--muted); font-size: 0.68rem; line-height: 1.55; }
+.code-card .code-qr { margin: 0 0 10px; }

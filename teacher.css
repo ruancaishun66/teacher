@@ -2353,3 +2353,28 @@
   .wb-student-head .p-btn { margin-left: auto; }
   .bookshelf-dialog { height: calc(100vh - 12px); }
 }
+
+/* 每日汇报里的答题可信度提醒：绿格右上角一个小感叹号。 */
+.daily-cell { position: relative; }
+.daily-cell .daily-risk {
+  position: absolute;
+  top: -6px;
+  right: -5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #c4452f;
+  color: #fff;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgba(70, 18, 10, 0.3);
+  pointer-events: none;
+}
+.daily-cell .daily-risk.is-warn { background: #c98a1e; }
+.daily-cell.has-risk { box-shadow: 0 0 0 2px rgba(196, 69, 47, 0.22), 0 2px 6px rgba(47, 122, 82, 0.28); }
+.daily-legend .lg-risk { background: #c4452f; border-radius: 50%; }
