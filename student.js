@@ -178,6 +178,9 @@
     const today = S.todayIso();
     if (entry.lastRatedOn === today) return;
     const ok = Boolean(stat && stat.ok);
+    /* 用“此前是否成功回忆过”判断第一次成功，而不是用 seen。
+       一个词可能先错几次再答对；第一次答对仍然只隔 1 天，不能因为错得多就被拉长。 */
+    const firstSuccess = (Number(entry.correct) || 0) === 0;
     entry.seen = (Number(entry.seen) || 0) + 1;
     entry.lastAt = S.nowIso();
     entry.lastRatedOn = today;
@@ -186,7 +189,7 @@
       entry.correct = (Number(entry.correct) || 0) + 1;
       entry.streak = (Number(entry.streak) || 0) + 1;
       /* 第一次成功回忆后先隔 1 天；之后每成功一次，间隔升一档。 */
-      if (entry.seen === 1) {
+      if (firstSuccess) {
         entry.box = 0;
         entry.due = S.addDays(today, WORD_REVIEW_INTERVALS[0]);
       } else {
