@@ -8,7 +8,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>顺势 · 教师端｜因势利导，循循善诱</title>
 <link rel="icon" href="logo.svg?v=20261118c" type="image/svg+xml">
-<link rel="stylesheet" href="portal.css?v=20261120d">
+<link rel="stylesheet" href="portal.css?v=20261122a">
 <link rel="stylesheet" href="teacher.css?v=20261122c">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -1131,7 +1131,7 @@
         </div>
 
         <div class="word-source-pane" data-word-pane="library">
-          <p class="hint">从组卷工作台保存过的阅读、完形或试卷里提取生词。常见虚词会自动跳过，最多取 40 个。</p>
+          <p class="hint">从组卷工作台保存过的阅读、完形或试卷里提取生词。常见虚词会自动跳过，找到多少就全部取回；生词多时在下方填“每天最多词数”，自动分成多天。</p>
           <div class="word-library-row">
             <select class="select" id="word-material"></select>
             <button class="p-btn small" type="button" id="word-extract">提取到单词表</button>
@@ -1154,6 +1154,21 @@
       <p class="hint" id="word-glossary-status"></p>
       <p class="hint" id="word-context-status">本机例句库会先自动补常见词；没有例句的词可以展开手动填写，或点“AI 补例句”。只有带例句的词才会出现“语境推词”题。</p>
       <p class="hint">自定义例句可写成：<code>benefit 好处 | Reading has many benefits. | 阅读有很多好处。</code></p>
+
+      <div class="word-split-row">
+        <div class="field">
+          <label for="word-start">从哪天开始</label>
+          <input class="input" id="word-start" type="date">
+        </div>
+        <div class="field">
+          <label for="word-per-day">每天最多词数</label>
+          <input class="input" id="word-per-day" type="number" min="4" max="200" step="10" value="50">
+        </div>
+        <div class="word-split-note">
+          <b id="word-split-days">按 1 天发布</b>
+          <span id="word-split-hint">生成预览后，这里会算出要分成几天。</span>
+        </div>
+      </div>
 
       <div class="word-assign-grid">
         <div class="field">
@@ -1471,8 +1486,8 @@
   <div class="p-dialog-inner">
     <div class="p-dialog-head">
       <div>
-        <h2>从资料库选材料</h2>
-        <p>先看预览再选。阅读、完形、五选五 / 七选五、语法填空 / 短文填词、单项选择都能用于“先学单词再学阅读”。</p>
+        <h2>从资料库选材料（可多选）</h2>
+        <p>阅读、完形、五选五 / 七选五、语法填空 / 短文填词、单项选择都能用。点卡片可勾选多份，再一起加入 B 板块。</p>
       </div>
       <button class="p-close" type="button" data-close aria-label="关闭">×</button>
     </div>
@@ -1491,8 +1506,10 @@
       </div>
       <div class="reading-picker-list" id="reading-picker-list"></div>
     </div>
-    <div class="p-dialog-foot">
-      <span class="hint" style="margin-right:auto;">点一张卡片就会放进 B 板块，并自动写进“阅读原文”。</span>
+    <div class="p-dialog-foot reading-picker-foot">
+      <span class="hint" id="reading-picker-selected-note" style="margin-right:auto;">已选 0 份</span>
+      <button class="p-btn ghost" type="button" id="reading-picker-clear">清空选择</button>
+      <button class="p-btn" type="button" id="reading-picker-apply" disabled>加入所选（0）</button>
       <button class="p-btn ghost" type="button" data-close>关闭</button>
     </div>
   </div>
@@ -1550,7 +1567,7 @@
 <script>window.SHUNSHI_TEACHER_AI = true;</script>
 <script src="portal.js?v=20261121a"></script>
 <script src="word-examples.js"></script>
-<script src="teacher.js?v=20261122f"></script>
+<script src="teacher.js?v=20261122g"></script>
 <script src="pwa.js?v=20261121b" defer></script>
 </body>
 </html>

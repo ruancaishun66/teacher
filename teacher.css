@@ -2061,10 +2061,11 @@
   padding: 2px;
 }
 .reading-picker-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 10px 11px;
+  padding: 10px 32px 10px 11px;
   border: 1px solid var(--line-soft);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.64);
@@ -2074,6 +2075,26 @@
 }
 .reading-picker-card:hover { border-color: rgba(76, 154, 166, 0.55); background: rgba(255, 255, 255, 0.9); }
 .reading-picker-card.is-current { border-color: rgba(214, 167, 75, 0.7); background: rgba(214, 167, 75, 0.08); }
+.reading-picker-card.is-selected { border-color: rgba(47, 113, 124, 0.8); background: rgba(76, 154, 166, 0.12); box-shadow: inset 0 0 0 1px rgba(47, 113, 124, 0.25); }
+.reading-picker-check {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #fff;
+  color: #fff;
+  font-size: 0.64rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.reading-picker-card.is-selected .reading-picker-check { border-color: #2f717c; background: #2f717c; }
+.reading-picker-foot { gap: 8px; flex-wrap: wrap; }
 .reading-picker-card-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .reading-picker-type {
   display: inline-flex;

@@ -743,6 +743,61 @@
       gap: 10px;
     }
 
+    .batch-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border: 1px dashed rgba(49, 95, 140, 0.28);
+      border-radius: 12px;
+      background: rgba(226, 235, 243, 0.42);
+    }
+
+    .batch-all {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--ink-soft);
+      font-size: 0.68rem;
+      cursor: pointer;
+    }
+
+    .batch-count {
+      margin-left: auto;
+      color: var(--ink-soft);
+      font-size: 0.66rem;
+    }
+
+    .batch-count b { color: var(--blue-deep); font-size: 0.76rem; }
+
+    .batch-bar .btn {
+      padding: 6px 11px;
+      font-size: 0.64rem;
+    }
+
+    .batch-check-wrap {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 25px;
+      height: 32px;
+      cursor: pointer;
+    }
+
+    .batch-check {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--blue-deep);
+      cursor: pointer;
+    }
+
+    .material-card.is-marked,
+    .paper-history-item.is-marked {
+      border-color: rgba(49, 95, 140, 0.5);
+      background: rgba(226, 235, 243, 0.55);
+    }
+
     .material-card {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
@@ -4546,7 +4601,7 @@
               <li>在书架里可以一次上传整本 .pdf、.docx、.txt 或 .md；几百页也能整本读，扫描版会自动走本机 OCR。</li>
               <li>平时看到的是书架封面；点开一本书，才会读取并显示全书单词，按每页 60 个翻看，也能搜索单词或释义。</li>
               <li>勾选本页、全选筛选结果或逐条勾选后，点「带到教师端」会直接把词填进单词任务，不用另外开窗口。</li>
-              <li>教师端一次单词任务最多带 80 个词；超过时先带前 80 个，其余留在书里分批再选。</li>
+              <li>选中多少就带多少，不再截成 80 个。到了教师端填“每天最多词数”，系统会从第一个词开始按顺序装天：例如 860 个词、每天 50，就是前 17 天各 50 词，最后一天 10 词。</li>
               <li>词汇书只保存文字和单词，不重复保存原文件；原书请自己留好。换电脑或清理浏览器数据前，先导出备份。</li>
             </ul>
           </article>
@@ -4990,7 +5045,7 @@
   <script>window.SHUNSHI_TEACHER_AI = true;</script>
   <script src="portal.js?v=20261121d"></script>
   <script src="question-visual.js?v=20261122b"></script>
-  <script src="library.js?v=20261122b"></script>
+  <script src="library.js?v=20261122c"></script>
 <script src="pwa.js?v=20261121b" defer></script>
 </body>
 </html>

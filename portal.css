@@ -913,6 +913,34 @@ dialog.p-dialog[open] { animation: dialogIn 0.28s var(--ease); }
 
 .task-list { display: flex; flex-direction: column; gap: 10px; }
 
+.memory-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 14px;
+  padding: 10px 13px;
+  border: 1px solid rgba(79, 168, 179, 0.28);
+  border-radius: 10px;
+  background: rgba(79, 168, 179, 0.08);
+}
+
+.memory-strip > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.memory-strip b { color: #2c7a83; font-family: var(--round); font-size: 0.76rem; }
+.memory-strip span { color: var(--ink-soft); font-size: 0.66rem; }
+.memory-strip small { color: var(--dim); font-size: 0.6rem; line-height: 1.5; }
+
+.memory-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(79, 168, 179, 0.16);
+  color: #2c7a83;
+  font-size: 0.58rem;
+  font-weight: 800;
+}
+
 .task-card {
   position: relative;
   display: grid;
@@ -2659,6 +2687,38 @@ dialog.p-dialog::backdrop { background: rgba(24, 58, 66, 0.42); }
   margin-top: 14px;
 }
 
+/* 单词任务分天：老师定“每天最多词数”，系统自动切成一天一关。 */
+.word-split-row {
+  display: grid;
+  grid-template-columns: 150px 150px minmax(0, 1fr);
+  gap: 12px;
+  align-items: end;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.word-split-note {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 6px;
+}
+
+.word-split-note b {
+  color: var(--blue-deep);
+  font-family: var(--round);
+  font-size: 0.8rem;
+}
+
+.word-split-note span {
+  color: var(--ink-soft);
+  font-size: 0.66rem;
+  line-height: 1.55;
+}
+
 .word-assign-grid .check-list {
   max-height: 150px;
   overflow: auto;
@@ -3206,6 +3266,7 @@ dialog.p-dialog::backdrop { background: rgba(24, 58, 66, 0.42); }
 @media (max-width: 720px) {
   .word-dash { grid-template-columns: 1fr 1fr; }
   .word-assign-grid { grid-template-columns: 1fr; }
+  .word-split-row { grid-template-columns: 1fr; align-items: start; }
   .word-preview-row {
     grid-template-columns: 22px minmax(0, 1fr) 30px;
     grid-template-areas:

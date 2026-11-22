@@ -35,8 +35,6 @@
   // 整本词汇书可能收几千个词；上限留足，避免几百页的书被截断。
   const BOOK_WORD_CAP = 20000;
   const BOOK_PAGE_SIZE = 60;
-  // 教师端单词任务码装不下整本书，一次最多带 80 个词过去，其余留在词汇书里分批选。
-  const TEACHER_WORD_PICK_CAP = 80;
   const FONT_STACK = 'Arial, "SimHei", "Microsoft YaHei", "Heiti SC", sans-serif';
   const CN_FONT_STACK = '"SimHei", "Microsoft YaHei", "Heiti SC", sans-serif';
 
@@ -244,6 +242,8 @@
     bank: { q: '', type: '', grade: '', materialId: '' },
     bankSelection: new Set(),
     bankStudents: new Set(),
+    materialSelection: new Set(),
+    paperSelection: new Set(),
     bookCache: new Map(),
     bookSelection: new Map(),
     currentBook: null,
@@ -6755,10 +6755,28 @@
     return `难度 ${rangeText(levels)} · ${starsForLevel(average)}`;
   }
 
+  /* 批量删除工具条：只对“当前筛选出来的资料”全选，避免把看不见的资料也删掉。 */
+  function batchToolbarHtml(kind, visibleCount, selectedCount, noun) {
+    const isMaterial = kind === 'materials';
+    const allAttr = isMaterial ? 'data-batch-material-all' : 'data-batch-paper-all';
+    const clearAction = isMaterial ? 'batch-clear-materials' : 'batch-clear-papers';
+    const deleteAction = isMaterial ? 'batch-delete-materials' : 'batch-delete-papers';
+    return `<div class="batch-bar" role="group" aria-label="批量管理${noun}">` +
+      `<label class="batch-all"><input type="checkbox" ${allAttr} ${visibleCount && selectedCount >= visibleCount ? 'checked' : ''}> 全选当前 ${visibleCount} ${isMaterial ? '份资料' : '份练习卷'}</label>` +
+      `<span class="batch-count">已选 <b>${selectedCount}</b> ${isMaterial ? '份' : '份'}</span>` +
+      `<button class="btn btn-ghost batch-clear" type="button" data-action="${clearAction}" ${selectedCount ? '' : 'disabled'}>取消勾选</button>` +
+      `<button class="btn btn-danger" type="button" data-action="${deleteAction}" ${selectedCount ? '' : 'disabled'}>批量删除（${selectedCount}）</button>` +
+    `</div>`;
+  }
+
   function renderLibrary() {
     const container = $('#material-list');
     if (!container) return;
     const materials = filteredMaterials();
+    const existing = new Set(state.materials.map((material) => material.id));
+    Array.from(state.materialSelection).forEach((id) => {
+      if (!existing.has(id)) state.materialSelection.delete(id);
+    });
 
     if (!state.materials.length) {
       container.innerHTML = emptyLibraryHtml();
@@ -6773,7 +6791,9 @@
       return;
     }
 
-    container.innerHTML = materials.map((material) => {
+    const selectedCount = materials.filter((material) => state.materialSelection.has(material.id)).length;
+    const toolbar = batchToolbarHtml('materials', materials.length, selectedCount, '资料');
+    container.innerHTML = toolbar + materials.map((material) => {
       const normalized = normalizeType(material.type);
       const def = TYPES[normalized] || TYPES.other;
       const unit = normalized === 'single' ? '道' : '篇';
@@ -6796,7 +6816,8 @@
       const processedButton = material.processedBlob
         ? `<button class="icon-btn" type="button" data-action="download-processed" title="下载整理版" aria-label="下载整理版"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg></button>`
         : '';
-      return `<article class="material-card" data-id="${escapeAttr(material.id)}">` +
+      const marked = state.materialSelection.has(material.id);
+      return `<article class="material-card ${marked ? 'is-marked' : ''}" data-id="${escapeAttr(material.id)}">` +
         `<span class="type-badge" data-type="${escapeAttr(normalized)}">${escapeHtml(def.short)}</span>` +
         `<div class="material-main">` +
         `<h3 class="material-title" title="${escapeAttr(material.title)}">${escapeHtml(material.title)}</h3>` +
@@ -6809,6 +6830,7 @@
         (tags ? `<div class="material-tags">${tags}</div>` : '') +
         `</div>` +
         `<div class="material-actions">` +
+        `<label class="batch-check-wrap" title="勾选后可批量删除"><input class="batch-check" type="checkbox" data-batch-material="${escapeAttr(material.id)}" ${marked ? 'checked' : ''} aria-label="勾选这份资料"></label>` +
         `<button class="icon-btn" type="button" data-action="preview" title="预览 / 修改" aria-label="预览或修改资料"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>` +
         `<button class="icon-btn" type="button" data-action="questions" title="逐题查看与编辑" aria-label="逐题查看与编辑"><svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg></button>` +
         (count ? `<button class="icon-btn" type="button" data-action="bank-from-material" title="在题库中查看拆好的题" aria-label="在题库中查看这份资料拆好的题"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg></button>` : '') +
@@ -6819,6 +6841,8 @@
         `<button class="icon-btn danger" type="button" data-action="delete-material" title="删除资料" aria-label="删除资料"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg></button>` +
         `</div></article>`;
     }).join('');
+    const allBox = container.querySelector('[data-batch-material-all]');
+    if (allBox) allBox.indeterminate = selectedCount > 0 && selectedCount < materials.length;
   }
 
   function emptyLibraryHtml() {
@@ -6835,6 +6859,10 @@
   function renderPapers() {
     const container = $('#paper-history');
     if (!container) return;
+    const existing = new Set(state.papers.map((paper) => paper.id));
+    Array.from(state.paperSelection).forEach((id) => {
+      if (!existing.has(id)) state.paperSelection.delete(id);
+    });
     if (!state.papers.length) {
       container.innerHTML = `<div class="empty-state" style="padding: 28px 18px;">` +
         `<h3 style="margin-top: 0;">还没有生成的练习卷</h3>` +
@@ -6843,17 +6871,23 @@
         `</div>`;
       return;
     }
-    container.innerHTML = state.papers.map((paper) => (
-      `<div class="paper-history-item" data-paper-id="${escapeAttr(paper.id)}">` +
+    const selectedCount = state.papers.filter((paper) => state.paperSelection.has(paper.id)).length;
+    const toolbar = batchToolbarHtml('papers', state.papers.length, selectedCount, '练习卷');
+    container.innerHTML = toolbar + state.papers.map((paper) => {
+      const marked = state.paperSelection.has(paper.id);
+      return `<div class="paper-history-item ${marked ? 'is-marked' : ''}" data-paper-id="${escapeAttr(paper.id)}">` +
       `<div><strong>${escapeHtml(paper.title)}</strong>` +
       `<small>${escapeHtml(paper.grade || '综合')} · ${escapeHtml(paper.command || '手动组卷')} · ${escapeHtml(formatDate(paper.createdAt, true))}</small></div>` +
       `<div class="material-actions">` +
+      `<label class="batch-check-wrap" title="勾选后可批量删除"><input class="batch-check" type="checkbox" data-batch-paper="${escapeAttr(paper.id)}" ${marked ? 'checked' : ''} aria-label="勾选这份练习卷"></label>` +
       `<button class="icon-btn" type="button" data-action="preview-paper" title="预览" aria-label="预览练习卷"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>` +
       `<button class="icon-btn" type="button" data-action="questions-paper" title="逐题编辑" aria-label="逐题编辑练习卷"><svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg></button>` +
       `<button class="icon-btn" type="button" data-action="download-paper" title="下载 Word" aria-label="下载练习卷 Word"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg></button>` +
       `<button class="icon-btn danger" type="button" data-action="delete-paper" title="删除" aria-label="删除练习卷"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg></button>` +
-      `</div></div>`
-    )).join('');
+      `</div></div>`;
+    }).join('');
+    const allBox = container.querySelector('[data-batch-paper-all]');
+    if (allBox) allBox.indeterminate = selectedCount > 0 && selectedCount < state.papers.length;
   }
 
   function renderPaperHistoryIfNeeded() {
@@ -8353,7 +8387,7 @@
     const hint = $('#book-pick-hint');
     if (hint) {
       hint.textContent = selected.length
-        ? `可导出 CSV / TXT；带到教师端时一次最多 ${TEACHER_WORD_PICK_CAP} 个词，超出会先带前面的。`
+        ? '可导出 CSV / TXT；带到教师端时选中多少就带多少，到了教师端再按“每天最多词数”分成多天。'
         : '勾选后可以导出词表、存 U 盘，或带到教师端做单词任务。';
     }
     $$('#book-pickbar [data-action^="book-"]').forEach((button) => {
@@ -8526,15 +8560,16 @@
       toast('先勾选要带到教师端的单词。', 'error');
       return;
     }
-    const take = words.slice(0, TEACHER_WORD_PICK_CAP);
+    /* 选中多少就带多少。教师端会按“每天最多词数”自动切成一天一关，
+       不再在这里截成 80 个；860 个词也能一次带过去，分成 18 天发。 */
     const pick = {
       v: 1,
       at: nowIso(),
       bookId: book.id,
       title: `${book.title} · 选词打卡`,
       total: words.length,
-      count: take.length,
-      words: take.map((word) => ({
+      count: words.length,
+      words: words.map((word) => ({
         w: word.word,
         zh: word.meaning,
         kk: word.phonetic,
@@ -8543,40 +8578,27 @@
         exZh: word.exampleZh
       }))
     };
-    const openTeacher = () => {
-      // 教师端用 iframe 打开书架时，直接把选中的词发回父窗口；
-      // 不写 localStorage、不弹新窗口，老师核对完就能生成任务码。
-      if (EMBED_BOOKS && window.parent && window.parent !== window) {
-        window.parent.postMessage({ type: 'shunshi-book-pick', pick }, location.origin);
-        toast(`已把 ${take.length} 个词交给教师端，核对后生成单词任务。`, 'ok', 6000);
-        return;
-      }
-      try {
-        window.localStorage.setItem('shunshi.wordbook.pick.v1', JSON.stringify(pick));
-      } catch (error) {
-        console.error(error);
-        toast('浏览器本地存储已满，不能自动带到教师端。可以先导出词表再粘贴。', 'error', 7000);
-        return;
-      }
-      const opened = window.open('teacher.html?bookpick=1', '_blank');
-      if (!opened) {
-        toast('弹窗被拦截，正在当前窗口打开教师端。', 'ok', 4000);
-        location.href = 'teacher.html?bookpick=1';
-      } else {
-        toast(`已带 ${take.length} 个词到教师端的新窗口，核对后生成单词任务。`, 'ok', 6000);
-      }
-    };
-    if (words.length > take.length) {
-      openConfirm({
-        title: '只带前 80 个词？',
-        message: `教师端的单词任务码一次最多装 80 个词，这次勾了 ${words.length} 个。可以先带前 ${take.length} 个，其余的词在词汇书里分批再带。`,
-        confirmText: `带前 ${take.length} 个`,
-        danger: false,
-        onConfirm: openTeacher
-      });
+    // 教师端用 iframe 打开书架时，直接把选中的词发回父窗口；
+    // 不写 localStorage、不弹新窗口，老师核对完就能生成任务码。
+    if (EMBED_BOOKS && window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'shunshi-book-pick', pick }, location.origin);
+      toast(`已把 ${words.length} 个词交给教师端。在教师端设置每天词数，就会自动分成多天。`, 'ok', 6500);
       return;
     }
-    openTeacher();
+    try {
+      window.localStorage.setItem('shunshi.wordbook.pick.v1', JSON.stringify(pick));
+    } catch (error) {
+      console.error(error);
+      toast('浏览器本地存储已满，不能自动带到教师端。可以先导出词表再粘贴。', 'error', 7000);
+      return;
+    }
+    const opened = window.open('teacher.html?bookpick=1', '_blank');
+    if (!opened) {
+      toast('弹窗被拦截，正在当前窗口打开教师端。', 'ok', 4000);
+      location.href = 'teacher.html?bookpick=1';
+    } else {
+      toast(`已带 ${words.length} 个词到教师端的新窗口。在那里设置每天词数，系统会自动分成多天。`, 'ok', 7000);
+    }
   }
 
   function confirmDeleteBook() {
@@ -8888,6 +8910,112 @@
           console.error(error);
           toast(`删除失败：${error.message || error}`, 'error');
         }
+      }
+    });
+  }
+
+  function handleBatchChange(event) {
+    const input = event.target;
+    if (!input || !input.matches || !input.matches('input[type="checkbox"]')) return;
+    if (input.matches('[data-batch-material]')) {
+      const id = input.dataset.batchMaterial;
+      if (!id) return;
+      if (input.checked) state.materialSelection.add(id);
+      else state.materialSelection.delete(id);
+      renderLibrary();
+      return;
+    }
+    if (input.matches('[data-batch-material-all]')) {
+      const visible = filteredMaterials();
+      if (input.checked) visible.forEach((material) => state.materialSelection.add(material.id));
+      else visible.forEach((material) => state.materialSelection.delete(material.id));
+      renderLibrary();
+      return;
+    }
+    if (input.matches('[data-batch-paper]')) {
+      const id = input.dataset.batchPaper;
+      if (!id) return;
+      if (input.checked) state.paperSelection.add(id);
+      else state.paperSelection.delete(id);
+      renderPapers();
+      return;
+    }
+    if (input.matches('[data-batch-paper-all]')) {
+      if (input.checked) state.papers.forEach((paper) => state.paperSelection.add(paper.id));
+      else state.paperSelection.clear();
+      renderPapers();
+    }
+  }
+
+  function clearMaterialSelection() {
+    if (!state.materialSelection.size) return;
+    state.materialSelection.clear();
+    renderLibrary();
+    toast('已取消资料勾选。', 'ok', 2200);
+  }
+
+  function clearPaperSelection() {
+    if (!state.paperSelection.size) return;
+    state.paperSelection.clear();
+    renderPapers();
+    toast('已取消练习卷勾选。', 'ok', 2200);
+  }
+
+  function batchDeleteMaterials() {
+    /* 只删“当前筛选里看得到、且已勾选”的资料；筛选外被勾过的资料不会被顺手删掉。 */
+    const visible = new Set(filteredMaterials().map((material) => material.id));
+    const ids = Array.from(state.materialSelection).filter((id) => visible.has(id) && findMaterial(id));
+    if (!ids.length) {
+      toast('先勾选要删除的资料。', 'error');
+      return;
+    }
+    openConfirm({
+      title: `批量删除 ${ids.length} 份资料？`,
+      message: `这 ${ids.length} 份资料的原文件、提取文字和拆好的题组都会从本机资料库中删除。此操作不可撤销；已生成的练习卷不受影响。`,
+      confirmText: `删除这 ${ids.length} 份`,
+      danger: true,
+      onConfirm: async () => {
+        let failed = 0;
+        for (const id of ids) {
+          try {
+            await deleteMaterialAndItems(id);
+          } catch (error) {
+            console.error(error);
+            failed += 1;
+          }
+        }
+        await reloadAndRender();
+        if (failed) toast(`已删除 ${ids.length - failed} 份，${failed} 份删除失败，请重试。`, 'error', 7000);
+        else toast(`已批量删除 ${ids.length} 份资料。`, 'ok', 4200);
+      }
+    });
+  }
+
+  function batchDeletePapers() {
+    const ids = Array.from(state.paperSelection).filter((id) => findPaper(id));
+    if (!ids.length) {
+      toast('先勾选要删除的练习卷。', 'error');
+      return;
+    }
+    openConfirm({
+      title: `批量删除 ${ids.length} 份练习卷？`,
+      message: `这 ${ids.length} 份练习卷会从本机资料库中删除，原始资料和题库不受影响。此操作不可撤销。`,
+      confirmText: `删除这 ${ids.length} 份`,
+      danger: true,
+      onConfirm: async () => {
+        let failed = 0;
+        for (const id of ids) {
+          try {
+            await dbDelete('papers', id);
+          } catch (error) {
+            console.error(error);
+            failed += 1;
+          }
+        }
+        await reloadAndRender();
+        if (state.currentPaper && ids.includes(state.currentPaper.id)) resetPaperPreview();
+        if (failed) toast(`已删除 ${ids.length - failed} 份，${failed} 份删除失败，请重试。`, 'error', 7000);
+        else toast(`已批量删除 ${ids.length} 份练习卷。`, 'ok', 4200);
       }
     });
   }
@@ -12104,6 +12232,7 @@ Li Hua`,
     if (bookDelete) bookDelete.addEventListener('click', confirmDeleteBook);
 
     document.addEventListener('click', handleGlobalAction);
+    document.addEventListener('change', handleBatchChange);
     bindQuestionEditorEvents();
 
     const generateButton = $('#generate-paper');
@@ -12444,6 +12573,18 @@ Li Hua`,
         }
         case 'delete-paper':
           if (paperId) confirmDeletePaper(paperId);
+          break;
+        case 'batch-clear-materials':
+          clearMaterialSelection();
+          break;
+        case 'batch-delete-materials':
+          batchDeleteMaterials();
+          break;
+        case 'batch-clear-papers':
+          clearPaperSelection();
+          break;
+        case 'batch-delete-papers':
+          batchDeletePapers();
           break;
         case 'reshuffle':
           await reshuffleCurrent();

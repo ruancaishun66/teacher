@@ -11,6 +11,11 @@
   const STORAGE_KEY = 'shunshi.student.v1';
   const REMEMBER_KEY = 'shunshi.student.remember.v1';
   const PET_MOTION_KEY = 'shunshi.pet.motion.v1';
+  /* 间隔复习：第一次答对后隔 1 天，再 2、4、7、15、30 天。
+     来自 Cepeda 等（2006）的间隔效应与 Rawson & Dunlosky（2011）
+     “三次成功回忆后再拉开间隔”的做法；答错就回到 1 天后。 */
+  const WORD_REVIEW_INTERVALS = [1, 2, 4, 7, 15, 30];
+  const REVIEW_STATION_LIMIT = 60;
 
   let data = loadData();
   let sessionPin = '';
@@ -34,6 +39,19 @@
     raw.profile.trialDays = Math.max(1, Number(raw.profile.trialDays) || 3);
     raw.profile.trialExpiresAt = String(raw.profile.trialExpiresAt || '');
     raw.tasks = Array.isArray(raw.tasks) ? raw.tasks.filter((task) => task && task.id) : [];
+    raw.wordMemory = raw.wordMemory && typeof raw.wordMemory === 'object' ? raw.wordMemory : {};
+    Object.keys(raw.wordMemory).forEach((key) => {
+      const entry = raw.wordMemory[key];
+      if (!entry || !entry.w) { delete raw.wordMemory[key]; return; }
+      entry.box = Math.max(0, Math.min(WORD_REVIEW_INTERVALS.length - 1, Number(entry.box) || 0));
+      entry.streak = Math.max(0, Number(entry.streak) || 0);
+      entry.lapses = Math.max(0, Number(entry.lapses) || 0);
+      entry.seen = Math.max(0, Number(entry.seen) || 0);
+      entry.correct = Math.max(0, Number(entry.correct) || 0);
+      entry.due = String(entry.due || '');
+      entry.lastAt = String(entry.lastAt || '');
+      entry.lastRatedOn = String(entry.lastRatedOn || '');
+    });
     /* 旧任务里的释义可能又长又杂；打开页面时顺手清洗成 1–2 个常用义。 */
     raw.tasks.forEach((task) => {
       if (!Array.isArray(task.words) || !task.words.length) return;
@@ -77,6 +95,198 @@
   }
 
   function findTask(id) { return data && data.tasks.find((task) => task.id === id) || null; }
+
+  function wordMemoryKey(word) {
+    return String((word && word.w) || word || '').trim().toLowerCase();
+  }
+
+  function wordMemoryEntry(word) {
+    if (!data) return null;
+    data.wordMemory = data.wordMemory && typeof data.wordMemory === 'object' ? data.wordMemory : {};
+    const key = wordMemoryKey(word);
+    if (!key) return null;
+    let entry = data.wordMemory[key];
+    if (!entry) {
+      entry = {
+        w: String(word.w || '').trim(),
+        zh: String(word.zh || '').trim(),
+        kk: String(word.kk || '').trim(),
+        pos: String(word.pos || '').trim(),
+        ex: String(word.ex || '').trim(),
+        exZh: String(word.exZh || '').trim(),
+        box: 0,
+        streak: 0,
+        lapses: 0,
+        seen: 0,
+        correct: 0,
+        due: '',
+        lastAt: '',
+        lastRatedOn: '',
+        lastTaskId: ''
+      };
+      data.wordMemory[key] = entry;
+    } else {
+      ['zh', 'kk', 'pos', 'ex', 'exZh'].forEach((field) => {
+        if (!entry[field] && word[field]) entry[field] = String(word[field]);
+      });
+    }
+    return entry;
+  }
+
+  function wordMasteryLabel(entry) {
+    if (!entry || !entry.seen) return '新词';
+    if ((Number(entry.box) || 0) >= 4 && (Number(entry.streak) || 0) >= 3) return '已稳固';
+    if ((Number(entry.box) || 0) >= 2) return '记得住';
+    return '巩固中';
+  }
+
+  function wordMemoryEntries() {
+    return Object.entries((data && data.wordMemory) || {})
+      .map(([key, entry]) => ({ key, entry }))
+      .filter((item) => item.entry && item.entry.w);
+  }
+
+  function dueReviewEntries(limit) {
+    const today = S.todayIso();
+    return wordMemoryEntries()
+      .filter((item) => item.entry.due && item.entry.due <= today)
+      .sort((a, b) => (
+        String(a.entry.due).localeCompare(String(b.entry.due))
+        || (Number(b.entry.lapses) || 0) - (Number(a.entry.lapses) || 0)
+        || String(a.entry.lastAt || '').localeCompare(String(b.entry.lastAt || ''))
+      ))
+      .slice(0, Math.max(1, Number(limit) || REVIEW_STATION_LIMIT));
+  }
+
+  function dueReviewWords(limit) {
+    return dueReviewEntries(limit).map(({ entry }) => ({
+      w: entry.w,
+      zh: entry.zh || '',
+      kk: entry.kk || '',
+      pos: entry.pos || '',
+      ex: entry.ex || '',
+      exZh: entry.exZh || '',
+      review: true
+    }));
+  }
+
+  /* 每次打卡只给同一个词记一次“当天成绩”。同一天老师连发两份含同一个词的任务，
+     不能当成两次间隔复习，否则 box 会被一天内刷高。 */
+  function applyWordMemoryResult(task, word, stat) {
+    const entry = wordMemoryEntry(word);
+    if (!entry) return;
+    const today = S.todayIso();
+    if (entry.lastRatedOn === today) return;
+    const ok = Boolean(stat && stat.ok);
+    entry.seen = (Number(entry.seen) || 0) + 1;
+    entry.lastAt = S.nowIso();
+    entry.lastRatedOn = today;
+    entry.lastTaskId = task && task.id ? task.id : '';
+    if (ok) {
+      entry.correct = (Number(entry.correct) || 0) + 1;
+      entry.streak = (Number(entry.streak) || 0) + 1;
+      /* 第一次成功回忆后先隔 1 天；之后每成功一次，间隔升一档。 */
+      if (entry.seen === 1) {
+        entry.box = 0;
+        entry.due = S.addDays(today, WORD_REVIEW_INTERVALS[0]);
+      } else {
+        entry.box = Math.min(WORD_REVIEW_INTERVALS.length - 1, (Number(entry.box) || 0) + 1);
+        entry.due = S.addDays(today, WORD_REVIEW_INTERVALS[entry.box]);
+      }
+    } else {
+      entry.streak = 0;
+      entry.lapses = (Number(entry.lapses) || 0) + 1;
+      entry.box = 0;
+      entry.due = S.addDays(today, WORD_REVIEW_INTERVALS[0]);
+    }
+  }
+
+  function updateWordMemoryFromTask(task) {
+    if (!task || !Array.isArray(task.wordStats) || !task.wordStats.length) return;
+    const byWord = new Map();
+    (task.words || []).forEach((word) => {
+      const key = wordMemoryKey(word);
+      if (key) byWord.set(key, word);
+    });
+    task.wordStats.forEach((stat) => {
+      const key = wordMemoryKey(stat);
+      const word = byWord.get(key) || stat;
+      applyWordMemoryResult(task, word, stat);
+    });
+  }
+
+  /* 今日复习站：系统自动把到期的词拼成一张单词卡，学生不用等老师另外发码。
+     到期的词按“最该复习”的顺序排；答对后按 1→2→4→7→15→30 天拉开。 */
+  function ensureReviewStation() {
+    if (!data || !profile()) return;
+    const today = S.todayIso();
+    const stationId = `RV-${today}`;
+    const keepFrom = S.addDays(today, -7);
+    let changed = false;
+    const nextTasks = [];
+    data.tasks.forEach((task) => {
+      if (!task || !task.reviewSession) { nextTasks.push(task); return; }
+      const day = String(task.id || '').replace(/^RV-/, '').slice(0, 10);
+      if (day === today) { nextTasks.push(task); return; }
+      if (task.status !== 'done') { changed = true; return; }
+      if (day < keepFrom) { changed = true; return; }
+      nextTasks.push(task);
+    });
+    if (changed) data.tasks = nextTasks;
+
+    const existing = findTask(stationId);
+    if (existing && existing.status === 'done') return;
+    const due = dueReviewWords(REVIEW_STATION_LIMIT);
+    const hasProgress = existing && existing.wordRun
+      && ((Number(existing.wordRun.i) || 0) > 0 || Object.keys(existing.wordRun.results || {}).length > 0);
+    if (!due.length) {
+      if (existing && !hasProgress) {
+        data.tasks = data.tasks.filter((task) => task.id !== stationId);
+        save();
+      }
+      return;
+    }
+    const dueKeys = due.map(wordMemoryKey).sort().join('|');
+    if (existing && existing.status !== 'done' && hasProgress) return;
+    if (existing && existing.status !== 'done' && !hasProgress) {
+      const oldKeys = (existing.words || []).map(wordMemoryKey).sort().join('|');
+      if (oldKeys === dueKeys) return;
+    }
+    const task = {
+      id: stationId,
+      kind: 'memory',
+      reviewSession: true,
+      title: `今日复习站 · ${due.length} 词`,
+      grade: profile().grade || '',
+      due: today,
+      xp: Math.max(30, Math.min(80, 16 + due.length * 2)),
+      createdAt: S.nowIso(),
+      mode: 'words',
+      words: due,
+      wordTotal: due.length,
+      wordRun: null,
+      answers: {},
+      status: 'new',
+      importedAt: S.nowIso()
+    };
+    data.tasks = data.tasks.filter((item) => item.id !== stationId);
+    data.tasks.unshift(task);
+    save();
+  }
+
+  function wordMemorySummaryHtml() {
+    const entries = wordMemoryEntries();
+    if (!entries.length) return '';
+    const today = S.todayIso();
+    const due = entries.filter((item) => item.entry.due && item.entry.due <= today).length;
+    const solid = entries.filter((item) => (
+      (Number(item.entry.box) || 0) >= 4 && (Number(item.entry.streak) || 0) >= 3
+    )).length;
+    return `<div class="memory-strip">` +
+      `<div><b>单词记忆</b><span>学过 ${entries.length} 词 · 今天到期 ${due} 词 · 已稳固 ${solid} 词</span></div>` +
+      `<small>复习间隔 1 → 2 → 4 → 7 → 15 → 30 天；答错回到 1 天后，第二天再考。</small>` +
+    `</div>`;
+  }
 
   function taskQuestionCount(task) {
     if (task.mode === 'words') return (task.words || []).length || Number(task.wordTotal) || 1;
@@ -2218,8 +2428,10 @@
 
   function renderTasks() {
     renderReportStatus();
+    ensureReviewStation();
+    const memoryStrip = wordMemorySummaryHtml();
     if (!data.tasks.length) {
-      $('#task-list').innerHTML = `<div class="empty-state"><strong>还没有任务</strong>把老师发来的任务码粘贴进来，就能开始第一次试炼。</div>`;
+      $('#task-list').innerHTML = memoryStrip + `<div class="empty-state"><strong>还没有任务</strong>把老师发来的任务码粘贴进来，就能开始第一次试炼。</div>`;
       return;
     }
     const tasks = data.tasks.slice().sort((a, b) => {
@@ -2244,7 +2456,7 @@
       bookSeen.add(task.planId);
       return true;
     }).map(bookPlanSummary).join('');
-    $('#task-list').innerHTML = bookSummaries + tasks.map((task) => {
+    $('#task-list').innerHTML = memoryStrip + bookSummaries + tasks.map((task) => {
       const done = task.status === 'done';
       const locked = taskLocked(task);
       const overdue = !done && !locked && task.due && task.due < today;
@@ -2257,7 +2469,7 @@
           `<div class="task-meta">` +
             (task.planId ? `<span class="plan-tag">周计划 · D${task.planDay}/${task.planTotal || 7}</span>` : '') +
             `<span>${S.escapeHtml(task.grade || (profile() && profile().grade) || '未标注')}</span>` +
-            `<span>${task.mode === 'words' ? `单词闯关 · ${taskQuestionCount(task)} 词` : task.mode === 'grammar' ? (Number(task.grammarDay) > 0 ? `语法小营 · D${task.grammarDay} · 5 关` : '语法专题 · 打卡') : `${taskQuestionCount(task)} 题`}</span>` +
+            `<span>${task.reviewSession ? `<span class="memory-tag">记忆复习</span> · ${taskQuestionCount(task)} 词` : task.mode === 'words' ? `单词闯关 · ${taskQuestionCount(task)} 词` : task.mode === 'grammar' ? (Number(task.grammarDay) > 0 ? `语法小营 · D${task.grammarDay} · 5 关` : '语法专题 · 打卡') : `${taskQuestionCount(task)} 题`}</span>` +
             `<span>${scoreText}</span>` +
             (task.due ? `<span>截止 ${S.escapeHtml(S.fmtDate(task.due))}</span>` : '') +
           `</div>` +
@@ -3178,15 +3390,20 @@
 
   function wordResultTable(task, run) {
     const words = task.words || [];
-    return `<table class="word-result-table"><thead><tr><th>单词</th><th>释义</th><th>第一次</th><th>错词重练</th></tr></thead><tbody>` +
+    return `<table class="word-result-table"><thead><tr><th>单词</th><th>释义</th><th>第一次</th><th>错词重练</th><th>下次复习</th></tr></thead><tbody>` +
       words.map((word, index) => {
         const result = run.results[index] || {};
         const review = run.reviewResults[index] || {};
+        const memory = (data.wordMemory || {})[wordMemoryKey(word)];
+        const nextText = memory && memory.due
+          ? `${S.fmtDate(memory.due)}<br><span class="hint">${wordMasteryLabel(memory)}</span>`
+          : '—';
         return `<tr>` +
           `<td><strong>${S.escapeHtml(word.w)}</strong>${result.kind === 'context' ? ' <span class="word-type-tag">语境</span>' : ''}${word.kk ? `<br><span class="hint">${S.escapeHtml(word.kk)}</span>` : ''}</td>` +
           `<td>${S.escapeHtml(word.zh || '—')}</td>` +
           `<td class="${result.firstOk ? 'ok' : 'no'}">${result.firstOk ? '答对' : '答错'}</td>` +
           `<td>${review.ok === true ? '<span class="ok">已订正</span>' : review.ok === false ? '<span class="no">仍错</span>' : '—'}</td>` +
+          `<td>${nextText}</td>` +
         `</tr>`;
       }).join('') +
       `</tbody></table>`;
@@ -3331,7 +3548,7 @@
 
     $('#runner-body').innerHTML = `<div class="word-run">` +
       `<div class="word-run-top">` +
-        `<span class="word-run-kicker">${isReview ? 'REVIEW' : kind === 'context' ? 'CONTEXT QUEST' : 'WORD QUEST'} · ${run.phase === 'review' ? '错词重练' : kind === 'context' ? '语境推词' : '第一轮'}</span>` +
+        `<span class="word-run-kicker">${task.reviewSession ? 'MEMORY REVIEW · 记忆复习' : isReview ? 'REVIEW' : kind === 'context' ? 'CONTEXT QUEST' : 'WORD QUEST'} · ${run.phase === 'review' ? '错词重练' : kind === 'context' ? '语境推词' : task.reviewSession ? '到期复习' : '第一轮'}</span>` +
         `<span class="word-run-tools">${autoButton}<span class="word-combo ${combo >= 3 ? 'hot' : ''}" id="word-combo">${combo >= 3 ? '🔥' : '⚡'} 连击 x${combo}</span></span>` +
       `</div>` +
       `<div class="word-progress-game"><i id="word-progress-fill" style="width:${Math.round(progress * 100)}%"></i></div>` +
@@ -3346,7 +3563,7 @@
         `<span class="word-pet-gain" id="word-pet-gain" aria-live="polite"></span>` +
       `</div>` +
       `<div class="word-feedback" id="word-feedback" hidden></div>` +
-      `<p class="word-review-note">${isReview ? '这次答对会记为“已订正”，但得分仍按第一次作答计算。' : kind === 'context' ? '先理解整句意思，再选词；选错会自动进入最后的错词回炉。' : '选错会自动进入最后的错词回炉，不影响你继续闯关。'}</p>` +
+      `<p class="word-review-note">${task.reviewSession ? '这是今日复习站：都是按记忆排期今天该回想的词。答对后间隔会变成 2、4、7、15、30 天；答错明天再来。' : isReview ? '这次答对会记为“已订正”，但得分仍按第一次作答计算。' : kind === 'context' ? '先理解整句意思，再选词；选错会自动进入最后的错词回炉。' : '选错会自动进入最后的错词回炉，不影响你继续闯关。'}</p>` +
     `</div>`;
 
     run.questionShownAt = Date.now();
@@ -3524,6 +3741,8 @@
     task.petGain = petGain;
     task.petSnacks = petSnacks;
     task.wordStats = wordStats;
+    /* 更新每个词的记忆排期：新词明天复习，答对后间隔逐档拉长，答错回到明天。 */
+    updateWordMemoryFromTask(task);
     task.integrity = computeIntegrity(task);
     task.blockStats = [{ type: 'vocab', label: '单词打卡', total, correct: firstCorrect }];
     task.review = review;
