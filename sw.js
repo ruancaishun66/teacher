@@ -1,5 +1,5 @@
 /* 顺势 · 离线缓存：先用上次看过的版本立即打开，再在后台更新。 */
-const CACHE = 'shunshi-pwa-v45';
+const CACHE = 'shunshi-pwa-v46';
 const CORE = [
   './',
   './index.html',
@@ -30,6 +30,7 @@ const CORE = [
   './guide/img/daily-board.png',
   './guide/img/backup.webp',
   './guide/img/grammar-student.webp',
+  './guide/img/grammar-student.png',
   './guide/img/grammar-teacher.png',
   './guide/img/home.webp',
   './guide/img/library.webp',
@@ -38,6 +39,9 @@ const CORE = [
   './guide/img/student-breakdown.png',
   './guide/img/student-pet.webp',
   './guide/img/teacher-reading-pane.png',
+  './guide/img/teacher-reading-picker.png',
+  './guide/img/teacher-reading-words.png',
+  './guide/img/teacher-grammar-library.png',
   './guide/img/teacher-overview.png',
   './guide/img/teacher-students.webp',
   './guide/img/word-codes.png',

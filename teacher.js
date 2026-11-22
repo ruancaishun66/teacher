@@ -2686,6 +2686,10 @@
       (carryIn ? `<p class="reading-carry-note">这篇材料上次已经排过 ${carryIn} 个词，本次只补新词。</p>` : '');
     }
     if (label) label.textContent = `${wordDays} 个单词日 + 3 个阅读日 = ${wordDays + 3} 天 · 共 ${st.words.length} 词`;
+    const extractNote = $('#reading-extract-note');
+    if (extractNote) {
+      extractNote.textContent = `提取完成：原文约 ${readingWordCount(st.text)} 词，可用词 ${st.words.length} 个，已全部排进 ${wordDays} 个单词日，一个都没截掉。现在是 ${sizes.map((size, index) => `D${index + 1} ${size} 词`).join(' · ')}。想换天数，改“分成几天”再点“平均分配”。`;
+    }
     if (details) details.hidden = false;
     const count = $('#reading-word-count');
     if (count) count.textContent = `· 全部 ${st.words.length} 个 · ${readingDayRangeText(groups)}`;
