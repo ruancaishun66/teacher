@@ -719,12 +719,20 @@
       if (!raw) return;
       let example = '';
       let exampleZh = '';
-      /* 支持“word 中文 | English example. | 中文翻译”，老师可以自己带语境。 */
+      /* 支持“word 中文 | English example. | 中文翻译”，老师可以自己带语境。
+         书架导出的行会把词和释义各占一段（word | 中文 | 例句 | 例句翻译），
+         这里也要认，否则中文释义会被当成例句，整本书只剩少数词能解析。 */
       if (raw.includes('|')) {
         const parts = raw.split('|').map((part) => part.trim());
-        raw = parts[0] || '';
-        example = parts[1] || '';
-        exampleZh = parts[2] || '';
+        if (parts.length >= 4) {
+          raw = `${parts[0]} ${parts[1]}`.trim();
+          example = parts[2] || '';
+          exampleZh = parts[3] || '';
+        } else {
+          raw = parts[0] || '';
+          example = parts[1] || '';
+          exampleZh = parts[2] || '';
+        }
       }
       let word = '';
       let meaning = '';
@@ -4283,9 +4291,14 @@
 
   function bookShelfWordLines(words) {
     return (words || []).map((word) => {
-      const parts = [word.w, word.zh || '', word.ex || '', word.exZh || ''];
-      while (parts.length > 2 && !parts[parts.length - 1]) parts.pop();
-      return parts.join(' | ');
+      // 词和中文释义用空格放在第一段；竖线只分隔例句和例句翻译。
+      // 之前把词、释义、例句、翻译四段都用竖线连起来，解析时会把释义当例句，
+      // 整本 71 个词只认出 6 个。
+      const head = [word.w, word.zh || ''].filter(Boolean).join(' ').trim();
+      const example = String(word.ex || '').trim();
+      const exampleZh = String(word.exZh || '').trim();
+      if (head && (example || exampleZh)) return `${head} | ${example} | ${exampleZh}`.trim();
+      return head;
     }).filter(Boolean);
   }
 
