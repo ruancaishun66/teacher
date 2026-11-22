@@ -5654,7 +5654,8 @@
     const reviewRaw = Number(reviewInput && reviewInput.value);
     const dayRaw = Number(dayInput && dayInput.value);
     const newPerDay = wordPerDayValue();
-    const dailyCap = clamp(Number.isFinite(capRaw) && capRaw > 0 ? Math.round(capRaw) : Math.max(REVIEW_POLICY_DEFAULTS.dailyCap, newPerDay), 20, 300);
+    /* 总词量上限不能低于每天计划的新词数，否则“新词优先”会被上限压住。 */
+    const dailyCap = Math.max(newPerDay, clamp(Number.isFinite(capRaw) && capRaw > 0 ? Math.round(capRaw) : Math.max(REVIEW_POLICY_DEFAULTS.dailyCap, newPerDay), 20, 300));
     const reviewCap = clamp(Number.isFinite(reviewRaw) && reviewRaw > 0 ? Math.round(reviewRaw) : REVIEW_POLICY_DEFAULTS.reviewCap, 5, 120);
     return {
       version: 1,

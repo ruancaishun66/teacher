@@ -18,7 +18,7 @@
      来自 Cepeda 等（2006）的间隔效应与 Rawson & Dunlosky（2011）
      “三次成功回忆后再拉开间隔”的做法；答错就回到 1 天后。 */
   const WORD_REVIEW_INTERVALS = [1, 2, 4, 7, 15, 30];
-  const REVIEW_STATION_LIMIT = 60;
+  const REVIEW_STATION_LIMIT = 120;
   /* 新词和旧词共用每天的总量上限。老师端会把 policy 放进最新一次任务码；
      学生端收到后重新排一遍旧词，积压不会全堆在今天。 */
   const DEFAULT_REVIEW_POLICY = {
@@ -251,10 +251,12 @@
       if (!Number.isFinite(n)) return fallback;
       return Math.max(min, Math.min(max, Math.round(n)));
     };
+    const newPerDay = asInt(source.newPerDay, DEFAULT_REVIEW_POLICY.newPerDay, 4, 200);
     return {
       version: 1,
-      newPerDay: asInt(source.newPerDay, DEFAULT_REVIEW_POLICY.newPerDay, 4, 200),
-      dailyCap: asInt(source.dailyCap, DEFAULT_REVIEW_POLICY.dailyCap, 20, 300),
+      newPerDay,
+      /* 总量上限至少覆盖当天新词；否则新词会“看不见”地把额度吃成负数。 */
+      dailyCap: Math.max(newPerDay, asInt(source.dailyCap, DEFAULT_REVIEW_POLICY.dailyCap, 20, 300)),
       reviewCap: asInt(source.reviewCap, DEFAULT_REVIEW_POLICY.reviewCap, 5, 120),
       weeklyReviewDay: asInt(source.weeklyReviewDay, DEFAULT_REVIEW_POLICY.weeklyReviewDay, -1, 6),
       spreadDays: asInt(source.spreadDays, DEFAULT_REVIEW_POLICY.spreadDays, 1, 14)

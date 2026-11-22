@@ -1,5 +1,5 @@
 /* 顺势 · 离线缓存：先用上次看过的版本立即打开，再在后台更新。 */
-const CACHE = 'shunshi-pwa-v51';
+const CACHE = 'shunshi-pwa-v52';
 const CORE = [
   './',
   './index.html',
