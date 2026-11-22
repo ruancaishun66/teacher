@@ -80,10 +80,21 @@
   let bookshelfBooks = [];
   let bookshelfWordsByBook = new Map();
   let bookshelfLoadPromise = null;
-  let readingState = null;
+  let readingState = data && data.readingState && typeof data.readingState === 'object'
+    ? data.readingState
+    : null;
   let readingSourceId = '';
   let readingPapersLoaded = false;
   let readingPapersLoading = false;
+  let readingPickerType = 'all';
+  let readingPickerQuery = '';
+  let readingGrammarMatching = false;
+  let grammarLibraryEntries = null;
+  let grammarLibraryActiveId = '';
+  let grammarLibraryKind = 'all';
+  let grammarLibraryQuery = '';
+  let grammarLibrarySendIds = null;
+  let grammarLibraryAiBusy = false;
 
   /* ------------------------------- 存储 ------------------------------- */
 
@@ -706,7 +717,8 @@
       const base = item.w.replace(/(?:s|es|ed|ing)$/i, '');
       if (base.length >= 3 && seenBase.has(base) && base !== item.w) return;
       seenBase.add(item.w);
-      if (picked.length < 40) picked.push(item);
+      // 不再固定截 40 个：提取结果全部交给老师，由老师决定取多少。
+      picked.push(item);
     });
     return picked;
   }
@@ -1869,14 +1881,59 @@
   }
 
   function ensureReadingState() {
+    /* 阅读联动的工作区也要落盘：提取了上百个词、把词分到 7 天、
+       或刚做完 AI 匹配，刷新页面后不应该全部消失。 */
+    if (data && (!data.readingState || typeof data.readingState !== 'object')) {
+      data.readingState = {};
+    }
+    if (data) readingState = data.readingState;
     if (!readingState || typeof readingState !== 'object') {
       readingState = {};
     }
     if (!Array.isArray(readingState.words)) readingState.words = [];
     if (!Array.isArray(readingState.carryOut)) readingState.carryOut = [];
     if (!Array.isArray(readingState.questions)) readingState.questions = [];
+    if (!Array.isArray(readingState.grammarMatches)) readingState.grammarMatches = [];
+    if (!Array.isArray(readingState.studentIds)) readingState.studentIds = [];
     if (!readingState.ai) readingState.ai = null;
+    if (!Number.isFinite(Number(readingState.wordDayCount)) || Number(readingState.wordDayCount) < 1) {
+      readingState.wordDayCount = 1;
+    }
+    if (!readingSourceId && readingState.sourceId) readingSourceId = readingState.sourceId;
     return readingState;
+  }
+
+  /* 阅读单词不再固定“每周只取 N 个”：提取多少就保留多少，由老师决定分几天。
+     这里把全部单词按天数平均切开，余数依次补给前面的天，保证一个词都不丢。 */
+  function readingClampDayCount(value, wordTotal) {
+    const total = Math.max(0, Number(wordTotal) || 0);
+    if (!total) return 1;
+    return clamp(Math.floor(Number(value) || 1), 1, total);
+  }
+
+  function readingWordDayGroups(st) {
+    const state = st || ensureReadingState();
+    const words = Array.isArray(state.words) ? state.words : [];
+    if (!words.length) return [];
+    const dayCount = readingClampDayCount(state.wordDayCount, words.length);
+    const base = Math.floor(words.length / dayCount);
+    const extra = words.length % dayCount;
+    const groups = [];
+    let cursor = 0;
+    for (let index = 0; index < dayCount; index += 1) {
+      const size = base + (index < extra ? 1 : 0);
+      groups.push(words.slice(cursor, cursor + size));
+      cursor += size;
+    }
+    return groups.filter((group) => group.length);
+  }
+
+  function readingDayRangeText(groups) {
+    if (!groups.length) return '';
+    const sizes = groups.map((group) => group.length);
+    const min = Math.min(...sizes);
+    const max = Math.max(...sizes);
+    return min === max ? `每天 ${min} 词` : `每天 ${min}–${max} 词`;
   }
 
   function readingSourceById(id) {
@@ -1992,6 +2049,23 @@
     return readingNormalizeQuestions(rawList, 8);
   }
 
+  function readingSourceType(type) {
+    const normalized = String(type || '').toLowerCase();
+    return normalized === 'shortblank' ? 'grammar' : normalized;
+  }
+
+  function readingSourceTextOfItem(item, type) {
+    if (!item) return '';
+    // 整组题（阅读、完形、五选五、语法填空）优先用 passage；
+    // 单项选择在入库时按“逐题”拆开，content 里才有完整题干和选项。
+    const raw = type === 'single'
+      ? (item.content || item.passage || '')
+      : (item.passage || item.content || '');
+    return readingNormalizeText(raw);
+  }
+
+  /* B 板块不只接收“阅读理解”。单选、完形、五选七选五、语法填空/短文填词
+     同样可以先提词、再讲语法、再拆长难句，所以都收进资料库选择器。 */
   function loadReadingSources(force) {
     if (readingPapersLoading) return;
     if (readingPapersLoaded && !force) {
@@ -2003,20 +2077,54 @@
     if (select && !readingSources.length) select.innerHTML = '<option value="">正在读取资料库…</option>';
     loadPapers().then((list) => {
       const sources = [];
+      const allowed = new Set(['single', 'cloze', 'reading', 'five', 'grammar']);
       (list || []).forEach((paper) => {
-        (paper.sections || []).forEach((section) => {
-          if (String(section.type || '').toLowerCase() !== 'reading') return;
-          (section.items || []).forEach((item, index) => {
-            const text = readingNormalizeText(item.passage || item.content || '');
-            if (readingWordCount(text) < 60) return;
-            const title = String(item.title || '').trim() || `${paper.title || '练习卷'} · 阅读 ${index + 1}`;
+        (paper.sections || []).forEach((section, sectionIndex) => {
+          const sectionType = readingSourceType(section.type);
+          if (!allowed.has(sectionType)) return;
+          const items = Array.isArray(section.items) ? section.items : [];
+          if (!items.length) return;
+
+          if (sectionType === 'single') {
+            // 单选的每一题太短，单独拿出来不够“读”。把同一大题的整组题
+            // 合成一份材料：词从所有题干和选项里提取，原题仍可带回实战。
+            const parts = items.map((item) => readingSourceTextOfItem(item, sectionType)).filter(Boolean);
+            const text = readingNormalizeText(parts.join('\n'));
+            if (readingWordCount(text) < 20) return;
+            const questions = [];
+            items.forEach((item) => {
+              (item.questions || []).forEach((question) => questions.push(question));
+            });
             sources.push({
-              id: `R-${paper.id}-${item.id || item.originalId || index}`,
+              id: `R-${paper.id}-${sectionIndex}-single`,
+              paperId: paper.id,
+              paperTitle: paper.title || '',
+              title: `${paper.title || '练习卷'} · 单项选择 ${items.length} 题`,
+              grade: paper.grade || items[0].grade || '',
+              type: sectionType,
+              typeLabel: TYPE_LABELS[sectionType] || '单项选择',
+              text,
+              preview: text.slice(0, 180),
+              questions: readingCopyQuestions(questions)
+            });
+            return;
+          }
+
+          items.forEach((item, index) => {
+            const text = readingSourceTextOfItem(item, sectionType);
+            if (readingWordCount(text) < 20) return;
+            const title = String(item.title || '').trim()
+              || `${paper.title || '练习卷'} · ${TYPE_LABELS[sectionType] || '材料'} ${index + 1}`;
+            sources.push({
+              id: `R-${paper.id}-${sectionIndex}-${item.id || item.originalId || index}`,
               paperId: paper.id,
               paperTitle: paper.title || '',
               title,
               grade: paper.grade || item.grade || '',
+              type: sectionType,
+              typeLabel: TYPE_LABELS[sectionType] || sectionType,
               text,
+              preview: text.slice(0, 180),
               questions: readingCopyQuestions(item.questions || [])
             });
           });
@@ -2035,6 +2143,15 @@
     });
   }
 
+  const READING_PICKER_TYPES = [
+    { key: 'all', label: '全部' },
+    { key: 'reading', label: '阅读理解' },
+    { key: 'cloze', label: '完形填空' },
+    { key: 'five', label: '五选五 / 七选五' },
+    { key: 'grammar', label: '语法填空 / 短文填词' },
+    { key: 'single', label: '单项选择' }
+  ];
+
   function renderReadingPapers() {
     const select = $('#reading-paper');
     if (!select) return;
@@ -2044,23 +2161,81 @@
       options.push(`<option value="${S.escapeHtml(source.id)}">${S.escapeHtml(source.title)}${source.grade ? ` · ${S.escapeHtml(source.grade)}` : ''}</option>`);
     });
     if (!readingSources.length) {
-      options.push('<option value="" disabled>资料库里还没有可用的阅读题，请直接粘贴</option>');
+      options.push('<option value="" disabled>资料库里还没有可用材料，请直接粘贴</option>');
     }
     select.innerHTML = options.join('');
     if (current && readingSources.some((source) => source.id === current)) select.value = current;
     updateReadingPaperMeta();
+    if ($('#reading-picker-dialog') && $('#reading-picker-dialog').open) renderReadingPicker();
   }
 
   function updateReadingPaperMeta() {
     const select = $('#reading-paper');
     const meta = $('#reading-paper-meta');
+    const open = $('#reading-picker-open');
     if (!select || !meta) return;
     const source = readingSourceById(select.value);
+    if (open) {
+      open.textContent = source
+        ? `已选：${source.title}`
+        : '浏览资料库 · 看预览选文章';
+      open.classList.toggle('has-source', Boolean(source));
+    }
     if (!source) {
-      meta.textContent = '可以直接粘贴任意英文文章；也可以先去组卷工作台做一份阅读练习卷。';
+      meta.textContent = '阅读、完形、五选五 / 七选五、语法填空 / 短文填词、单项选择都可以选；也可以直接在下面粘贴任意英文文章。';
       return;
     }
-    meta.textContent = `${source.paperTitle || source.title} · ${source.grade || '未标注年级'} · 约 ${readingWordCount(source.text)} 词 · 可带回原题 ${source.questions.length} 道`;
+    meta.textContent = `${source.typeLabel || '材料'} · ${source.paperTitle || source.title} · ${source.grade || '未标注年级'} · 约 ${readingWordCount(source.text)} 词 · 可带回原题 ${source.questions.length} 道`;
+  }
+
+  function openReadingPicker(prefill) {
+    const dialog = $('#reading-picker-dialog');
+    if (!dialog) return;
+    readingPickerType = 'all';
+    readingPickerQuery = String(prefill || '');
+    const search = $('#reading-picker-search');
+    if (search) search.value = readingPickerQuery;
+    renderReadingPicker();
+    S.openDialog(dialog);
+    window.setTimeout(() => { if (search) search.focus(); }, 120);
+  }
+
+  function renderReadingPicker() {
+    const list = $('#reading-picker-list');
+    const count = $('#reading-picker-count');
+    if (!list) return;
+    if (!readingSources.length) {
+      list.innerHTML = '<div class="reading-picker-empty"><b>资料库里还没有可用的材料</b><p>先去组卷工作台保存一份练习卷；也可以关闭这个窗口，直接在阅读原文框里粘贴文章。</p></div>';
+      if (count) count.textContent = '0 份';
+      return;
+    }
+    $$('#reading-picker-types button').forEach((button) => {
+      button.classList.toggle('active', button.dataset.readingPickerType === readingPickerType);
+    });
+    const query = readingPickerQuery.trim().toLowerCase();
+    const filtered = readingSources.filter((source) => {
+      if (readingPickerType !== 'all' && source.type !== readingPickerType) return false;
+      if (!query) return true;
+      return `${source.title} ${source.paperTitle} ${source.grade} ${source.typeLabel} ${source.text.slice(0, 1200)}`
+        .toLowerCase()
+        .includes(query);
+    });
+    if (count) count.textContent = `${filtered.length} 份`;
+    if (!filtered.length) {
+      list.innerHTML = '<div class="reading-picker-empty"><b>没有找到匹配的材料</b><p>换个题型，或把搜索词缩短一点试试。</p></div>';
+      return;
+    }
+    list.innerHTML = filtered.map((source) => (
+      `<button class="reading-picker-card ${source.id === readingSourceId ? 'is-current' : ''}" type="button" data-reading-source="${S.escapeHtml(source.id)}">` +
+        `<span class="reading-picker-card-top">` +
+          `<span class="reading-picker-type type-${S.escapeHtml(source.type)}">${S.escapeHtml(source.typeLabel || '材料')}</span>` +
+          `<span class="reading-picker-words">约 ${readingWordCount(source.text)} 词</span>` +
+        `</span>` +
+        `<b>${S.escapeHtml(source.title)}</b>` +
+        `<small>${S.escapeHtml(source.paperTitle || '')}${source.grade ? ` · ${S.escapeHtml(source.grade)}` : ''} · 可带回原题 ${source.questions.length} 道</small>` +
+        `<p>${S.escapeHtml((source.preview || source.text || '').slice(0, 170))}${(source.preview || source.text || '').length > 170 ? '…' : ''}</p>` +
+      `</button>`
+    )).join('');
   }
 
   function applyReadingSource(sourceId) {
@@ -2080,13 +2255,19 @@
     st.carryOut = [];
     st.carryIn = 0;
     st.carryKey = '';
+    st.wordDayCount = 1;
+    st.daysPinned = false;
     st.ai = null;
     st.aiMeta = null;
+    st.grammarMatches = [];
+    st.grammarMatchSource = '';
     readingSourceId = source.id;
+    save();
     updateReadingPaperMeta();
     renderReadingStats();
     renderReadingAiPreview();
-    S.toast(`已放入阅读：${source.title}`, 'ok', 3500);
+    renderReadingGrammarMatches();
+    S.toast(`已放入${source.typeLabel || '阅读'}：${source.title}`, 'ok', 3500);
   }
 
   function readingCurrentText() {
@@ -2101,6 +2282,181 @@
   function readingStoredCarry(key) {
     const entry = readingStoredRecord(key);
     return Array.isArray(entry.words) ? entry.words : [];
+  }
+
+  /* 本机语法匹配：不调用 AI，先用可解释的句式特征从语法图书馆里找候选。
+     老师点“AI 精准匹配”时才用 DeepSeek 结合上下文重新挑。 */
+  function readingGrammarLocalMatches(text) {
+    const sourceText = String(text || '');
+    if (!sourceText.trim()) return [];
+    const entries = buildGrammarLibraryEntries();
+    const entryById = new Map(entries.map((entry) => [entry.id, entry]));
+    const rules = [
+      { id: 'topic-relative-clause', regex: /\b(?:who|whom|whose|which)\b|,\s*(?:which|who)\b/i, reason: '句中有定语从句的关系词，可以讲“先行词 + 关系词 + 从句自己的主干”。' },
+      { id: 'topic-noun-clause', regex: /\b(?:that|whether|what|if)\b[^.!?]{0,60}\b(?:is|was|means|shows|suggests|wonder|know|believe|said)\b/i, reason: '句中有名词性从句，可以讲 that / what 的分工和陈述语序。' },
+      { id: 'topic-adverbial-clause', regex: /\b(?:although|though|unless|because|since|while|whereas|so that|even if|as long as)\b/i, reason: '句中有状语从句连接词，可以讲条件、原因或让步关系。' },
+      { id: 'topic-nonfinite', regex: /\b(?:to\s+[a-z]+|[a-z]+ing)\b/i, reason: '句中有不定式或动名词，可以讲“一个句子只能有一个谓语，其余动词要降级”。' },
+      { id: 'topic-inversion', regex: /\b(?:Never|Hardly|Seldom|Rarely|Not only|Only|No sooner|Not until)\b/, reason: '句首出现否定词或 only，可以讲部分倒装。' },
+      { id: 'topic-cleft', regex: /\bIt\s+(?:is|was)\b[^.!?]{0,60}\bthat\b/i, reason: '句中有 It is / was ... that ...，可以讲强调句的判断方法。' },
+      { id: 'topic-subjunctive', regex: /\b(?:If\s+I\s+were|wish|as if|would rather|suggest(?:ed)?\s+that|It is (?:important|necessary|essential)\s+that)\b/i, reason: '句中有虚拟语气信号，可以讲与事实相反的假设。' },
+      { id: 'topic-comparison', regex: /\b(?:more|most|less|least)\b|\bas\s+\w+\s+as\b|\b\w+er\s+than\b/i, reason: '句中有比较结构，可以讲比较级、倍数或 the more...the more。' },
+      { id: 'topic-passive-advanced', regex: /\b(?:is|are|was|were|be|been|being)\s+\w+(?:ed|en)\b/i, reason: '句中有 be + 过去分词，可以讲被动语态和动作承受者。' },
+      { id: 'topic-tense-contrast', regex: /\b(?:have|has|had)\s+\w+(?:ed|en)\b|\b(?:yesterday|last\s+\w+|since|for\s+\w+\s+years)\b/i, reason: '句中有完成时或时间跨度，可以讲一般过去、现在完成和过去完成的时间线。' },
+      { id: 'topic-preposition', regex: /\b(?:depend|rely|focus|interested|good|afraid|proud|aware|similar|different)\w*\s+(?:on|in|of|at|with|from|to)\b/i, reason: '句中有动词 / 形容词 + 介词的固定搭配，可以讲搭配记忆。' },
+      { id: 'topic-conjunction', regex: /\b(?:because|so|although|but|however|therefore)\b/i, reason: '句中有连接词，可以讲“一个连接词只管一层关系”。' },
+      { id: 'topic-reported-speech', regex: /\b(?:said|told|asked|explained|added)\s+(?:that|if|whether|to)\b/i, reason: '句中有转述结构，可以讲间接引语的时态和语序。' },
+      { id: 'topic-modal-speculation', regex: /\b(?:must|may|might|could|can't|cannot)\s+(?:be|have)\b/i, reason: '句中有情态动词表推测，可以讲 must / may / can’t 的肯定程度。' },
+      { id: 'topic-agreement', regex: /\b(?:one of|each of|neither|either|together with|as well as|the number of|a number of)\b/i, reason: '句中有主谓一致的干扰结构，可以讲就近 / 就远原则。' }
+    ];
+    const sentences = readingSentenceList(sourceText);
+    const found = new Map();
+    rules.forEach((rule) => {
+      if (!entryById.has(rule.id)) return;
+      let best = null;
+      sentences.forEach((sentence) => {
+        if (!rule.regex.test(sentence)) return;
+        const length = readingWordCount(sentence);
+        if (!best || length > best.length) best = { sentence, length };
+      });
+      if (!best) return;
+      found.set(rule.id, {
+        id: rule.id,
+        title: entryById.get(rule.id).title,
+        sentence: best.sentence,
+        reason: rule.reason,
+        score: best.length / 12 + 1,
+        source: 'local'
+      });
+    });
+    // 长句单独加一条：阅读里的长难句本身就是最值得讲的材料。
+    if (entryById.has('lesson-59')) {
+      const longest = sentences.slice().sort((a, b) => readingWordCount(b) - readingWordCount(a))[0];
+      if (longest && readingWordCount(longest) >= 26) {
+        found.set('lesson-59', {
+          id: 'lesson-59',
+          title: entryById.get('lesson-59').title,
+          sentence: longest,
+          reason: `这个句子约 ${readingWordCount(longest)} 词，适合按“先找主干，再剥一级 / 二级修饰”拆开讲。`,
+          score: readingWordCount(longest) / 10 + 2,
+          source: 'local'
+        });
+      }
+    }
+    return Array.from(found.values()).sort((a, b) => b.score - a.score).slice(0, 6);
+  }
+
+  function renderReadingGrammarMatches() {
+    const list = $('#reading-grammar-match-list');
+    const status = $('#reading-grammar-match-status');
+    const st = ensureReadingState();
+    const text = readingCurrentText();
+    if (!list) return;
+    if (!text.trim()) {
+      list.innerHTML = '';
+      if (status) { status.className = 'reading-grammar-match-status'; status.textContent = '先选材料或粘贴原文，这里会自动匹配语法点。'; }
+      return;
+    }
+    if (!st.grammarMatches.length || st.grammarMatchText !== text) {
+      st.grammarMatches = readingGrammarLocalMatches(text);
+      st.grammarMatchText = text;
+      st.grammarMatchSource = 'local';
+    }
+    if (!st.grammarMatches.length) {
+      list.innerHTML = '<div class="reading-grammar-empty">本机没有匹配到明显的语法点。可以打开语法图书馆手动搜，或点“AI 精准匹配”。</div>';
+      if (status) { status.className = 'reading-grammar-match-status'; status.textContent = '本机规则没有找到明显语法点；AI 匹配会更细。'; }
+      return;
+    }
+    if (status) {
+      status.className = 'reading-grammar-match-status ok';
+      status.textContent = st.grammarMatchSource === 'ai'
+        ? `AI 从语法图书馆里挑出了 ${st.grammarMatches.length} 个适合本篇的语法点。看中哪个，直接发给已勾选学生打卡。`
+        : `本机免费匹配到 ${st.grammarMatches.length} 个语法点。点“AI 精准匹配”可结合全文再挑一次。`;
+    }
+    list.innerHTML = st.grammarMatches.map((match) => (
+      `<article class="reading-grammar-match">` +
+        `<div>` +
+          `<b>${S.escapeHtml(match.title || '语法点')}</b>` +
+          `<small>${st.grammarMatchSource === 'ai' ? 'AI 匹配' : '本机匹配'} · 来自语法图书馆</small>` +
+          (match.sentence ? `<span class="reading-grammar-match-sentence">${S.escapeHtml(match.sentence)}</span>` : '') +
+          `<p>${S.escapeHtml(match.reason || '')}</p>` +
+        `</div>` +
+        `<div class="reading-grammar-match-actions">` +
+          `<button class="p-btn small ghost" type="button" data-reading-grammar-open="${S.escapeHtml(match.id)}">查看解析</button>` +
+          `<button class="p-btn small" type="button" data-reading-grammar-send="${S.escapeHtml(match.id)}">发给已选学生</button>` +
+        `</div>` +
+      `</article>`
+    )).join('');
+  }
+
+  async function matchReadingGrammarAi() {
+    const st = ensureReadingState();
+    const text = readingCurrentText();
+    if (readingWordCount(text) < 20) { S.toast('先把材料放进来，再匹配语法点。', 'error'); return; }
+    if (readingGrammarMatching) { S.toast('AI 正在匹配，请稍等。'); return; }
+    const cfg = aiConfig();
+    if (!cfg.key) {
+      S.toast('还没有配置 API Key。本机匹配已经可用；要用 AI 精准匹配，请到“设置 → AI 直连”粘贴 Key。', 'error', 7500);
+      return;
+    }
+    const entries = buildGrammarLibraryEntries();
+    const index = entries.map((entry) => `${entry.id}|${entry.kind === 'lesson' ? '课程' : '专题'}|${entry.title}|${entry.subtitle || entry.tag || ''}`).join('\n');
+    const prompt = `你是高中英语语法教研员。下面是“语法图书馆”的全部条目（id|类型|标题|摘要）和一篇阅读材料。\n\n【语法图书馆】\n${index}\n\n【阅读材料】\n${text.slice(0, 6500)}\n\n【任务】\n从上面的图书馆里挑出 2–6 个最适合本篇材料的语法点。必须使用条目里给出的 id，不要自造。\n每个语法点给出：\n1. sentence：从原文逐字引用一个最能体现该语法点的句子，不要改写。\n2. reason：用中文说明“为什么这篇适合讲这个点、可以怎么讲”，要具体到句子结构。\n只输出合法 JSON，不要 Markdown，不要前后解释。\nJSON：{"matches":[{"id":"","sentence":"","reason":""}]}`;
+    const estimate = S.ai.estimate(prompt.length + 200, 1700);
+    if (!window.confirm(`这次会把阅读原文（约 ${readingWordCount(text)} 词，不含学生信息）和语法图书馆目录发给 DeepSeek，做一次语法点匹配。\n预计约 ${S.ai.costText(estimate.cost)}。只在你点确认后调用。继续吗？`)) return;
+    readingGrammarMatching = true;
+    const button = $('#reading-grammar-match');
+    const status = $('#reading-grammar-match-status');
+    if (button) { button.disabled = true; button.textContent = 'AI 匹配中…'; }
+    if (status) { status.className = 'reading-grammar-match-status'; status.textContent = '正在请 DeepSeek 对照语法图书馆筛选，通常十几秒。'; }
+    try {
+      const result = await callDeepSeek([
+        { role: 'system', content: '你是严谨的英语教研员。只输出合法 JSON 对象，不添加 Markdown 或解释。' },
+        { role: 'user', content: prompt }
+      ], 1700, '阅读语法匹配');
+      let raw = String(result.text || '').replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+      const start = raw.indexOf('{');
+      const end = raw.lastIndexOf('}');
+      if (start < 0 || end <= start) throw new Error('AI 返回的不是可识别的 JSON，请再试一次。');
+      const parsed = JSON.parse(raw.slice(start, end + 1));
+      const map = new Map(entries.map((entry) => [entry.id, entry]));
+      const matches = (Array.isArray(parsed.matches) ? parsed.matches : [])
+        .map((item) => {
+          const entry = map.get(String(item.id || ''));
+          if (!entry) return null;
+          return {
+            id: entry.id,
+            title: entry.title,
+            sentence: String(item.sentence || '').trim(),
+            reason: String(item.reason || '').trim(),
+            source: 'ai'
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 6);
+      if (!matches.length) throw new Error('AI 没有匹配到图书馆里的语法点，请再试一次。');
+      st.grammarMatches = matches;
+      st.grammarMatchText = text;
+      st.grammarMatchSource = 'ai';
+      st.grammarMatchAt = S.nowIso();
+      st.grammarMatchTokens = Number(result.usage.total_tokens) || 0;
+      st.grammarMatchCost = Number(result.cost) || 0;
+      save();
+      renderReadingGrammarMatches();
+      S.toast(`AI 匹配完成：${matches.length} 个语法点 · ${st.grammarMatchTokens} tokens · 约 ${S.ai.costText(st.grammarMatchCost)}。`, 'ok', 7000);
+    } catch (error) {
+      S.toast(error.message || 'AI 匹配失败，本机匹配结果仍然可用。', 'error', 8000);
+      renderReadingGrammarMatches();
+    } finally {
+      readingGrammarMatching = false;
+      if (button) { button.disabled = false; button.textContent = 'AI 精准匹配本篇语法点'; }
+    }
+  }
+
+  function sendReadingGrammarMatch(entryId) {
+    const ids = $$('#reading-students input[type="checkbox"]:checked').map((input) => input.value);
+    if (!ids.length) { S.toast('先在上面“发给谁”里勾选学生。', 'error'); return; }
+    const weekStart = ($('#reading-week-start') || {}).value || S.todayIso();
+    sendGrammarCheckin(entryId, ids, S.addDays(weekStart, 3), '阅读联动 · 语法打卡');
   }
 
   function readingNormalizeWord(word) {
@@ -2122,8 +2478,8 @@
 
   function extractReadingWordsNow() {
     const text = readingCurrentText();
-    if (readingWordCount(text) < 40) {
-      S.toast('阅读原文太短了，至少要有 40 个英文词。', 'error', 5000);
+    if (readingWordCount(text) < 20) {
+      S.toast('这篇材料太短了，至少要有 20 个英文词。', 'error', 5000);
       return;
     }
     const button = $('#reading-extract');
@@ -2131,8 +2487,7 @@
     loadGlossary().then((glossary) => {
       const ranks = ensureGlossaryRanks(glossary);
       const st = ensureReadingState();
-      const perDay = clamp(Number(($('#reading-per-day') || {}).value) || 40, 20, 60);
-      const need = perDay * 4;
+      const perDay = Math.max(1, Math.floor(Number(($('#reading-per-day') || {}).value) || 40));
       const seen = new Set();
       const found = [];
       const matches = text.match(/[A-Za-z][A-Za-z'’-]*/g) || [];
@@ -2146,7 +2501,6 @@
         const entry = glossary[word];
         if (!entry || !entry.zh) return;
         const rank = ranks.has(word) ? ranks.get(word) : 99999;
-        if (rank > 9000) return;
         found.push({
           w: word,
           zh: S.meaningFor(word, entry.zh),
@@ -2178,29 +2532,40 @@
       st.title = source ? source.title : `自定义阅读 · ${S.fmtDate(S.todayIso())}`;
       st.text = text;
       st.questions = source ? source.questions.slice() : [];
-      st.words = merged.slice(0, need);
-      st.carryOut = merged.slice(need);
+      /* 关键改动：不再截成 “每天词数 × 4”。提取到多少就保留多少，
+         上千个词也一样；先按老师填的“每天最多词数”估算天数，之后可随时改。 */
+      st.words = merged.slice();
+      st.carryOut = [];
       st.carryIn = carried.length;
       st.carryKey = key;
       st.ai = null;
       st.aiMeta = null;
-      if (button) { button.disabled = false; button.textContent = '提取本周单词'; }
+      st.grammarMatches = [];
+      st.grammarMatchSource = '';
+      st.wordDayCount = merged.length
+        ? (st.daysPinned ? readingClampDayCount(st.wordDayCount, merged.length) : readingClampDayCount(Math.ceil(merged.length / perDay), merged.length))
+        : 1;
+      const daysInput = $('#reading-word-days');
+      if (daysInput) daysInput.value = String(st.wordDayCount);
+      save();
+      if (button) { button.disabled = false; button.textContent = '提取全部单词'; }
       renderReadingStats();
       renderReadingAiPreview();
+      renderReadingGrammarMatches();
       const note = $('#reading-extract-note');
       if (note) {
         note.textContent = merged.length
-          ? `提取完成：原文约 ${readingWordCount(text)} 词，可用常用词 ${merged.length} 个；本周取 ${st.words.length} 个，顺延 ${st.carryOut.length} 个。已排除前几周学过的词，只在本机完成，没有调用 AI。`
-          : `这篇阅读的常用词已经全部排进过周任务，没有新词可提取。要重新排，点“重置这篇的单词进度”。`;
+          ? `提取完成：原文约 ${readingWordCount(text)} 词，可用词 ${merged.length} 个，已全部排进 ${st.wordDayCount} 个单词日，一个都没截掉。想换天数，改“分成几天”再点“平均分配”。已排除以前学过的词，只在本机完成，没有调用 AI。`
+          : `这篇材料的常用词已经全部排进过任务，没有新词可提取。要重新排，点“重置这篇的单词进度”。`;
       }
       if (merged.length) {
-        S.toast(`本周取 ${st.words.length} 词，顺延 ${st.carryOut.length} 词。`, 'ok', 5000);
+        S.toast(`提取 ${st.words.length} 词，已全部排进 ${st.wordDayCount} 天。`, 'ok', 5200);
       } else {
-        S.toast('这篇阅读的词已经全部排过，没有新词可提取。', 'ok', 6000);
+        S.toast('这篇材料的词已经全部排过，没有新词可提取。', 'ok', 6000);
       }
     }).catch((error) => {
       console.warn(error);
-      if (button) { button.disabled = false; button.textContent = '提取本周单词'; }
+      if (button) { button.disabled = false; button.textContent = '提取全部单词'; }
       S.toast('释义库读取失败，请刷新页面再试。', 'error', 5000);
     });
   }
@@ -2222,51 +2587,143 @@
     S.toast('这篇阅读的单词进度已重置，可以重新提取。', 'ok', 5000);
   }
 
+  function renderReadingWordList(st) {
+    const list = $('#reading-word-list');
+    if (!list) return;
+    const groups = readingWordDayGroups(st);
+    const filter = $('#reading-word-day-filter');
+    if (filter) {
+      const previous = filter.value || 'all';
+      filter.innerHTML = '<option value="all">全部天数</option>' +
+        groups.map((group, index) => `<option value="d${index + 1}">D${index + 1} · ${group.length} 词</option>`).join('');
+      filter.value = previous === 'all' || groups[Number(String(previous).slice(1)) - 1] ? previous : 'all';
+    }
+    const dayValue = filter ? filter.value : 'all';
+    const query = String(($('#reading-word-search') || {}).value || '').trim().toLowerCase();
+    const pieces = [];
+    groups.forEach((group, index) => {
+      if (dayValue !== 'all' && dayValue !== `d${index + 1}`) return;
+      const words = group.filter((word) => !query || `${word.w} ${word.zh || ''}`.toLowerCase().includes(query));
+      if (!words.length) return;
+      pieces.push(
+        `<div class="reading-word-day">` +
+          `<div class="reading-word-day-head"><b>D${index + 1}</b><small>${group.length} 词${words.length !== group.length ? ` · 显示 ${words.length}` : ''}</small></div>` +
+          `<div class="reading-word-chips">` +
+            words.map((word) => (
+              `<span class="reading-word"><b>${S.escapeHtml(word.w)}</b><small>${S.escapeHtml(S.meaningLabel(word.w, word.zh, word.pos))}</small></span>`
+            )).join('') +
+          `</div>` +
+        `</div>`
+      );
+    });
+    list.innerHTML = pieces.length
+      ? pieces.join('')
+      : `<p class="hint" style="margin:10px 0 0;">${query ? '没有找到匹配的单词，换个搜索词试试。' : '这一天没有单词。'}</p>`;
+  }
+
+  function renderReadingWeekCards(wordDayCount) {
+    const count = Math.max(0, Number(wordDayCount) || 0);
+    const wordCard = $('#reading-word-day-card');
+    if (!wordCard) return;
+    const span = wordCard.querySelector('span');
+    const small = wordCard.querySelector('small');
+    const total = ensureReadingState().words.length;
+    const groups = readingWordDayGroups();
+    if (span) span.textContent = count ? `D1–D${count}` : 'D1…Dn';
+    if (small) {
+      small.textContent = count
+        ? `${readingDayRangeText(groups)} · 全部 ${total} 词`
+        : '提取后由你决定分几天';
+    }
+    const grammar = $('#reading-grammar-day-card');
+    const long = $('#reading-sentence-day-card');
+    const perspective = $('#reading-perspective-day-card');
+    const gSpan = grammar && grammar.querySelector('span');
+    const lSpan = long && long.querySelector('span');
+    const pSpan = perspective && perspective.querySelector('span');
+    if (gSpan) gSpan.textContent = count ? `D${count + 1}` : 'D5';
+    if (lSpan) lSpan.textContent = count ? `D${count + 2}` : 'D6';
+    if (pSpan) pSpan.textContent = count ? `D${count + 3}` : 'D7';
+  }
+
   function renderReadingStats() {
     const box = $('#reading-stats');
     const details = $('#reading-words-details');
     const list = $('#reading-word-list');
     const label = $('#reading-week-label');
     const st = ensureReadingState();
-    const perDay = clamp(Number(($('#reading-per-day') || {}).value) || 40, 20, 60);
     if (!st.words.length) {
       const finished = st.carryKey ? readingStoredRecord(st.carryKey) : {};
       const finishedUsed = Array.isArray(finished.used) ? finished.used.length : 0;
       if (box) {
         box.innerHTML = finishedUsed
-          ? `<p class="reading-carry-note">这篇阅读的 ${finishedUsed} 个常用词已经全部排进过周任务，不会再重复出现。要重新排一遍，点“重置这篇的单词进度”。</p>`
-          : '<p class="hint">选好文章后点“提取本周单词”，这里会显示：本周取多少词、还剩多少词顺延到下周。</p>';
+          ? `<p class="reading-carry-note">这篇材料的 ${finishedUsed} 个常用词已经全部排进过任务，不会再重复出现。要重新排一遍，点“重置这篇的单词进度”。</p>`
+          : '<p class="hint">选好材料后点“提取全部单词”。提取多少就保留多少，然后由你决定分成几天。</p>';
       }
       if (details) details.hidden = true;
       if (list) list.innerHTML = '';
       if (label) label.textContent = finishedUsed ? '这篇已排完' : '先提取单词';
+      renderReadingWeekCards(0);
       const carryButton = $('#reading-clear-carry');
       if (carryButton) carryButton.hidden = !finishedUsed;
       return;
     }
+    const groups = readingWordDayGroups(st);
+    const wordDays = groups.length;
+    const sizes = groups.map((group) => group.length);
+    const min = Math.min(...sizes);
+    const max = Math.max(...sizes);
     const carryIn = Number(st.carryIn) || 0;
-    const carryOut = (st.carryOut || []).length;
-    const wordDays = Math.max(1, Math.min(4, Math.ceil(st.words.length / perDay)));
+    const daysInput = $('#reading-word-days');
+    if (daysInput) daysInput.value = String(wordDays);
     if (box) {
       box.innerHTML = `<div class="reading-stat-grid">` +
-        `<div class="reading-stat"><small>本周单词</small><b>${st.words.length}</b></div>` +
-        `<div class="reading-stat"><small>每天单词</small><b>${Math.min(perDay, st.words.length)}</b></div>` +
-        `<div class="reading-stat${carryOut ? ' warn' : ''}"><small>顺延到下周</small><b>${carryOut}</b></div>` +
+        `<div class="reading-stat"><small>全部单词</small><b>${st.words.length}</b></div>` +
+        `<div class="reading-stat"><small>分成几天</small><b>${wordDays}</b></div>` +
+        `<div class="reading-stat"><small>每天词数</small><b>${min === max ? min : `${min}–${max}`}</b></div>` +
       `</div>` +
-      (carryIn ? `<p class="reading-carry-note">这篇阅读上次顺延了 <b>${carryIn}</b> 个词，本周已经优先排进来，不会重复。</p>` : '') +
-      (carryOut ? `<p class="reading-carry-note">本周排 ${wordDays} 天 × ${perDay} 词，装不下的 <b>${carryOut}</b> 个词会顺延到下周：${(st.carryOut || []).slice(0, 8).map((word) => S.escapeHtml(word.w)).join('、')}${carryOut > 8 ? '…' : ''}</p>` : '');
+      `<p class="reading-carry-note">全部 <b>${st.words.length}</b> 个词都已排进来，没有截掉、也没有顺延。现在是 <b>${wordDays}</b> 天：${sizes.map((size, index) => `D${index + 1} ${size} 词`).join(' · ')}。</p>` +
+      (carryIn ? `<p class="reading-carry-note">这篇材料上次已经排过 ${carryIn} 个词，本次只补新词。</p>` : '');
     }
-    if (label) label.textContent = `本周 ${wordDays + 3} 天 · ${st.words.length} 词`;
+    if (label) label.textContent = `${wordDays} 个单词日 + 3 个阅读日 = ${wordDays + 3} 天 · 共 ${st.words.length} 词`;
     if (details) details.hidden = false;
     const count = $('#reading-word-count');
-    if (count) count.textContent = `· ${st.words.length} 个（每天 ${perDay} 个）`;
-    if (list) {
-      list.innerHTML = st.words.map((word) => (
-        `<span class="reading-word"><b>${S.escapeHtml(word.w)}</b><small>${S.escapeHtml(S.meaningLabel(word.w, word.zh, word.pos))}</small></span>`
-      )).join('');
-    }
+    if (count) count.textContent = `· 全部 ${st.words.length} 个 · ${readingDayRangeText(groups)}`;
+    renderReadingWeekCards(wordDays);
+    renderReadingWordList(st);
     const carryButton = $('#reading-clear-carry');
-    if (carryButton) carryButton.hidden = !carryOut && !carryIn;
+    if (carryButton) carryButton.hidden = false;
+  }
+
+  function readingApplyWordDays() {
+    const st = ensureReadingState();
+    const input = $('#reading-word-days');
+    const perDayInput = $('#reading-per-day');
+    if (!st.words.length) {
+      S.toast('先提取单词，再分配天数。', 'error');
+      return;
+    }
+    const dayCount = readingClampDayCount((input || {}).value, st.words.length);
+    if (perDayInput) perDayInput.value = String(Math.max(1, Math.ceil(st.words.length / dayCount)));
+    st.wordDayCount = dayCount;
+    st.daysPinned = true;
+    if (input) input.value = String(dayCount);
+    save();
+    renderReadingStats();
+    const groups = readingWordDayGroups(st);
+    S.toast(`已把 ${st.words.length} 个词平均分到 ${groups.length} 天，${readingDayRangeText(groups)}。`, 'ok', 5500);
+  }
+
+  function readingDaysFromPerDay() {
+    const st = ensureReadingState();
+    if (!st.words.length) { renderReadingStats(); return; }
+    const perDay = Math.max(1, Math.floor(Number(($('#reading-per-day') || {}).value) || 40));
+    st.wordDayCount = readingClampDayCount(Math.ceil(st.words.length / perDay), st.words.length);
+    st.daysPinned = true;
+    const input = $('#reading-word-days');
+    if (input) input.value = String(st.wordDayCount);
+    save();
+    renderReadingStats();
   }
 
   function renderReadingStudents() {
@@ -2278,7 +2735,13 @@
       updateReadingSelectedCount();
       return;
     }
-    if (!readingStudentIds) readingStudentIds = new Set(list.map((student) => student.id));
+    if (!readingStudentIds) {
+      const savedIds = ensureReadingState().studentIds;
+      const saved = Array.isArray(savedIds)
+        ? savedIds.filter((id) => list.some((student) => student.id === id))
+        : [];
+      readingStudentIds = new Set(saved.length ? saved : list.map((student) => student.id));
+    }
     box.innerHTML = list.map((student) => (
       `<label class="reading-student">` +
         `<input type="checkbox" value="${S.escapeHtml(student.id)}" ${readingStudentIds.has(student.id) ? 'checked' : ''}>` +
@@ -2297,6 +2760,14 @@
     return count;
   }
 
+  function readingSyncStudentIds() {
+    const st = ensureReadingState();
+    st.studentIds = $$('#reading-students input[type="checkbox"]:checked').map((input) => input.value);
+    readingStudentIds = new Set(st.studentIds);
+    save();
+    return updateReadingSelectedCount();
+  }
+
   function renderReadingPlanList() {
     const box = $('#reading-plan-list');
     if (!box) return;
@@ -2308,13 +2779,19 @@
     box.innerHTML = list.map((plan) => (
       `<div class="reading-plan-item"><div>` +
         `<b>${S.escapeHtml(plan.title || '阅读联动')}</b>` +
-        `<small>${S.escapeHtml(S.fmtDate(plan.weekStart))} 起 · ${plan.studentCount || 0} 人 · 本周 ${plan.wordTotal || 0} 词 · 顺延 ${plan.carryOut || 0} 词</small>` +
+        `<small>${S.escapeHtml(S.fmtDate(plan.weekStart))} 起 · ${plan.studentCount || 0} 人 · ${plan.wordTotal || 0} 词 · ${plan.wordDayCount || '—'} 个单词日</small>` +
       `</div><span>${S.escapeHtml(S.fmtDate(plan.createdAt))}</span></div>`
     )).join('');
   }
 
   function readingSentenceList(text) {
-    return String(text || '')
+    const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+    /* 很多阅读材料第一行是标题，没有句号。先摘掉它，避免把
+       “标题 + 第一句”粘成一句，语法匹配时引用了不存在的句子。 */
+    if (lines.length > 1 && readingWordCount(lines[0]) <= 14 && !/[.!?。！？]\s*$/.test(lines[0].trim())) {
+      lines.shift();
+    }
+    return lines.join(' ')
       .replace(/\s+/g, ' ')
       .match(/[^.!?。！？]+[.!?。！？]+/g)?.map((sentence) => sentence.trim()).filter((sentence) => readingWordCount(sentence) >= 8) || [];
   }
@@ -2546,18 +3023,19 @@
     const students = studentIds.map(getStudent).filter(Boolean);
     const missingPin = students.find((student) => !student.pin);
     if (missingPin) { S.toast(`${missingPin.name} 还没有密码，无法生成任务码。`, 'error'); return; }
-    const perDay = clamp(Number(($('#reading-per-day') || {}).value) || 40, 20, 60);
     const weekStart = ($('#reading-week-start') || {}).value || S.todayIso();
+    st.weekStart = weekStart;
+    st.studentIds = studentIds.slice();
     const aiReady = Boolean(st.ai && (st.ai.grammar.length || st.ai.longSentences.length || st.ai.perspective.questions.length));
     if (!aiReady && !window.confirm('还没有生成 AI 语法和长难句。要先用“本机规则版”生成吗？\n规则版会给出观察、拆解和写作任务，但不会自动出语法选择题。')) return;
     const planId = S.uid('RD');
     const planTitle = `阅读联动 · ${st.title || '自定义阅读'}`;
     const days = [];
-    const wordDayCount = Math.max(1, Math.min(4, Math.ceil(st.words.length / perDay)));
+    /* 按老师选定的天数平均分。所有单词都会进入任务，不再有“装不下顺延”。 */
+    const wordGroups = readingWordDayGroups(st);
+    const wordDayCount = wordGroups.length;
 
-    for (let index = 0; index < wordDayCount; index += 1) {
-      const slice = st.words.slice(index * perDay, index * perDay + perDay);
-      if (!slice.length) break;
+    wordGroups.forEach((slice, index) => {
       days.push({
         day: index + 1,
         date: S.addDays(weekStart, index),
@@ -2569,7 +3047,7 @@
         wordTotal: slice.length,
         xp: clamp(Math.round(35 + slice.length * 8), 60, 380)
       });
-    }
+    });
 
     const grammarDay = wordDayCount + 1;
     const longDay = wordDayCount + 2;
@@ -2650,8 +3128,9 @@
       createdAt: plan.createdAt,
       studentCount: students.length,
       wordTotal: st.words.length,
+      wordDayCount,
       carryIn: Number(st.carryIn) || 0,
-      carryOut: (st.carryOut || []).length,
+      carryOut: 0,
       readingId: plan.readingId
     });
     data.readingPlans = data.readingPlans.slice(0, 30);
@@ -2662,11 +3141,11 @@
       ...(Array.isArray(previousRecord.used) ? previousRecord.used : []),
       ...st.words.map((word) => String(word.w || '').toLowerCase())
     ].filter(Boolean)));
-    if ((st.carryOut || []).length || usedWords.length) {
+    if (usedWords.length) {
       data.readingCarry[carryKey] = {
         title: st.title || '阅读联动',
         updatedAt: S.nowIso(),
-        words: st.carryOut || [],
+        words: [],
         used: usedWords
       };
     } else {
@@ -2676,20 +3155,25 @@
     renderOutbox();
     renderReadingPlanList();
     renderReadingStats();
-    S.toast(`已放进待发区：${students.length} 位学生 × ${days.length} 天，共 ${taskCount} 个任务；本周 ${st.words.length} 词，顺延 ${(st.carryOut || []).length} 词。`, 'ok', 7500);
+    S.toast(`已放进待发区：${students.length} 位学生 × ${days.length} 天，共 ${taskCount} 个任务；${st.words.length} 词全部排进 ${wordDayCount} 个单词日。`, 'ok', 7500);
     const tray = $('#outbox-tray');
     if (tray) tray.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function renderReading() {
-    ensureReadingState();
+    const st = ensureReadingState();
+    /* 刷新或切回标签时，把上次的工作区接回来：原文、材料、天数、学生都不丢。 */
+    const textarea = $('#reading-text');
+    if (textarea && !textarea.value && st.text) textarea.value = st.text;
+    if (!readingSourceId && st.sourceId) readingSourceId = st.sourceId;
     renderReadingPapers();
     renderReadingStudents();
     renderReadingStats();
     renderReadingAiPreview();
+    renderReadingGrammarMatches();
     renderReadingPlanList();
     const start = $('#reading-week-start');
-    if (start && !start.value) start.value = S.todayIso();
+    if (start && !start.value) start.value = st.weekStart || S.todayIso();
   }
 
 
@@ -3580,6 +4064,432 @@
     }).join('');
   }
 
+  /* ======================= 语法图书馆（两本语法书 + 60 天课程） ======================= */
+
+  function grammarLibraryTopicList() {
+    const extra = window.ShunshiGrammarExtra;
+    return extra && Array.isArray(extra.topics) ? extra.topics : [];
+  }
+
+  function buildGrammarLibraryEntries() {
+    if (grammarLibraryEntries) return grammarLibraryEntries;
+    const entries = [];
+    if (G && Array.isArray(G.lessons)) {
+      G.lessons.forEach((lesson) => {
+        entries.push({
+          id: `lesson-${lesson.day}`,
+          kind: 'lesson',
+          day: lesson.day,
+          sortDay: lesson.day,
+          unit: lesson.unit,
+          unitColor: lesson.unitColor,
+          title: lesson.title,
+          subtitle: lesson.subtitle,
+          tag: lesson.unit,
+          level: lesson.day <= 30 ? '基础' : '进阶',
+          minutes: 5,
+          lesson,
+          search: [
+            lesson.title, lesson.subtitle, lesson.unit, lesson.rule, lesson.tip,
+            lesson.scene, lesson.sentence, lesson.translation,
+            ...(lesson.questions || []).map((question) => `${question.stem} ${question.explanation || ''}`)
+          ].join(' ').toLowerCase()
+        });
+      });
+    }
+    grammarLibraryTopicList().forEach((topic) => {
+      entries.push({
+        id: `topic-${topic.id}`,
+        kind: 'topic',
+        day: 0,
+        sortDay: 100,
+        unit: '语法专题',
+        unitColor: '#8a74b8',
+        title: topic.title,
+        subtitle: `${topic.tag} · ${topic.level} · 约 ${topic.minutes} 分钟`,
+        tag: topic.tag,
+        level: topic.level,
+        minutes: topic.minutes,
+        topic,
+        search: [
+          topic.title, topic.tag, topic.level, topic.intro, topic.pitfall,
+          ...(topic.points || []).flatMap((point) => [
+            point.h, point.body,
+            ...(point.eg || []).flatMap((pair) => [pair[0], pair[1]])
+          ]),
+          ...(topic.drills || []).flatMap((drill) => [
+            drill.q, ...(drill.options || []), drill.explain || ''
+          ])
+        ].join(' ').toLowerCase()
+      });
+    });
+    grammarLibraryEntries = entries;
+    return entries;
+  }
+
+  function grammarLibraryEntryById(id) {
+    return buildGrammarLibraryEntries().find((entry) => entry.id === id) || null;
+  }
+
+  function openGrammarLibrary(query) {
+    const dialog = $('#grammar-library-dialog');
+    if (!dialog) return;
+    buildGrammarLibraryEntries();
+    const requested = String(query || '').trim();
+    const direct = grammarLibraryEntryById(requested);
+    grammarLibraryKind = 'all';
+    grammarLibraryQuery = direct ? '' : requested;
+    if (direct) grammarLibraryActiveId = direct.id;
+    const search = $('#grammar-library-search');
+    if (search) search.value = grammarLibraryQuery;
+    $$('#grammar-library-filters button').forEach((button) => {
+      button.classList.toggle('active', button.dataset.grammarLibraryKind === 'all');
+    });
+    if (!grammarLibrarySendIds) {
+      grammarLibrarySendIds = new Set(sortedStudents().map((student) => student.id));
+    }
+    renderGrammarLibraryStudents();
+    if (!grammarLibraryActiveId || !grammarLibraryEntryById(grammarLibraryActiveId)) {
+      const first = buildGrammarLibraryEntries()[0];
+      grammarLibraryActiveId = first ? first.id : '';
+    }
+    renderGrammarLibraryList();
+    renderGrammarLibraryDetail();
+    S.openDialog(dialog);
+    window.setTimeout(() => { if (search && !direct) search.focus(); }, 120);
+  }
+
+  function renderGrammarLibraryList() {
+    const list = $('#grammar-library-list');
+    const count = $('#grammar-library-count');
+    if (!list) return;
+    const entries = buildGrammarLibraryEntries();
+    const query = grammarLibraryQuery.trim().toLowerCase();
+    const filtered = entries.filter((entry) => {
+      if (grammarLibraryKind !== 'all' && entry.kind !== grammarLibraryKind) return false;
+      if (!query) return true;
+      return entry.search.includes(query);
+    });
+    if (count) count.textContent = query ? `找到 ${filtered.length} 个` : `共 ${entries.length} 个知识点`;
+    if (!filtered.length) {
+      list.innerHTML = '<p class="hint" style="padding:12px 4px;">没有找到。换个短一点的词，例如“从句”“被动”“冠词”。</p>';
+      return;
+    }
+    list.innerHTML = filtered.map((entry) => (
+      `<button class="grammar-library-item ${entry.id === grammarLibraryActiveId ? 'is-active' : ''}" type="button" data-grammar-library-id="${S.escapeHtml(entry.id)}">` +
+        `<i>${entry.kind === 'lesson' ? `D${entry.day} · ${S.escapeHtml(entry.unit)}` : `${S.escapeHtml(entry.tag)} · 专题`}</i>` +
+        `<b>${S.escapeHtml(entry.title)}</b>` +
+        `<small>${S.escapeHtml(entry.subtitle)}</small>` +
+      `</button>`
+    )).join('');
+  }
+
+  function renderGrammarLibraryStudents() {
+    const box = $('#grammar-library-students');
+    if (!box) return;
+    const list = sortedStudents();
+    if (!list.length) {
+      box.innerHTML = '<span class="hint">还没有学生。先到“学生”页添加。</span>';
+      return;
+    }
+    if (!grammarLibrarySendIds) grammarLibrarySendIds = new Set(list.map((student) => student.id));
+    box.innerHTML = list.map((student) => (
+      `<label><input type="checkbox" value="${S.escapeHtml(student.id)}" ${grammarLibrarySendIds.has(student.id) ? 'checked' : ''}>${S.escapeHtml(student.avatar || '🦊')} ${S.escapeHtml(student.name)}</label>`
+    )).join('');
+  }
+
+  function renderGrammarLibraryDetail() {
+    const box = $('#grammar-library-detail');
+    if (!box) return;
+    const entry = grammarLibraryEntryById(grammarLibraryActiveId);
+    if (!entry) {
+      box.innerHTML = '<div class="empty-state"><strong>选一个语法点</strong>左边按关键词搜，或在“阅读联动”里让系统自动匹配本篇语法点。</div>';
+      return;
+    }
+    box.innerHTML = grammarLibraryDetailHtml(entry);
+    const sendButton = $('#grammar-library-send');
+    if (sendButton) sendButton.disabled = false;
+  }
+
+  function grammarLibraryAiHtml(entry) {
+    const cache = data && data.grammarLibraryAi ? data.grammarLibraryAi[entry.id] : null;
+    if (!cache || !cache.data) return '';
+    const ai = cache.data;
+    const collocations = (ai.collocations || []).map((item) => (
+      `<li><b>${S.escapeHtml(item.phrase || '')}</b>${item.zh ? ` · ${S.escapeHtml(item.zh)}` : ''}</li>`
+    )).join('');
+    const examples = (ai.examples || []).map((item) => (
+      `<li><span>${S.escapeHtml(item.en || '')}</span>${item.zh ? `<small>${S.escapeHtml(item.zh)}</small>` : ''}</li>`
+    )).join('');
+    const mistakes = (ai.mistakes || []).map((item) => (
+      `<li>✕ ${S.escapeHtml(item.wrong || '')} → ✓ ${S.escapeHtml(item.right || '')}${item.why ? `：${S.escapeHtml(item.why)}` : ''}</li>`
+    )).join('');
+    return `<div class="grammar-library-ai">` +
+      `<h4>AI 口语化解析 <small>· 本次 ${cache.tokens || 0} tokens · 约 ${S.ai.costText(Number(cache.cost) || 0)}</small></h4>` +
+      (ai.plain ? `<p>${S.escapeHtml(ai.plain)}</p>` : '') +
+      (ai.formula ? `<p><b>课堂口诀：</b>${S.escapeHtml(ai.formula)}</p>` : '') +
+      (collocations ? `<p><b>常见搭配</b></p><ul>${collocations}</ul>` : '') +
+      (examples ? `<p><b>再给两个例子</b></p><ul>${examples}</ul>` : '') +
+      (mistakes ? `<p><b>学生常错</b></p><ul>${mistakes}</ul>` : '') +
+      (ai.memory ? `<p><b>记忆钩子：</b>${S.escapeHtml(ai.memory)}</p>` : '') +
+    `</div>`;
+  }
+
+  function grammarLessonStepsHtml(lesson) {
+    if (!lesson || !G) return '';
+    const review = G.lessonByDay(G.reviewDayFor(lesson.day));
+    const blocks = G.buildBlocks(lesson, review);
+    return blocks.map((block) => {
+      if (block.type === 'writing' || block.prompt) {
+        return `<div class="grammar-library-point"><b>${S.escapeHtml(block.label || '写一句')}</b><p>${S.escapeHtml(block.prompt || '')}</p>` +
+          (block.sample ? `<p class="hint">参考：${S.escapeHtml(block.sample)}</p>` : '') + `</div>`;
+      }
+      const question = (block.questions || [])[0];
+      if (!question) return '';
+      return `<div class="grammar-library-point"><b>${S.escapeHtml(block.label || '练一题')}</b>` +
+        `<p>${S.escapeHtml(question.stem || '')}</p>` +
+        `<p class="hint">答案：${S.escapeHtml(question.answer || '—')}${question.explanation ? ` · ${S.escapeHtml(question.explanation)}` : ''}</p>` +
+      `</div>`;
+    }).join('');
+  }
+
+  function grammarLibraryDetailHtml(entry) {
+    const isTopic = entry.kind === 'topic';
+    const lesson = entry.lesson || null;
+    const topic = entry.topic || null;
+    const tokens = lesson && Array.isArray(lesson.tokens)
+      ? lesson.tokens.map(([text, role]) => (
+        `<span class="g-token role-${G ? G.roleClass(role) : 'other'}"><b>${S.escapeHtml(text)}</b><small>${S.escapeHtml(role)}</small></span>`
+      )).join('')
+      : '';
+    let body = `<div class="grammar-library-detail-head">` +
+      `<span class="grammar-library-pill">${S.escapeHtml(isTopic ? entry.tag : entry.unit)}</span>` +
+      `<span class="grammar-library-pill unit">${isTopic ? '进阶专题' : `D${entry.day} / ${G ? G.total : 60}`}</span>` +
+      `<span class="grammar-library-pill unit">约 ${entry.minutes || 5} 分钟</span>` +
+    `</div>` +
+    `<h3>${S.escapeHtml(entry.title)}</h3>` +
+    `<p class="lib-sub">${S.escapeHtml(entry.subtitle)}</p>`;
+
+    if (lesson) {
+      body += `<div class="grammar-library-sec"><h4>先看场景</h4><p class="grammar-library-scene">${S.escapeHtml(lesson.scene || '')}</p>` +
+        `<p class="grammar-library-sentence">${S.escapeHtml(lesson.sentence || '')}</p>` +
+        `<p class="hint">${S.escapeHtml(lesson.translation || '')}</p></div>` +
+        (tokens ? `<div class="grammar-library-sec"><h4>句子成分</h4><div class="g-sentence static">${tokens}</div></div>` : '') +
+        `<div class="grammar-library-sec"><h4>人话规则</h4><p>${S.escapeHtml(lesson.rule || '')}</p>` +
+        (lesson.tip ? `<p style="margin-top:5px;color:#7b5416;"><b>判断口诀：</b>${S.escapeHtml(lesson.tip)}</p>` : '') + `</div>` +
+        `<div class="grammar-library-sec"><h4>学生打卡会做的关</h4>${grammarLessonStepsHtml(lesson)}</div>`;
+    }
+
+    if (topic) {
+      body += `<div class="grammar-library-sec"><h4>一句话说清</h4><p class="grammar-library-scene">${S.escapeHtml(topic.intro || '')}</p></div>`;
+      (topic.points || []).forEach((point) => {
+        body += `<div class="grammar-library-sec"><h4>${S.escapeHtml(point.h || '知识点')}</h4><p>${S.escapeHtml(point.body || '')}</p>` +
+          `<div class="grammar-library-eg">` +
+            (point.eg || []).map(([en, zh]) => `<span>${S.escapeHtml(en || '')}</span><small>${S.escapeHtml(zh || '')}</small>`).join('') +
+          `</div>` +
+        `</div>`;
+      });
+      if (topic.pitfall) {
+        body += `<div class="grammar-library-pitfall"><b>最容易错的地方：</b>${S.escapeHtml(topic.pitfall)}</div>`;
+      }
+      if ((topic.drills || []).length) {
+        body += `<div class="grammar-library-sec"><h4>学生打卡题（含答案）</h4>` +
+          topic.drills.map((drill, index) => {
+            const answer = String.fromCharCode(65 + (Number(drill.answer) || 0));
+            return `<div class="grammar-library-drill"><b>${index + 1}. ${S.escapeHtml(drill.q || '')}</b>` +
+              `<ol>${(drill.options || []).map((option) => `<li>${S.escapeHtml(option)}</li>`).join('')}</ol>` +
+              `<p class="answer">答案 ${answer}${drill.explain ? ` · ${S.escapeHtml(drill.explain)}` : ''}</p>` +
+            `</div>`;
+          }).join('') +
+        `</div>`;
+      }
+    }
+
+    body += `<div class="grammar-library-actions">` +
+      `<button class="p-btn small" type="button" data-grammar-lib-ai="${S.escapeHtml(entry.id)}" ${grammarLibraryAiBusy ? 'disabled' : ''}>${grammarLibraryAiBusy ? 'AI 解析中…' : 'AI 口语化解析（消耗少量额度）'}</button>` +
+      `<button class="p-btn small ghost" type="button" data-grammar-lib-send="${S.escapeHtml(entry.id)}">发给已勾选学生打卡</button>` +
+    `</div>` +
+    grammarLibraryAiHtml(entry);
+    return body;
+  }
+
+  function grammarTopicCheckin(entry) {
+    const topic = entry.topic;
+    if (!topic) return null;
+    const firstPoint = (topic.points || [])[0] || {};
+    const firstExample = (firstPoint.eg || [])[0] || ['', ''];
+    const lesson = {
+      id: `LIB-${topic.id}`,
+      day: 0,
+      unit: '语法专题',
+      unitId: 'library',
+      unitColor: '#8a74b8',
+      title: topic.title,
+      subtitle: topic.tag || '',
+      scene: topic.intro || '',
+      sentence: firstExample[0] || '',
+      translation: firstExample[1] || '',
+      tokens: [],
+      rule: (topic.points || []).map((point) => `${point.h}：${point.body}`).join('\n'),
+      tip: topic.pitfall || '',
+      outputPrompt: `用“${topic.tag || '这个语法点'}”写一句自己的话，写完对照规则检查。`,
+      outputSample: firstExample[0] || ''
+    };
+    const blocks = [];
+    const drills = Array.isArray(topic.drills) ? topic.drills : [];
+    drills.slice(0, 3).forEach((drill, index) => {
+      const question = {
+        id: `LIB-${topic.id}-q${index + 1}`,
+        n: index + 1,
+        stem: drill.q || '',
+        options: (drill.options || []).map((text, optionIndex) => ({
+          letter: String.fromCharCode(65 + optionIndex),
+          text
+        })),
+        answer: String.fromCharCode(65 + (Number(drill.answer) || 0)),
+        explanation: drill.explain || ''
+      };
+      blocks.push({
+        id: `LIB-${topic.id}-b${index + 1}`,
+        type: 'grammar',
+        label: `练一题 · ${topic.points && topic.points[index] ? topic.points[index].h : entry.tag}`,
+        questions: [question]
+      });
+    });
+    while (blocks.length < 3) {
+      const point = (topic.points || [])[blocks.length] || (topic.points || [])[0] || {};
+      const example = (point.eg || [])[0] || ['', ''];
+      blocks.push({
+        id: `LIB-${topic.id}-obs${blocks.length + 1}`,
+        type: 'writing',
+        label: `看例句 · ${point.h || '语法点'}`,
+        prompt: `${point.body || topic.intro || ''}\n\n例句：${example[0] || ''}\n${example[1] || ''}\n\n仿照这个结构，自己写一句。`,
+        sample: example[0] || ''
+      });
+    }
+    blocks.push({
+      id: `LIB-${topic.id}-write`,
+      type: 'writing',
+      label: '写一句',
+      prompt: `用“${topic.tag || '这个语法点'}”写一句和阅读主题相关的话。写完后，对照上面的规则检查一遍。`,
+      sample: firstExample[0] || ''
+    });
+    return { grammarDay: 0, lesson, blocks, title: `语法专题 · ${topic.title}` };
+  }
+
+  function grammarCheckinContent(entry) {
+    if (!entry) return null;
+    if (entry.kind === 'topic') return grammarTopicCheckin(entry);
+    const lesson = entry.lesson;
+    const review = G.lessonByDay(G.reviewDayFor(lesson.day));
+    return {
+      grammarDay: lesson.day,
+      lesson: G.summary(lesson),
+      blocks: G.buildBlocks(lesson, review),
+      title: `语法图书馆 · D${lesson.day} ${lesson.title}`
+    };
+  }
+
+  function sendGrammarCheckin(entryId, studentIds, due, label) {
+    const entry = grammarLibraryEntryById(entryId);
+    if (!entry) { S.toast('没有找到这个语法点。', 'error'); return 0; }
+    const ids = Array.isArray(studentIds) ? studentIds : [];
+    if (!ids.length) { S.toast('至少勾选一位学生，再发打卡。', 'error'); return 0; }
+    const students = ids.map(getStudent).filter(Boolean);
+    const missingPin = students.find((student) => !student.pin);
+    if (missingPin) { S.toast(`${missingPin.name} 还没有密码，无法生成打卡。`, 'error'); return 0; }
+    const content = grammarCheckinContent(entry);
+    if (!content || !content.lesson || !Array.isArray(content.blocks) || content.blocks.length < 4) {
+      S.toast('这个语法点的打卡内容没有准备好，请刷新页面再试。', 'error'); return 0;
+    }
+    const taskId = S.uid('GL');
+    let added = 0;
+    students.forEach((student) => {
+      const task = {
+        v: 1,
+        kind: 'task',
+        id: taskId,
+        studentId: student.id,
+        title: content.title,
+        grade: student.grade || '',
+        due: due || S.addDays(S.todayIso(), 3),
+        xp: 80,
+        createdAt: S.nowIso(),
+        planId: 'GRAMMAR-LIBRARY',
+        planDay: 1,
+        planTotal: 1,
+        mode: 'grammar',
+        grammarDay: content.grammarDay,
+        lesson: content.lesson,
+        blocks: content.blocks,
+        wordTotal: 0,
+        words: [],
+        libraryId: entry.id
+      };
+      if (outboxAddTask(student, task, label || '语法图书馆')) added += 1;
+    });
+    if (!added) { S.toast('这些学生已经有同一条打卡了，没有重复添加。', 'ok'); return 0; }
+    save();
+    renderOutbox();
+    const tray = $('#outbox-tray');
+    if (tray) tray.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    S.toast(`已放进待发区：${added} 位学生 · ${content.title}。确认后和其他任务一起生成发送包。`, 'ok', 7500);
+    return added;
+  }
+
+  async function grammarLibraryAi(entryId) {
+    const entry = grammarLibraryEntryById(entryId);
+    if (!entry) return;
+    if (grammarLibraryAiBusy) { S.toast('AI 正在解析，请稍等。'); return; }
+    const cfg = aiConfig();
+    if (!cfg.key) {
+      S.toast('还没有配置 API Key。到“设置 → AI 直连”粘贴 Key 后就能用 AI 口语化解析。', 'error', 7500);
+      return;
+    }
+    const topicLines = entry.kind === 'lesson'
+      ? `课程：D${entry.day} ${entry.title}\n规则：${entry.lesson.rule}\n口诀：${entry.lesson.tip}\n例句：${entry.lesson.sentence}\n翻译：${entry.lesson.translation}`
+      : `${entry.topic.intro}\n` + (entry.topic.points || []).map((point) => (
+        `${point.h}：${point.body}\n${(point.eg || []).map(([en, zh]) => `例：${en}（${zh}）`).join('\n')}`
+      )).join('\n') + `\n易错：${entry.topic.pitfall}`;
+    const prompt = `你是高中英语老师，正在给另一位老师做备课参考。请把下面这条语法知识讲成“人话”，要能直接拿去讲给学生听。\n\n【语法条目】\n${topicLines}\n\n【要求】\n1. plain：用 3–5 句大白话解释这个语法点，少用术语；必须说明“什么时候用、怎么判断”。\n2. formula：给一条可以板书的判断口诀或公式。\n3. collocations：给 3–5 个常见搭配（短语 + 中文），没有就返回空数组。\n4. examples：给 2–3 个短英文例句 + 中文翻译，例句要贴近高中阅读。\n5. mistakes：给 1–3 组学生常见错句 → 正确句 → 为什么错。\n6. memory：给一个记忆钩子。\n只输出一个合法 JSON 对象，不要 Markdown，不要前后解释。\nJSON：{"plain":"","formula":"","collocations":[{"phrase":"","zh":""}],"examples":[{"en":"","zh":""}],"mistakes":[{"wrong":"","right":"","why":""}],"memory":""}`;
+    const estimate = S.ai.estimate(prompt.length + 300, 1300);
+    if (!window.confirm(`这次会把“${entry.title}”这一条语法内容发给 DeepSeek，生成口语化解析、搭配和例句。\n不含学生信息。预计约 ${S.ai.costText(estimate.cost)}。只在你点确认后调用。继续吗？`)) return;
+    grammarLibraryAiBusy = true;
+    renderGrammarLibraryDetail();
+    try {
+      const result = await callDeepSeek([
+        { role: 'system', content: '你是严谨的英语教研员。只输出合法 JSON 对象，不添加 Markdown 或解释。' },
+        { role: 'user', content: prompt }
+      ], 1300, '语法图书馆解析');
+      let raw = String(result.text || '').replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+      const start = raw.indexOf('{');
+      const end = raw.lastIndexOf('}');
+      if (start < 0 || end <= start) throw new Error('AI 返回的不是可识别的 JSON，请再试一次。');
+      const parsed = JSON.parse(raw.slice(start, end + 1));
+      data.grammarLibraryAi = data.grammarLibraryAi && typeof data.grammarLibraryAi === 'object' ? data.grammarLibraryAi : {};
+      data.grammarLibraryAi[entry.id] = {
+        at: S.nowIso(),
+        tokens: Number(result.usage.total_tokens) || 0,
+        cost: Number(result.cost) || 0,
+        data: {
+          plain: String(parsed.plain || ''),
+          formula: String(parsed.formula || ''),
+          collocations: Array.isArray(parsed.collocations) ? parsed.collocations.slice(0, 6) : [],
+          examples: Array.isArray(parsed.examples) ? parsed.examples.slice(0, 4) : [],
+          mistakes: Array.isArray(parsed.mistakes) ? parsed.mistakes.slice(0, 4) : [],
+          memory: String(parsed.memory || '')
+        }
+      };
+      save();
+      S.toast(`AI 口语化解析完成：${data.grammarLibraryAi[entry.id].tokens} tokens · 约 ${S.ai.costText(Number(result.cost) || 0)}。`, 'ok', 6500);
+    } catch (error) {
+      S.toast(error.message || 'AI 解析失败，请稍后再试。', 'error', 8000);
+    } finally {
+      grammarLibraryAiBusy = false;
+      renderGrammarLibraryDetail();
+    }
+  }
+
   function openGrammarPreview(day) {
     const lesson = G.lessonByDay(day);
     if (!lesson) return;
@@ -3739,6 +4649,13 @@
     renderGrammarStudents();
     renderGrammarList();
     renderGrammarProgress();
+    const entries = buildGrammarLibraryEntries();
+    const note = $('#grammar-library-quick-note');
+    if (note) {
+      const lessonCount = entries.filter((entry) => entry.kind === 'lesson').length;
+      const topicCount = entries.filter((entry) => entry.kind === 'topic').length;
+      note.textContent = `本机可搜 ${lessonCount} 节语法课 + ${topicCount} 个进阶专题，共 ${entries.length} 个知识点。搜索和查看不花钱；只有点“AI 口语化解析”或“AI 精准匹配”时才调用 DeepSeek。`;
+    }
     const start = $('#grammar-week-start');
     if (start && !start.value) start.value = S.todayIso();
   }
@@ -4404,7 +5321,7 @@
     select.innerHTML = wordMaterials.map((material) => (
       `<option value="${S.escapeHtml(material.id)}">${S.escapeHtml(material.title || '未命名资料')} · ${S.escapeHtml(TYPE_LABELS[material.type] || material.type || '资料')}</option>`
     )).join('');
-    if (status) status.textContent = `已读取 ${wordMaterials.length} 份资料。提取会跳过常见虚词，最多取 40 个词。`;
+    if (status) status.textContent = `已读取 ${wordMaterials.length} 份资料。提取会跳过常见虚词，找到多少词就全部填入；单次打卡预览最多取前 80 个，可分批发布。`;
   }
 
   function openWordDialog(studentId) {
@@ -7051,16 +7968,84 @@
     const readingGenerate = $('#reading-generate');
     if (readingGenerate) readingGenerate.addEventListener('click', generateReadingWeek);
     const readingPerDay = $('#reading-per-day');
-    if (readingPerDay) readingPerDay.addEventListener('change', renderReadingStats);
+    if (readingPerDay) readingPerDay.addEventListener('change', readingDaysFromPerDay);
+    const readingWordDays = $('#reading-word-days');
+    if (readingWordDays) readingWordDays.addEventListener('change', readingApplyWordDays);
+    const readingEvenSplit = $('#reading-even-split');
+    if (readingEvenSplit) readingEvenSplit.addEventListener('click', readingApplyWordDays);
+    const readingWordSearch = $('#reading-word-search');
+    if (readingWordSearch) readingWordSearch.addEventListener('input', () => renderReadingWordList(ensureReadingState()));
+    const readingWordDayFilter = $('#reading-word-day-filter');
+    if (readingWordDayFilter) readingWordDayFilter.addEventListener('change', () => renderReadingWordList(ensureReadingState()));
+    const readingPickerOpen = $('#reading-picker-open');
+    if (readingPickerOpen) readingPickerOpen.addEventListener('click', () => openReadingPicker());
+    const readingPickerSearch = $('#reading-picker-search');
+    if (readingPickerSearch) {
+      readingPickerSearch.addEventListener('input', () => {
+        readingPickerQuery = readingPickerSearch.value;
+        renderReadingPicker();
+      });
+    }
+    const readingPickerTypes = $('#reading-picker-types');
+    if (readingPickerTypes) {
+      readingPickerTypes.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-reading-picker-type]');
+        if (!button) return;
+        readingPickerType = button.dataset.readingPickerType || 'all';
+        renderReadingPicker();
+      });
+    }
+    const readingPickerList = $('#reading-picker-list');
+    if (readingPickerList) {
+      readingPickerList.addEventListener('click', (event) => {
+        const card = event.target.closest('[data-reading-source]');
+        if (!card) return;
+        const select = $('#reading-paper');
+        if (select) select.value = card.dataset.readingSource;
+        applyReadingSource(card.dataset.readingSource);
+        S.closeDialog($('#reading-picker-dialog'));
+      });
+    }
+    const readingSelectAll = $('#reading-select-all');
+    if (readingSelectAll) {
+      readingSelectAll.addEventListener('click', () => {
+        $$('#reading-students input[type="checkbox"]').forEach((input) => { input.checked = true; });
+        readingSyncStudentIds();
+      });
+    }
+    const readingSelectNone = $('#reading-select-none');
+    if (readingSelectNone) {
+      readingSelectNone.addEventListener('click', () => {
+        $$('#reading-students input[type="checkbox"]').forEach((input) => { input.checked = false; });
+        readingSyncStudentIds();
+      });
+    }
+    const readingWeekStart = $('#reading-week-start');
+    if (readingWeekStart) {
+      readingWeekStart.addEventListener('change', () => {
+        ensureReadingState().weekStart = readingWeekStart.value;
+        save();
+      });
+    }
+    const readingGrammarMatch = $('#reading-grammar-match');
+    if (readingGrammarMatch) readingGrammarMatch.addEventListener('click', matchReadingGrammarAi);
+    const readingGrammarLibrary = $('#reading-grammar-library');
+    if (readingGrammarLibrary) readingGrammarLibrary.addEventListener('click', () => openGrammarLibrary());
+    const readingGrammarMatchList = $('#reading-grammar-match-list');
+    if (readingGrammarMatchList) {
+      readingGrammarMatchList.addEventListener('click', (event) => {
+        const open = event.target.closest('[data-reading-grammar-open]');
+        if (open) { openGrammarLibrary(open.dataset.readingGrammarOpen); return; }
+        const send = event.target.closest('[data-reading-grammar-send]');
+        if (send) sendReadingGrammarMatch(send.dataset.readingGrammarSend);
+      });
+    }
     const readingStudents = $('#reading-students');
     if (readingStudents) {
       readingStudents.addEventListener('change', (event) => {
         const input = event.target.closest('input[type="checkbox"]');
         if (!input) return;
-        if (!readingStudentIds) readingStudentIds = new Set();
-        if (input.checked) readingStudentIds.add(input.value);
-        else readingStudentIds.delete(input.value);
-        updateReadingSelectedCount();
+        readingSyncStudentIds();
       });
     }
     const outboxList = $('#outbox-list');
@@ -7229,6 +8214,74 @@
         if (!button || !card) return;
         if (button.dataset.grammarAction === 'codes') openGrammarPlanCodes(card.dataset.grammarPlan);
         else if (button.dataset.grammarAction === 'delete') deleteGrammarPlan(card.dataset.grammarPlan);
+      });
+    }
+    const grammarLibraryOpen = $('#grammar-library-open');
+    if (grammarLibraryOpen) grammarLibraryOpen.addEventListener('click', () => openGrammarLibrary());
+    const grammarLibraryQuickOpen = $('#grammar-library-quick-open');
+    const grammarLibraryQuickSearch = $('#grammar-library-quick-search');
+    const openQuickGrammar = () => openGrammarLibrary(grammarLibraryQuickSearch ? grammarLibraryQuickSearch.value : '');
+    if (grammarLibraryQuickOpen) grammarLibraryQuickOpen.addEventListener('click', openQuickGrammar);
+    if (grammarLibraryQuickSearch) {
+      grammarLibraryQuickSearch.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') { event.preventDefault(); openQuickGrammar(); }
+      });
+    }
+    const grammarLibrarySearch = $('#grammar-library-search');
+    if (grammarLibrarySearch) {
+      grammarLibrarySearch.addEventListener('input', () => {
+        grammarLibraryQuery = grammarLibrarySearch.value;
+        renderGrammarLibraryList();
+      });
+    }
+    const grammarLibraryFilters = $('#grammar-library-filters');
+    if (grammarLibraryFilters) {
+      grammarLibraryFilters.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-grammar-library-kind]');
+        if (!button) return;
+        grammarLibraryKind = button.dataset.grammarLibraryKind || 'all';
+        $$('#grammar-library-filters button').forEach((item) => item.classList.toggle('active', item === button));
+        renderGrammarLibraryList();
+      });
+    }
+    const grammarLibraryList = $('#grammar-library-list');
+    if (grammarLibraryList) {
+      grammarLibraryList.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-grammar-library-id]');
+        if (!button) return;
+        grammarLibraryActiveId = button.dataset.grammarLibraryId;
+        renderGrammarLibraryList();
+        renderGrammarLibraryDetail();
+      });
+    }
+    const grammarLibraryStudents = $('#grammar-library-students');
+    if (grammarLibraryStudents) {
+      grammarLibraryStudents.addEventListener('change', (event) => {
+        const input = event.target.closest('input[type="checkbox"]');
+        if (!input) return;
+        if (!grammarLibrarySendIds) grammarLibrarySendIds = new Set();
+        if (input.checked) grammarLibrarySendIds.add(input.value);
+        else grammarLibrarySendIds.delete(input.value);
+      });
+    }
+    const grammarLibrarySend = $('#grammar-library-send');
+    if (grammarLibrarySend) {
+      grammarLibrarySend.addEventListener('click', () => {
+        if (!grammarLibraryActiveId) { S.toast('先在左边选一个语法点。', 'error'); return; }
+        const ids = $$('#grammar-library-students input[type="checkbox"]:checked').map((input) => input.value);
+        sendGrammarCheckin(grammarLibraryActiveId, ids, S.addDays(S.todayIso(), 3), '语法图书馆');
+      });
+    }
+    const grammarLibraryDialog = $('#grammar-library-dialog');
+    if (grammarLibraryDialog) {
+      grammarLibraryDialog.addEventListener('click', (event) => {
+        const aiButton = event.target.closest('[data-grammar-lib-ai]');
+        if (aiButton) { grammarLibraryAi(aiButton.dataset.grammarLibAi); return; }
+        const sendButton = event.target.closest('[data-grammar-lib-send]');
+        if (sendButton) {
+          const ids = $$('#grammar-library-students input[type="checkbox"]:checked').map((input) => input.value);
+          sendGrammarCheckin(sendButton.dataset.grammarLibSend, ids, S.addDays(S.todayIso(), 3), '语法图书馆');
+        }
       });
     }
 

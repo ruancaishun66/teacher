@@ -2257,7 +2257,7 @@
           `<div class="task-meta">` +
             (task.planId ? `<span class="plan-tag">周计划 · D${task.planDay}/${task.planTotal || 7}</span>` : '') +
             `<span>${S.escapeHtml(task.grade || (profile() && profile().grade) || '未标注')}</span>` +
-            `<span>${task.mode === 'words' ? `单词闯关 · ${taskQuestionCount(task)} 词` : task.mode === 'grammar' ? `语法小营 · D${task.grammarDay || '?'} · 5 关` : `${taskQuestionCount(task)} 题`}</span>` +
+            `<span>${task.mode === 'words' ? `单词闯关 · ${taskQuestionCount(task)} 词` : task.mode === 'grammar' ? (Number(task.grammarDay) > 0 ? `语法小营 · D${task.grammarDay} · 5 关` : '语法专题 · 打卡') : `${taskQuestionCount(task)} 题`}</span>` +
             `<span>${scoreText}</span>` +
             (task.due ? `<span>截止 ${S.escapeHtml(S.fmtDate(task.due))}</span>` : '') +
           `</div>` +
@@ -2577,25 +2577,32 @@
     const lesson = task.lesson;
     if (!lesson) return '';
     const G = window.ShunshiGrammar;
+    const hasTokens = Array.isArray(lesson.tokens) && lesson.tokens.length;
     const tokens = (lesson.tokens || []).map((pair) => {
       const text = pair[0];
       const role = pair[1];
       const cls = G ? G.roleClass(role) : 'other';
       return `<span class="g-token role-${cls}"><b>${S.escapeHtml(text)}</b><small>${S.escapeHtml(role)}</small></span>`;
     }).join('');
+    const dayNumber = Number(lesson.day) || Number(task.grammarDay) || 0;
+    const dayText = dayNumber > 0
+      ? `D${dayNumber} / ${G ? G.total : 60} · 约 ${lesson.minutes || 5} 分钟`
+      : `约 ${lesson.minutes || 8} 分钟`;
     return `<div class="grammar-hero" style="--unit:${lesson.unitColor || '#d96e51'}">` +
       `<div class="grammar-hero-top">` +
         `<span class="grammar-unit-pill">${S.escapeHtml(lesson.unit || '语法小营')}</span>` +
-        `<span>D${lesson.day || task.grammarDay} / ${G ? G.total : 60} · 约 5 分钟</span>` +
+        `<span>${S.escapeHtml(dayText)}</span>` +
       `</div>` +
       `<p class="grammar-scene">${S.escapeHtml(lesson.scene || '')}</p>` +
-      `<div class="g-sentence" data-grammar-tokens>${tokens}</div>` +
-      `<div class="grammar-hero-tools">` +
-        `<button class="p-btn small ghost" type="button" data-grammar-reveal>遮住标签，自己先猜</button>` +
-        `<span>先看句子，再对照每块的成分。</span>` +
-      `</div>` +
+      `<div class="g-sentence" data-grammar-tokens>${hasTokens ? tokens : S.escapeHtml(lesson.sentence || '')}</div>` +
+      (hasTokens
+        ? `<div class="grammar-hero-tools">` +
+            `<button class="p-btn small ghost" type="button" data-grammar-reveal>遮住标签，自己先猜</button>` +
+            `<span>先看句子，再对照每块的成分。</span>` +
+          `</div>`
+        : '') +
       `<p class="grammar-translation">${S.escapeHtml(lesson.translation || '')}</p>` +
-      `<div class="g-rule"><b>今日规则</b><p>${S.escapeHtml(lesson.rule || '')}</p>` +
+      `<div class="g-rule"><b>今日规则</b><p>${S.escapeHtml(lesson.rule || '').replace(/\n/g, '<br>')}</p>` +
         (lesson.tip ? `<small>${S.escapeHtml(lesson.tip)}</small>` : '') +
       `</div>` +
     `</div>`;
@@ -2673,14 +2680,7 @@
     $('#submit-task').hidden = step.type !== 'writing';
     $('#submit-task').textContent = '提交今日语法';
 
-    const lesson = task.lesson || {};
-    let html = `<div class="grammar-run">` +
-      `<details class="grammar-brief">` +
-        `<summary><span>今日句子 · ${S.escapeHtml(lesson.title || '语法小营')}</span><small>点开 / 收起</small></summary>` +
-        `<p class="grammar-brief-scene">${S.escapeHtml(lesson.scene || '')}</p>` +
-        `<p class="grammar-brief-sentence">${S.escapeHtml(lesson.sentence || '')}</p>` +
-        `<p class="grammar-brief-rule">${S.escapeHtml(lesson.rule || '')}</p>` +
-      `</details>`;
+    let html = `<div class="grammar-run">` + renderGrammarHero(task);
 
     if (step.type === 'question') {
       const { qid, question } = grammarStepQuestion(step);

@@ -9,7 +9,7 @@
 <title>顺势 · 教师端｜因势利导，循循善诱</title>
 <link rel="icon" href="logo.svg?v=20261118c" type="image/svg+xml">
 <link rel="stylesheet" href="portal.css?v=20261120d">
-<link rel="stylesheet" href="teacher.css?v=20261122b">
+<link rel="stylesheet" href="teacher.css?v=20261122c">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
 </head>
@@ -321,7 +321,7 @@
       <!-- B 阅读联动（核心） -->
       <div class="publish-subpane active" data-publish-pane="reading">
         <div class="publish-banner reading-banner">
-          <div><b>阅读联动：一篇阅读，长出一周打卡</b><p>先认词 → 再看语法 → 拆长难句 → 最后站到命题人视角读全文。单词按原文首次出现的顺序提取，每天 40 个；本周装不下的自动顺延到下周，并在下方显示，绝不悄悄重复。</p></div>
+          <div><b>阅读联动：一份材料，长出一整轮打卡</b><p>先认词 → 再看语法 → 拆长难句 → 最后站到命题人视角读全文。阅读、完形、五选五 / 七选五、语法填空 / 短文填词、单项选择都能用。单词提取多少就保留多少，再由你决定分几天，系统平均分配，一个词都不丢。</p></div>
           <span class="reading-core-badge">核心功能</span>
         </div>
 
@@ -333,16 +333,17 @@
                 <button class="p-btn small ghost" type="button" id="reading-refresh">刷新资料</button>
               </div>
               <div class="field">
-                <label for="reading-paper">从资料库的练习卷里选</label>
-                <select class="select" id="reading-paper"><option value="">正在读取资料库…</option></select>
-                <p class="hint" id="reading-paper-meta">也可以直接在下面粘贴任意英文文章。</p>
+                <label>从资料库的练习卷里选</label>
+                <select class="select" id="reading-paper" hidden><option value="">正在读取资料库…</option></select>
+                <button class="reading-picker-open" type="button" id="reading-picker-open">浏览资料库 · 看预览选文章</button>
+                <p class="hint" id="reading-paper-meta">阅读、完形、五选五 / 七选五、语法填空 / 短文填词、单项选择都可以选；也可以直接在下面粘贴任意英文文章。</p>
               </div>
               <div class="field">
                 <label for="reading-text">阅读原文（可修改、可粘贴）</label>
                 <textarea class="textarea reading-textarea" id="reading-text" rows="12" placeholder="把要讲的阅读原文粘贴到这里…"></textarea>
               </div>
               <div class="reading-source-actions">
-                <button class="p-btn" type="button" id="reading-extract">提取本周单词</button>
+                <button class="p-btn" type="button" id="reading-extract">提取全部单词</button>
                 <button class="p-btn small ghost" type="button" id="reading-clear-carry" hidden>重置这篇的单词进度</button>
               </div>
               <p class="hint" id="reading-extract-note">提取只在本机进行，不调用 AI、不花钱。</p>
@@ -354,35 +355,66 @@
                 <span class="hint" id="reading-week-label">先提取单词</span>
               </div>
               <div class="reading-week">
-                <div class="reading-day d-words"><span>D1–D4</span><b>单词初印象</b><small>每天 40 词，先混个脸熟</small></div>
-                <div class="reading-day d-grammar"><span>D5</span><b>阅读里的语法</b><small>先抓动词，再过五大句型</small></div>
-                <div class="reading-day d-sentence"><span>D6</span><b>阅读里的长难句</b><small>主干 + 一级 / 二级 / 三级修饰</small></div>
-                <div class="reading-day d-perspective"><span>D7</span><b>命题人视角</b><small>全文 + 选项语义中心</small></div>
+                <div class="reading-day d-words" id="reading-word-day-card"><span>D1…Dn</span><b>单词初印象</b><small>提取后由你决定分几天</small></div>
+                <div class="reading-day d-grammar" id="reading-grammar-day-card"><span>D5</span><b>阅读里的语法</b><small>先抓动词，再过五大句型</small></div>
+                <div class="reading-day d-sentence" id="reading-sentence-day-card"><span>D6</span><b>阅读里的长难句</b><small>主干 + 一级 / 二级 / 三级修饰</small></div>
+                <div class="reading-day d-perspective" id="reading-perspective-day-card"><span>D7</span><b>命题人视角</b><small>全文 + 选项语义中心</small></div>
               </div>
               <div class="reading-stats" id="reading-stats">
-                <p class="hint">选好文章后点“提取本周单词”，这里会显示：本周取多少词、还剩多少词顺延到下周。</p>
+                <p class="hint">选好材料后点“提取全部单词”。提取多少就保留多少，然后由你决定分成几天。</p>
               </div>
               <details class="reading-words-details" id="reading-words-details" hidden>
-                <summary>查看本周单词 <span id="reading-word-count"></span></summary>
+                <summary>浏览全部单词 <span id="reading-word-count"></span></summary>
+                <div class="reading-word-tools">
+                  <input class="input" type="search" id="reading-word-search" placeholder="搜单词或中文意思…" autocomplete="off">
+                  <select class="select" id="reading-word-day-filter"><option value="all">全部天数</option></select>
+                </div>
                 <div class="reading-word-list" id="reading-word-list"></div>
               </details>
               <div class="reading-fields">
                 <div class="field"><label for="reading-week-start">这周从哪天开始</label><input class="input" type="date" id="reading-week-start"></div>
-                <div class="field"><label for="reading-per-day">每天单词数</label><input class="input" type="number" id="reading-per-day" value="40" min="20" max="60" step="5"></div>
+                <div class="field reading-day-control">
+                  <label for="reading-word-days">单词分成几天</label>
+                  <div class="reading-day-control-row">
+                    <input class="input" type="number" id="reading-word-days" value="4" min="1" step="1">
+                    <button class="p-btn small" type="button" id="reading-even-split">平均分配</button>
+                  </div>
+                  <p class="hint">点“平均分配”后，全部单词会按这个天数重新平均切开。</p>
+                </div>
+                <div class="field"><label for="reading-per-day">每天最多多少词（用来自动算天数）</label><input class="input" type="number" id="reading-per-day" value="40" min="1" step="5"></div>
                 <div class="field"><label for="reading-grade">面向年级</label><input class="input" id="reading-grade" placeholder="如 高二"></div>
               </div>
               <div class="field">
                 <label>发给谁</label>
+                <div class="reading-student-tools">
+                  <button class="p-btn small ghost" type="button" id="reading-select-all">全选</button>
+                  <button class="p-btn small ghost" type="button" id="reading-select-none">全不选</button>
+                </div>
                 <div class="reading-student-list" id="reading-students"></div>
               </div>
             </section>
           </div>
         </section>
 
+        <section class="publish-block reading-grammar-match-block">
+          <div class="roster-toolbar">
+            <div>
+              <h2 class="pane-title">3. 语法图书馆 · 本篇能学什么 <small>GRAMMAR MATCH</small></h2>
+              <p class="pane-sub">先从两本语法书里找本篇最适合讲的语法点。本机规则版不花钱；点“AI 精准匹配”才会把原文发给 DeepSeek。看中的语法点可以一键发给上面勾选的学生打卡。</p>
+            </div>
+            <div class="toolbar-actions">
+              <button class="p-btn small ghost" type="button" id="reading-grammar-library">打开语法图书馆</button>
+              <button class="p-btn small" type="button" id="reading-grammar-match">AI 精准匹配本篇语法点</button>
+            </div>
+          </div>
+          <div class="reading-grammar-match-status" id="reading-grammar-match-status">选好材料后，这里会自动给出本机匹配结果。</div>
+          <div class="reading-grammar-match-list" id="reading-grammar-match-list"></div>
+        </section>
+
         <section class="publish-block reading-ai-block">
           <div class="roster-toolbar">
             <div>
-              <h2 class="pane-title">3. 让 AI 把阅读和语法课联动 <small>AI LINK</small></h2>
+              <h2 class="pane-title">4. 让 AI 把阅读和语法课联动 <small>AI LINK</small></h2>
               <p class="pane-sub">AI 会按老师的方法论，从原文里挑句子：先找谓语动词 → 五大基本句型找主干 → 其余一律当修饰 → 从句按二级、三级拆。再生成命题人视角的选项分析。只发送阅读原文，不发送学生信息。</p>
             </div>
             <div class="toolbar-actions">
@@ -399,7 +431,7 @@
         <section class="publish-block reading-generate-block">
           <div class="roster-toolbar">
             <div>
-              <h2 class="pane-title">4. 生成一周任务 <small>GENERATE</small></h2>
+              <h2 class="pane-title">5. 生成一周任务 <small>GENERATE</small></h2>
               <p class="pane-sub">生成后不会立刻出码，而是先放进最上面的“待发区”。确认学生和内容后，再点“一键生成发送包”。</p>
             </div>
             <div class="toolbar-actions">
@@ -416,6 +448,24 @@
         <div class="publish-banner">
           <div><b>C · 独立语法线：60 天语法小营</b><p>不从阅读里取材，按 60 天课程地图单独练语法。若本周已在“阅读联动”或“词汇书周编排”里排了语法，这里不用重复发。</p></div>
         </div>
+
+        <!-- 语法图书馆：两本语法书的可搜索版 -->
+        <section class="publish-block grammar-library-entry">
+          <div class="roster-toolbar">
+            <div>
+              <h2 class="pane-title">语法图书馆 <small>GRAMMAR LIBRARY</small></h2>
+              <p class="pane-sub">把 60 天语法课和两本语法书里的进阶专题放在一起：可以搜知识点、看口语化解析、查搭配和例句。选中语法点后，能直接发给学生打卡。</p>
+            </div>
+            <div class="toolbar-actions">
+              <button class="p-btn" type="button" id="grammar-library-open">打开语法图书馆</button>
+            </div>
+          </div>
+          <div class="grammar-library-quick">
+            <input class="input" type="search" id="grammar-library-quick-search" placeholder="搜语法点，例如：定语从句、被动、虚拟、冠词、搭配…" autocomplete="off">
+            <button class="p-btn small" type="button" id="grammar-library-quick-open">搜索</button>
+          </div>
+          <p class="hint" id="grammar-library-quick-note">本机可搜 60 节语法课 + 16 个进阶专题，共 76 个知识点。搜索和查看不花钱；只有点“AI 口语化解析”或“AI 精准匹配”时才调用 DeepSeek。</p>
+        </section>
 
         <!-- 语法打卡 -->
         <section class="publish-block" data-publish-block="grammar">
@@ -1416,14 +1466,91 @@
   </div>
 </dialog>
 
+<!-- 阅读材料预览选择器 -->
+<dialog class="p-dialog reading-picker-dialog" id="reading-picker-dialog" style="width:min(1100px,calc(100% - 16px));">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>从资料库选材料</h2>
+        <p>先看预览再选。阅读、完形、五选五 / 七选五、语法填空 / 短文填词、单项选择都能用于“先学单词再学阅读”。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="reading-picker-search-row">
+        <input class="input" type="search" id="reading-picker-search" placeholder="搜标题、试卷名、年级或正文…" autocomplete="off">
+        <span class="hint" id="reading-picker-count">0 份</span>
+      </div>
+      <div class="reading-picker-types" id="reading-picker-types">
+        <button class="active" type="button" data-reading-picker-type="all">全部</button>
+        <button type="button" data-reading-picker-type="reading">阅读理解</button>
+        <button type="button" data-reading-picker-type="cloze">完形填空</button>
+        <button type="button" data-reading-picker-type="five">五选五 / 七选五</button>
+        <button type="button" data-reading-picker-type="grammar">语法填空 / 短文填词</button>
+        <button type="button" data-reading-picker-type="single">单项选择</button>
+      </div>
+      <div class="reading-picker-list" id="reading-picker-list"></div>
+    </div>
+    <div class="p-dialog-foot">
+      <span class="hint" style="margin-right:auto;">点一张卡片就会放进 B 板块，并自动写进“阅读原文”。</span>
+      <button class="p-btn ghost" type="button" data-close>关闭</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 语法图书馆 -->
+<dialog class="p-dialog grammar-library-dialog" id="grammar-library-dialog" style="width:min(1180px,calc(100% - 14px));">
+  <div class="p-dialog-inner">
+    <div class="p-dialog-head">
+      <div>
+        <h2>语法图书馆</h2>
+        <p>60 节语法课 + 16 个进阶专题。可以搜知识点、看规则与例句、查搭配和易错点；需要更口语的解释时，再手动点 AI。</p>
+      </div>
+      <button class="p-close" type="button" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="p-dialog-body">
+      <div class="grammar-library-layout">
+        <aside class="grammar-library-side">
+          <div class="grammar-library-search">
+            <input class="input" type="search" id="grammar-library-search" placeholder="搜：定语从句、被动、虚拟、冠词…" autocomplete="off">
+            <span class="hint" id="grammar-library-count">共 76 个知识点</span>
+          </div>
+          <div class="grammar-library-filters" id="grammar-library-filters">
+            <button class="active" type="button" data-grammar-library-kind="all">全部</button>
+            <button type="button" data-grammar-library-kind="lesson">60 天课程</button>
+            <button type="button" data-grammar-library-kind="topic">进阶专题</button>
+          </div>
+          <div class="grammar-library-list" id="grammar-library-list"></div>
+        </aside>
+        <section class="grammar-library-detail" id="grammar-library-detail">
+          <div class="empty-state"><strong>选一个语法点</strong>左边按关键词搜，或在“阅读联动”里让系统自动匹配本篇语法点。</div>
+        </section>
+      </div>
+      <div class="grammar-library-sendbar">
+        <div class="grammar-library-send-intro">
+          <b>发给学生打卡</b>
+          <small>勾选学生后，当前语法点会进入待发区；确认后和其他任务一起生成发送包。</small>
+        </div>
+        <div class="grammar-library-students" id="grammar-library-students"></div>
+        <button class="p-btn" type="button" id="grammar-library-send">发给已勾选学生</button>
+      </div>
+    </div>
+    <div class="p-dialog-foot">
+      <span class="hint" style="margin-right:auto;">AI 只在你点按钮并确认后调用；搜索、查看和本机匹配都不花钱。</span>
+      <button class="p-btn ghost" type="button" data-close>关闭</button>
+    </div>
+  </div>
+</dialog>
+
 <script src="grammar-advanced.js"></script>
 <script src="grammar-data.js"></script>
+<script src="grammar-extra.js"></script>
 <script src="insights-core.js"></script>
 <script src="insights.js"></script>
 <script>window.SHUNSHI_TEACHER_AI = true;</script>
 <script src="portal.js?v=20261121a"></script>
 <script src="word-examples.js"></script>
-<script src="teacher.js?v=20261122c"></script>
+<script src="teacher.js?v=20261122e"></script>
 <script src="pwa.js?v=20261121b" defer></script>
 </body>
 </html>

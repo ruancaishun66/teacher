@@ -1903,7 +1903,7 @@
 }
 .reading-word b { color: var(--ink); font-size: 0.72rem; letter-spacing: 0.02em; }
 .reading-word small { color: var(--muted); font-size: 0.6rem; line-height: 1.4; }
-.reading-fields { display: grid; grid-template-columns: 1.2fr 0.7fr 0.9fr; gap: 10px; }
+.reading-fields { display: grid; grid-template-columns: 1fr 1.4fr 1fr 0.8fr; gap: 10px; }
 .reading-student-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
@@ -1962,8 +1962,227 @@
 .reading-plan-item span { flex-shrink: 0; color: var(--gold); font-weight: 700; }
 .reading-plan-empty { margin: 4px 0 0; color: var(--dim); font-size: 0.66rem; }
 
+/* ------------------------- 阅读材料预览选择 / 全部单词分配 ------------------------- */
+.reading-picker-open {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid rgba(76, 154, 166, 0.4);
+  border-radius: 9px;
+  background: linear-gradient(135deg, rgba(76, 154, 166, 0.1), rgba(255, 255, 255, 0.72));
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.reading-picker-open::after { content: '预览选择 ▸'; color: var(--teal, #4c9aa6); font-size: 0.62rem; font-weight: 600; }
+.reading-picker-open:hover { border-color: rgba(76, 154, 166, 0.7); }
+.reading-picker-open.has-source { border-color: rgba(214, 167, 75, 0.55); background: rgba(214, 167, 75, 0.08); }
+.reading-day-control-row { display: flex; align-items: center; gap: 6px; }
+.reading-day-control-row .input { min-width: 0; flex: 1; }
+.reading-day-control-row .p-btn { flex-shrink: 0; white-space: nowrap; }
+.reading-word-tools {
+  display: flex;
+  gap: 8px;
+  padding: 0 11px 9px;
+}
+.reading-word-tools .input { flex: 1; min-width: 0; }
+.reading-word-tools .select { width: 150px; flex-shrink: 0; }
+.reading-word-list { display: block; max-height: 420px; }
+.reading-word-day + .reading-word-day { margin-top: 10px; padding-top: 9px; border-top: 1px dashed var(--line-soft); }
+.reading-word-day-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.reading-word-day-head b { color: var(--ink); font-family: var(--display); font-size: 0.78rem; }
+.reading-word-day-head small { color: var(--dim); font-size: 0.6rem; }
+.reading-word-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.reading-student-tools { display: flex; gap: 6px; margin: 0 0 6px; }
+.reading-grammar-match-block { border-top: 3px solid #8a74b8; }
+.reading-grammar-match-status {
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  border: 1px dashed rgba(138, 116, 184, 0.34);
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.6;
+}
+.reading-grammar-match-status.ok { border-style: solid; background: rgba(138, 116, 184, 0.06); color: var(--ink); }
+.reading-grammar-match-list { display: grid; gap: 8px; margin-top: 10px; }
+.reading-grammar-match {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(138, 116, 184, 0.22);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.58);
+}
+.reading-grammar-match b { display: block; color: var(--ink); font-size: 0.74rem; }
+.reading-grammar-match small { display: block; margin-top: 2px; color: #6d5c91; font-size: 0.6rem; }
+.reading-grammar-match p { margin: 5px 0 0; color: var(--muted); font-size: 0.64rem; line-height: 1.6; }
+.reading-grammar-match-sentence {
+  display: block;
+  margin-top: 5px;
+  padding: 6px 8px;
+  border-left: 2px solid rgba(138, 116, 184, 0.45);
+  background: rgba(138, 116, 184, 0.05);
+  color: var(--ink);
+  font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  font-size: 0.66rem;
+  line-height: 1.55;
+}
+.reading-grammar-match-actions { display: flex; flex-direction: column; gap: 6px; justify-content: center; }
+.reading-grammar-empty { padding: 12px; border: 1px dashed var(--line-soft); border-radius: 9px; color: var(--dim); font-size: 0.66rem; text-align: center; }
 
-@media (max-width: 820px) {
+.reading-picker-dialog .p-dialog-body { padding-top: 12px; }
+.reading-picker-search-row { display: flex; align-items: center; gap: 10px; }
+.reading-picker-search-row .input { flex: 1; }
+.reading-picker-search-row .hint { flex-shrink: 0; margin: 0; }
+.reading-picker-types { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+.reading-picker-types button {
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--muted);
+  font-size: 0.64rem;
+  cursor: pointer;
+}
+.reading-picker-types button.active { border-color: rgba(76, 154, 166, 0.65); background: rgba(76, 154, 166, 0.12); color: var(--ink); font-weight: 700; }
+.reading-picker-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 9px;
+  max-height: min(58vh, 620px);
+  overflow: auto;
+  padding: 2px;
+}
+.reading-picker-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.64);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.reading-picker-card:hover { border-color: rgba(76, 154, 166, 0.55); background: rgba(255, 255, 255, 0.9); }
+.reading-picker-card.is-current { border-color: rgba(214, 167, 75, 0.7); background: rgba(214, 167, 75, 0.08); }
+.reading-picker-card-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.reading-picker-type {
+  display: inline-flex;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(76, 154, 166, 0.12);
+  color: #2f717c;
+  font-size: 0.56rem;
+  font-weight: 800;
+}
+.reading-picker-type.type-cloze { background: rgba(183, 127, 57, 0.14); color: #81571f; }
+.reading-picker-type.type-five { background: rgba(138, 116, 184, 0.14); color: #5d4a85; }
+.reading-picker-type.type-grammar { background: rgba(192, 106, 138, 0.14); color: #8c3c5a; }
+.reading-picker-type.type-single { background: rgba(76, 127, 184, 0.14); color: #355f8f; }
+.reading-picker-words { color: var(--dim); font-size: 0.58rem; }
+.reading-picker-card b { font-size: 0.72rem; line-height: 1.4; }
+.reading-picker-card small { color: var(--dim); font-size: 0.58rem; line-height: 1.45; }
+.reading-picker-card p { margin: 2px 0 0; color: var(--muted); font-size: 0.62rem; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.reading-picker-empty { grid-column: 1 / -1; padding: 26px 16px; border: 1px dashed var(--line); border-radius: 11px; text-align: center; }
+.reading-picker-empty b { display: block; margin-bottom: 4px; color: var(--ink); }
+.reading-picker-empty p { margin: 0; color: var(--muted); font-size: 0.68rem; }
+
+/* ------------------------- 语法图书馆 ------------------------- */
+.grammar-library-entry { border-top: 3px solid #8a74b8; }
+.grammar-library-quick { display: flex; gap: 8px; margin-top: 4px; }
+.grammar-library-quick .input { flex: 1; }
+.grammar-library-layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 12px; min-height: 54vh; }
+.grammar-library-side { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--line-soft); border-radius: 11px; background: rgba(255, 255, 255, 0.45); padding: 10px; }
+.grammar-library-search { display: flex; flex-direction: column; gap: 4px; }
+.grammar-library-filters { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 8px; }
+.grammar-library-filters button {
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--muted);
+  font-size: 0.6rem;
+  cursor: pointer;
+}
+.grammar-library-filters button.active { border-color: rgba(138, 116, 184, 0.6); background: rgba(138, 116, 184, 0.12); color: var(--ink); font-weight: 700; }
+.grammar-library-list { flex: 1; min-height: 0; overflow: auto; display: grid; gap: 6px; padding-right: 2px; }
+.grammar-library-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.grammar-library-item:hover { border-color: rgba(138, 116, 184, 0.48); }
+.grammar-library-item.is-active { border-color: rgba(138, 116, 184, 0.7); background: rgba(138, 116, 184, 0.1); }
+.grammar-library-item b { font-size: 0.69rem; line-height: 1.4; }
+.grammar-library-item small { color: var(--dim); font-size: 0.56rem; line-height: 1.4; }
+.grammar-library-item i { width: fit-content; margin-bottom: 2px; padding: 1px 6px; border-radius: 999px; background: rgba(138, 116, 184, 0.11); color: #5d4a85; font-size: 0.52rem; font-style: normal; font-weight: 700; }
+.grammar-library-detail { min-height: 0; max-height: 64vh; overflow: auto; padding: 14px 16px; border: 1px solid var(--line-soft); border-radius: 11px; background: rgba(255, 255, 255, 0.58); }
+.grammar-library-detail-head { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-bottom: 6px; }
+.grammar-library-detail h3 { margin: 0; color: var(--ink); font-family: var(--display); font-size: 1.02rem; line-height: 1.35; }
+.grammar-library-detail .lib-sub { margin: 0 0 10px; color: var(--dim); font-size: 0.64rem; }
+.grammar-library-pill { display: inline-flex; padding: 2px 8px; border-radius: 999px; background: rgba(138, 116, 184, 0.13); color: #5d4a85; font-size: 0.56rem; font-weight: 800; }
+.grammar-library-pill.unit { background: rgba(76, 154, 166, 0.12); color: #2f717c; }
+.grammar-library-sec { margin-top: 11px; padding-top: 10px; border-top: 1px dashed var(--line-soft); }
+.grammar-library-sec h4 { margin: 0 0 5px; color: var(--ink); font-size: 0.7rem; }
+.grammar-library-sec p { margin: 0; color: var(--muted); font-size: 0.66rem; line-height: 1.7; }
+.grammar-library-scene { padding: 8px 10px; border-left: 3px solid rgba(138, 116, 184, 0.45); background: rgba(138, 116, 184, 0.05); border-radius: 0 7px 7px 0; }
+.grammar-library-sentence { margin: 8px 0 0; color: var(--ink); font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif; font-size: 0.78rem; line-height: 1.65; }
+.grammar-library-eg { display: grid; gap: 4px; margin-top: 5px; }
+.grammar-library-eg span { display: block; color: var(--ink); font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif; font-size: 0.66rem; line-height: 1.55; }
+.grammar-library-eg small { color: var(--dim); font-size: 0.6rem; }
+.grammar-library-point { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: 8px; background: rgba(255, 255, 255, 0.55); }
+.grammar-library-point b { color: var(--ink); font-size: 0.68rem; }
+.grammar-library-point p { margin: 3px 0 0; }
+.grammar-library-pitfall { margin-top: 8px; padding: 8px 10px; border: 1px solid rgba(214, 167, 75, 0.35); border-radius: 8px; background: rgba(214, 167, 75, 0.08); color: #7b5416; font-size: 0.64rem; line-height: 1.65; }
+.grammar-library-drill { margin-top: 7px; padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: 8px; background: rgba(255, 255, 255, 0.5); font-size: 0.64rem; line-height: 1.6; }
+.grammar-library-drill b { display: block; color: var(--ink); }
+.grammar-library-drill ol { margin: 4px 0 0; padding-left: 18px; color: var(--muted); }
+.grammar-library-drill .answer { margin-top: 4px; color: #2f717c; }
+.grammar-library-ai { margin-top: 10px; padding: 10px 11px; border: 1px solid rgba(76, 154, 166, 0.35); border-radius: 9px; background: rgba(76, 154, 166, 0.06); }
+.grammar-library-ai h4 { margin: 0 0 5px; color: #2f717c; font-size: 0.7rem; }
+.grammar-library-ai p { margin: 0 0 4px; color: var(--muted); font-size: 0.64rem; line-height: 1.65; }
+.grammar-library-ai ul { margin: 4px 0; padding-left: 17px; color: var(--muted); font-size: 0.64rem; line-height: 1.65; }
+.grammar-library-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+.grammar-library-sendbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.55);
+}
+.grammar-library-send-intro { flex: 1; min-width: 180px; }
+.grammar-library-send-intro b { display: block; color: var(--ink); font-size: 0.7rem; }
+.grammar-library-send-intro small { color: var(--dim); font-size: 0.58rem; line-height: 1.45; }
+.grammar-library-students { display: flex; flex-wrap: wrap; gap: 5px; max-height: 90px; overflow: auto; }
+.grammar-library-students label { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border: 1px solid var(--line-soft); border-radius: 999px; background: rgba(255, 255, 255, 0.6); color: var(--muted); font-size: 0.6rem; cursor: pointer; }
+.grammar-library-students input { accent-color: var(--red-deep); }
+
+@media (max-width: 900px) {
+  .grammar-library-layout { grid-template-columns: 1fr; }
+  .grammar-library-side { max-height: 38vh; }
+  .grammar-library-detail { max-height: none; }
+  .grammar-library-sendbar { flex-wrap: wrap; }
+  .grammar-library-students { max-height: none; }
+}
   .reading-week { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .reading-fields { grid-template-columns: 1fr 1fr; }
   .reading-fields .field:last-child { grid-column: 1 / -1; }
