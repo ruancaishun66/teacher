@@ -352,6 +352,16 @@
         return index;
       }
     }
+    // 扫描件 OCR 常会把某个字认错，整段文字对不上；这时退回用原卷题号定位，
+    // 只要行首题号在这个题组里，就仍能切出这道题的原图。
+    var numbers = printedNumbers(item);
+    if (numbers.length) {
+      for (var lineIndex = Math.max(0, from || 0); lineIndex < lines.length; lineIndex += 1) {
+        var lineText = String((lines[lineIndex] && lines[lineIndex].text) || '').trim();
+        var match = lineText.match(/^(\d{1,3})\s*[.、．)）]/);
+        if (match && numbers.indexOf(Number(match[1])) >= 0) return lineIndex;
+      }
+    }
     return -1;
   }
 
@@ -411,6 +421,11 @@
   }
 
   function usableBounds(page) {
+    // 扫描件是整页图片，OCR 只能给出文字的位置；如果仍按文字边界裁，
+    // 右边的插图、表格和人物图会被整块切掉。扫描页直接用整页范围。
+    if (page.ocr) {
+      return { top: 0, bottom: page.height, left: 0, right: page.width };
+    }
     var lines = (page.lines || []).filter(function (line) { return line.text; });
     if (!lines.length) {
       return { top: 0, bottom: page.height, left: 0, right: page.width };
@@ -437,7 +452,102 @@
     };
   }
 
-  function rectsForRange(lines, pagesByNumber, start, end) {
+  // 原题图片不仅要包含文字，还要包含同一栏里的配图。只按文字左右边界裁，
+  // 阅读短文右侧的人物图、示意图会被切掉。这里先找整页的分栏缝，再把每一组题
+  // 扩到它所在栏的完整宽度；单栏页面直接用整页宽度。
+  function pageColumns(page) {
+    if (page.__columns) return page.__columns;
+    var full = [{ left: 0, right: page.width }];
+    var lines = (page.lines || []).filter(function (line) {
+      return line.text && line.xMax > line.xMin;
+    });
+    if (lines.length < 6 || !(page.width > 80)) {
+      page.__columns = full;
+      return full;
+    }
+    var cover = new Uint16Array(Math.ceil(page.width) + 2);
+    var narrow = lines.filter(function (line) {
+      return (line.xMax - line.xMin) < page.width * 0.78;
+    });
+    if (narrow.length < 6) {
+      page.__columns = full;
+      return full;
+    }
+    narrow.forEach(function (line) {
+      var from = Math.max(0, Math.floor(line.xMin));
+      var to = Math.min(cover.length - 1, Math.ceil(line.xMax));
+      for (var x = from; x <= to; x += 1) cover[x] += 1;
+    });
+    var gutters = [];
+    var start = null;
+    for (var x = 0; x <= page.width; x += 1) {
+      if (x < page.width && cover[x] === 0) {
+        if (start === null) start = x;
+      } else if (start !== null) {
+        var end = x;
+        var mid = (start + end) / 2;
+        if (end - start >= 12 && mid > page.width * 0.18 && mid < page.width * 0.82) {
+          gutters.push([start, end]);
+        }
+        start = null;
+      }
+    }
+    if (!gutters.length) {
+      page.__columns = full;
+      return full;
+    }
+    var boundaries = gutters
+      .sort(function (a, b) { return (b[1] - b[0]) - (a[1] - a[0]); })
+      .slice(0, 2)
+      .map(function (gutter) { return (gutter[0] + gutter[1]) / 2; })
+      // 真正的分栏缝两边都必须有文字。短文右边的插图、留白也会形成空白竖条，
+      // 如果把它当成分栏缝，插图又会被裁掉；这里要求两侧各至少有 3 行字。
+      .filter(function (mid) {
+        var leftCount = narrow.filter(function (line) {
+          return (line.xMin + line.xMax) / 2 < mid;
+        }).length;
+        var rightCount = narrow.length - leftCount;
+        return leftCount >= 3 && rightCount >= 3
+          && leftCount >= narrow.length * 0.12
+          && rightCount >= narrow.length * 0.12;
+      })
+      .sort(function (a, b) { return a - b; });
+    var ranges = [];
+    var leftEdge = 0;
+    boundaries.forEach(function (boundary) {
+      ranges.push({ left: leftEdge, right: boundary });
+      leftEdge = boundary;
+    });
+    ranges.push({ left: leftEdge, right: page.width });
+    var kept = ranges.filter(function (range) {
+      var count = lines.filter(function (line) {
+        var center = (line.xMin + line.xMax) / 2;
+        return center >= range.left && center < range.right;
+      }).length;
+      return count >= Math.max(4, lines.length * 0.12);
+    });
+    page.__columns = kept.length >= 2 ? kept : full;
+    return page.__columns;
+  }
+
+  function columnForLines(page, groupLines) {
+    var columns = pageColumns(page);
+    if (columns.length <= 1) return columns[0] || { left: 0, right: page.width };
+    var counts = columns.map(function () { return 0; });
+    groupLines.forEach(function (line) {
+      var center = (line.xMin + line.xMax) / 2;
+      var index = 0;
+      columns.forEach(function (column, i) {
+        if (center >= column.left && center < column.right) index = i;
+      });
+      counts[index] += 1;
+    });
+    var best = 0;
+    counts.forEach(function (count, i) { if (count > counts[best]) best = i; });
+    return columns[best];
+  }
+
+  function rectsForRange(lines, pagesByNumber, start, end, item) {
     if (start < 0 || end < start) return [];
     var groups = {};
     for (var i = start; i <= end && i < lines.length; i += 1) {
@@ -449,24 +559,23 @@
       groups[line.page].lines.push(line);
       groups[line.page].last = line;
     }
+    var padY = item && item.kind !== 'question' ? 24 : PAD;
     var rects = [];
     Object.keys(groups).map(Number).sort(function (a, b) { return a - b; }).forEach(function (pageNumber) {
       var group = groups[pageNumber];
       var page = pagesByNumber[pageNumber];
       if (!page) return;
-      var usable = usableBounds(page);
-      var isFirst = pageNumber === lines[start].page;
-      var isLast = pageNumber === lines[end].page;
-      var top = isFirst ? Math.max(0, group.first.top - PAD) : usable.top;
-      var bottom = isLast ? Math.min(page.height, group.last.bottom + PAD) : usable.bottom;
+      var top = Math.max(0, group.first.top - padY);
+      var bottom = Math.min(page.height, group.last.bottom + padY);
       if (bottom - top < 8) return;
-      var xMin = Math.min.apply(null, group.lines.map(function (line) { return line.xMin; }));
-      var xMax = Math.max.apply(null, group.lines.map(function (line) { return line.xMax; }));
-      var left = Math.max(usable.left, xMin - 10);
-      var right = Math.min(usable.right, xMax + 10);
+      var column = columnForLines(page, group.lines);
+      var left = Math.max(0, column.left);
+      var right = Math.min(page.width, column.right);
       if (right - left < 8) {
-        left = usable.left;
-        right = usable.right;
+        var xMin = Math.min.apply(null, group.lines.map(function (line) { return line.xMin; }));
+        var xMax = Math.max.apply(null, group.lines.map(function (line) { return line.xMax; }));
+        left = Math.max(0, xMin - 10);
+        right = Math.min(page.width, xMax + 10);
       }
       rects.push({
         page: pageNumber,
@@ -493,7 +602,7 @@
       var end = findEndLine(lines, item, start, limit);
       if (end < start) end = limit - 1;
       if (end < start) return [];
-      return rectsForRange(lines, pagesByNumber, start, end);
+      return rectsForRange(lines, pagesByNumber, start, end, item);
     });
   }
 
@@ -611,7 +720,11 @@
       var ocrPage = ocrByPage[page.number];
       if (ocrPage && pageTextLength < 40) {
         var recovered = ocrPageLines(ocrPage, page.number);
-        if (recovered.length) page.lines = recovered;
+        if (recovered.length) {
+          page.lines = recovered;
+          // 标记为扫描页：裁图时不能只按文字边界，否则配图会被切掉。
+          page.ocr = true;
+        }
       }
       pagesByNumber[page.number] = page;
       page.lines.forEach(function (line) { lines.push(line); });
@@ -775,8 +888,10 @@
         var isLast = pageIndex === lines[end].page;
         var top = isFirst ? Math.max(0, group.first.top - PAD) : 0;
         var bottom = isLast ? Math.min(page.height, group.last.bottom + PAD) : page.height;
-        var left = Math.max(0, Math.min.apply(null, group.lines.map(function (line) { return line.left; })) - 10);
-        var right = Math.min(page.width, Math.max.apply(null, group.lines.map(function (line) { return line.right; })) + 10);
+        // Word 里插图、表格常和文字并排，按文字边界裁会把右侧内容切掉；
+        // 统一保留整页宽度，图片和原排版都能一起入库。
+        var left = 0;
+        var right = page.width;
         if (bottom - top < 8 || right - left < 8) return;
         rects.push({ page: pageIndex, x: left, y: top, w: right - left, h: bottom - top });
       });
@@ -910,6 +1025,6 @@
 
   window.ShunshiVisual = {
     build: build,
-    version: '20261121e'
+    version: '20261122b'
   };
 })();

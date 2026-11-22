@@ -9,7 +9,7 @@
 <title>顺势 · 教师端｜因势利导，循循善诱</title>
 <link rel="icon" href="logo.svg?v=20261118c" type="image/svg+xml">
 <link rel="stylesheet" href="portal.css?v=20261120d">
-<link rel="stylesheet" href="teacher.css?v=20261122a">
+<link rel="stylesheet" href="teacher.css?v=20261122b">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
 </head>
@@ -278,8 +278,9 @@
             </div>
             <div class="book-launch-side">
               <button class="p-btn block" type="button" id="publish-book-main">打开词汇书周编排</button>
-              <a class="p-btn small ghost block" href="library.html">先到资料库导入词汇书 ↗</a>
-              <p class="hint">已有生成的词汇书任务，可在下面“单词打卡”里查看进度和续编下周。</p>
+              <button class="p-btn small block" type="button" id="publish-book-upload">上传新词汇书</button>
+              <button class="p-btn small ghost block" type="button" id="publish-book-shelf">从书架选整本，直接排周任务</button>
+              <p class="hint">上传、选书、排一周任务都在教师端完成，不用再去资料库。已有生成的词汇书任务，可在下面“单词打卡”里查看进度和续编下周。</p>
             </div>
           </div>
         </section>
@@ -1177,6 +1178,14 @@
             <button class="p-btn small ghost" type="button" id="book-parse">解析词汇书</button>
           </div>
         </div>
+        <div class="book-shelf-picker">
+          <label for="book-shelf-select">从词汇书架导入整本 <span class="field-note">已经上传过的书，选一本就能直接排周任务</span></label>
+          <div class="book-shelf-row">
+            <select class="select" id="book-shelf-select"><option value="">正在读取书架…</option></select>
+            <button class="p-btn small" type="button" id="book-shelf-import">导入整本</button>
+            <button class="p-btn small ghost" type="button" id="book-shelf-upload">上传新词汇书</button>
+          </div>
+        </div>
         <div class="field">
           <label for="book-input">单词表 <span class="field-note">每行一个；支持“benefit 好处 | Reading has many benefits. | 阅读有很多好处。”</span></label>
           <textarea class="textarea" id="book-input" rows="7" placeholder="abandon 放弃&#10;benefit 益处，好处 | Reading has many benefits. | 阅读有很多好处。&#10;confident 自信的&#10;……"></textarea>
@@ -1414,7 +1423,7 @@
 <script>window.SHUNSHI_TEACHER_AI = true;</script>
 <script src="portal.js?v=20261121a"></script>
 <script src="word-examples.js"></script>
-<script src="teacher.js?v=20261122a"></script>
+<script src="teacher.js?v=20261122b"></script>
 <script src="pwa.js?v=20261121b" defer></script>
 </body>
 </html>

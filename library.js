@@ -828,6 +828,73 @@
     return { stem, options };
   }
 
+  // 完形填空的选项常排成“36. A. … B. … C. … D. … 37. A. …”一整段。
+  // 原来的解析只保留第一组 A–D，37 的选项会被整组吞掉；这里把所有
+  // “题号 + 紧跟 A/B/C/D”的选项组都找出来，供补题和补选项使用。
+  function collectNumberedOptionGroups(block) {
+    const source = normalizeEnglish(block);
+    const head = /(?:^|[\s\n(（])(\d{1,3})\s*[.、．)）]?\s{0,3}[（(]?([A-E])\s*[.、．)）]\s*/g;
+    const starts = [];
+    let match = head.exec(source);
+    while (match) {
+      const number = Number(match[1]);
+      if (match[2] === 'A' && number >= 1 && number <= 200 && !starts.some((item) => item.number === number)) {
+        starts.push({ number, index: match.index });
+      }
+      match = head.exec(source);
+    }
+    const groups = [];
+    starts.forEach((start, index) => {
+      const end = index + 1 < starts.length ? starts[index + 1].index : source.length;
+      const parsed = extractQuestionOptions(source.slice(start.index, end));
+      if (parsed.options.length >= 2) {
+        groups.push({ number: start.number, options: parsed.options });
+      }
+    });
+    return groups;
+  }
+
+  // 有些扫描件把两题的选项排成一段，第二题的题号也被吃掉，只剩
+  // “A. … B. … C. … D. … A. … B. …”两串选项。把每一串都取出来，
+  // 后面按缺号顺序分配给 37、38 这些没识别到的小题。
+  function extractOptionRuns(block) {
+    const source = normalizeEnglish(block);
+    const marker = /(?:^|[\s\n])([A-E])[.、．)）]\s*/g;
+    const markers = [];
+    let match = marker.exec(source);
+    while (match) {
+      markers.push({
+        letter: match[1],
+        start: match.index + (match[0].length - match[0].replace(/^[\s\n]+/, '').length),
+        contentStart: marker.lastIndex
+      });
+      match = marker.exec(source);
+    }
+    const runs = [];
+    let run = [];
+    markers.forEach((item) => {
+      const expected = run.length ? String.fromCharCode(65 + run.length) : 'A';
+      if (item.letter === expected) {
+        run.push(item);
+        return;
+      }
+      if (run.length >= 2) runs.push(run);
+      run = item.letter === 'A' ? [item] : [];
+    });
+    if (run.length >= 2) runs.push(run);
+    return runs.map((items, index) => {
+      const end = index + 1 < runs.length ? runs[index + 1][0].start : source.length;
+      const options = items.map((item, optionIndex) => {
+        const next = optionIndex + 1 < items.length ? items[optionIndex + 1].start : end;
+        const text = trimOptionText(source.slice(item.contentStart, next))
+          .replace(/\s*\d{1,3}\s*[.、．)）]?\s*$/, '')
+          .trim();
+        return { letter: item.letter, text };
+      }).filter((option) => option.text);
+      return { start: items[0].start, options };
+    }).filter((group) => group.options.length >= 2);
+  }
+
   function looksLikeQuestionStartText(text) {
     const sample = String(text || '').slice(0, 120).trim();
     if (!sample) return false;
@@ -1125,6 +1192,12 @@
     return min === max ? String(min) : `${min}–${max}`;
   }
 
+  function blankFillGaps(type) {
+    // 语法填空和完形填空都是连续编号；扫描件常吃掉其中一个编号的括号或下划线。
+    // 两类题型都要能把缺号补回来，否则 10 空会只入库 9 题。
+    return ['grammar', 'cloze'].includes(normalizeType(type));
+  }
+
   function collectBlankNumbers(text, options = {}) {
     const source = String(text || '');
     const numbers = [];
@@ -1155,11 +1228,11 @@
       }
     });
     if (options.fillGaps) {
-      // 语法填空的 44–53 是连号。OCR 或文字层有时会把“50 losing”的
-      // 下划线吃掉，只剩一个普通数字；只要已经有至少 3 个空，就把
-      // 首尾之间漏掉的连号补回来，避免 10 空只算成 8 题。
+      // 语法填空/完形的题号是连号。OCR 或文字层有时会把“37 relaxed”
+      // 的括号和下划线一起吃掉，只剩一个普通数字；只要已经有 2 个空，
+      // 就把首尾之间漏掉的连号补回来，避免 10 空只算成 9 题。
       const sorted = numbers.slice().sort((a, b) => a - b);
-      if (sorted.length >= 3) {
+      if (sorted.length >= 2 && sorted[sorted.length - 1] - sorted[0] <= 30) {
         const min = sorted[0];
         const max = sorted[sorted.length - 1];
         const pattern = /(?:^|[\s,.;:!?])(\d{1,3})(?=[\s,.;:!?)]|$)/g;
@@ -4539,7 +4612,7 @@
 
   function blankAnswerMap(content, answerMap, type = '') {
     const map = {};
-    collectBlankNumbers(content, { fillGaps: normalizeType(type) === 'grammar' }).forEach((number) => {
+    collectBlankNumbers(content, { fillGaps: blankFillGaps(type) }).forEach((number) => {
       const source = answerMap && answerMap[number];
       if (source && (source.answer || source.explanation)) {
         map[number] = { answer: source.answer || '', explanation: source.explanation || '' };
@@ -4551,7 +4624,7 @@
   function blankDifficultyMap(content, answerMap, type, passage, grade) {
     const map = {};
     const passageLevel = passage ? difficultyForText(passage, { type, grade }).level : 0;
-    collectBlankNumbers(content, { fillGaps: normalizeType(type) === 'grammar' }).forEach((number) => {
+    collectBlankNumbers(content, { fillGaps: blankFillGaps(type) }).forEach((number) => {
       const sentence = blankSentence(content, number) || content;
       const answer = answerMap && answerMap[number] ? answerMap[number].answer || '' : '';
       const own = difficultyForText(`${sentence} ${answer}`, { type, grade });
@@ -4575,7 +4648,14 @@
     // 语法填空/完成句子常常直接从“71.”开始，没有前置短文；这时 passage 必须是空的。
     // 若回退成整段 content，渲染时会把每一小题再当短文印一遍。
     const passage = parsed.passage || (parsed.questions && parsed.questions.length ? '' : cleaned);
-    let questions = (parsed.questions || []).map((block) => questionMeta(block, type, passage, answerMap, material.grade));
+    const parsedBlocks = parsed.questions || [];
+    let questions = parsedBlocks.map((block) => questionMeta(block, type, passage, answerMap, material.grade));
+    const blanks = blankAnswerMap(cleaned, answerMap, type);
+    const blankDifficulties = blankDifficultyMap(cleaned, answerMap, type, passage, material.grade);
+    const blankNumbers = unique([
+      ...collectBlankNumbers(cleaned, { fillGaps: blankFillGaps(normalizedType) }),
+      ...Object.keys(blanks).map(Number)
+    ]).sort((a, b) => a - b);
     if (normalizedType === 'five') {
       // 五选五的小题号直接嵌在短文里（66、67…），没有独立题干行；
       // 不补出这些编号，抽题时会把一整篇只算成 1 小题，答案也无处可挂。
@@ -4586,23 +4666,77 @@
       });
       questions.sort((a, b) => Number(a.number) - Number(b.number));
     }
+    if (normalizedType === 'cloze') {
+      // 扫描件常把某个空号的括号吃掉（例如 37），或者把两题的选项排成一段。
+      // 先按“题号 + A/B/C/D”把选项组找回来，再给缺号补出小题，
+      // 保证 10 空就是 10 题，而不是少一题、选项还挂错。
+      const groups = collectNumberedOptionGroups(cleaned);
+      const groupByNumber = new Map(groups.map((group) => [group.number, group]));
+      const known = new Set(questions.map((question) => Number(question.number)));
+      questions.forEach((question) => {
+        if ((question.options || []).length >= 2) return;
+        const group = groupByNumber.get(Number(question.number));
+        if (!group) return;
+        question.options = group.options.map((option) => ({ letter: option.letter, text: option.text }));
+      });
+      blankNumbers.forEach((number) => {
+        if (known.has(number)) return;
+        const group = groupByNumber.get(number);
+        const sentence = blankSentence(passage || cleaned, number) || '';
+        questions.push(questionMeta({
+          number,
+          // 完形小题的题干就是短文里那句话；有选项时只印题号和选项，
+          // 没有找回选项时才用原句兜底，避免整句重复印一遍。
+          stem: group ? '' : sentence,
+          options: group ? group.options : []
+        }, type, passage, answerMap, material.grade));
+        known.add(number);
+      });
+      // 第二题题号被吃掉时，它的 A–D 会跟在前一题的选项后面。按短文空号
+      // 顺序把多出来的选项串补给下一道缺选项的题（例如 37）。
+      const optionReady = new Set(
+        questions.filter((question) => (question.options || []).length >= 2).map((question) => Number(question.number))
+      );
+      parsedBlocks.forEach((block) => {
+        const runs = extractOptionRuns(block.raw || '');
+        if (runs.length < 2) return;
+        // 前一题的最后一个选项常把下一组 A–D 一起吞进去（如 D. tired A. much…）。
+        // 多串选项说明这一块里挤了两题，前一题也改用干净的选项串。
+        const owner = questions.find((item) => Number(item.number) === Number(block.number));
+        if (owner && runs[0].options.length >= 2) {
+          owner.options = runs[0].options.map((option) => ({ letter: option.letter, text: option.text }));
+        }
+        runs.slice(1).forEach((run) => {
+          const target = blankNumbers.find((number) => number > Number(block.number)
+            && !optionReady.has(number)
+            && !groupByNumber.has(number));
+          if (!target) return;
+          optionReady.add(target);
+          const question = questions.find((item) => Number(item.number) === target);
+          if (question) {
+            question.options = run.options.map((option) => ({ letter: option.letter, text: option.text }));
+            question.stem = '';
+          } else {
+            questions.push(questionMeta({ number: target, stem: '', options: run.options }, type, passage, answerMap, material.grade));
+            known.add(target);
+          }
+        });
+      });
+      questions.sort((a, b) => Number(a.number) - Number(b.number));
+    }
     // 图片选项在 PDF 文字层里是空的。一篇阅读若大部分题有选项、个别题没有，
     // 说明那几题依赖插图；宁可少印一题，也不印一道没有选项的选择题。
+    // 完形填空例外：短文里的空必须保留，否则会出现“10 空只入库 9 题”。
     const hasChoiceOptions = questions.some((question) => (question.options || []).length >= 2);
     if (hasChoiceOptions && ['single', 'reading', 'cloze'].includes(normalizedType)) {
-      questions = questions.filter((question) => (question.options || []).length >= 2);
+      questions = questions.filter((question) => (question.options || []).length >= 2
+        || (normalizedType === 'cloze' && blankNumbers.includes(Number(question.number))));
     }
     const difficulty = difficultyForText(cleaned, { type, grade: material.grade });
     const levels = questions.map((question) => question.difficulty);
-    const blanks = blankAnswerMap(cleaned, answerMap, type);
-    const blankDifficulties = blankDifficultyMap(cleaned, answerMap, type, passage, material.grade);
     Object.entries(blankDifficulties).forEach(([number, level]) => {
       if (!questions.some((question) => Number(question.number) === Number(number))) levels.push(level);
     });
-    const blankNumbers = unique([
-      ...collectBlankNumbers(cleaned, { fillGaps: normalizedType === 'grammar' }),
-      ...Object.keys(blanks).map(Number)
-    ]).sort((a, b) => a - b);
     return {
       id: uid(),
       materialId: material.id,
@@ -5097,7 +5231,7 @@
         const questionNumbers = questionList
           .map((question) => Number(question && question.number))
           .filter(Number.isFinite);
-        const blankNumbers = collectBlankNumbers(item.content || '', { fillGaps: type === 'grammar' });
+        const blankNumbers = collectBlankNumbers(item.content || '', { fillGaps: blankFillGaps(type) });
         unique([...questionNumbers, ...blankNumbers])
           .sort((a, b) => a - b)
           .forEach((number) => numbers.push(number));
@@ -5142,7 +5276,10 @@
   function paperVisualFields(items, sections) {
     const list = Array.isArray(items) ? items : [];
     const count = list.filter(itemHasOriginalVisual).length;
-    const available = list.length > 0 && count === list.length;
+    // 以前要求“每一题都切到图”才允许原图版，只要扫描件漏掉一题，
+    // 整份卷子都会退回文字版，配图和原排版全丢。现在只要有一题切到图
+    // 就开放原图版；没切到的题由 renderPaperItem 自动用文字版补上。
+    const available = list.length > 0 && count > 0;
     const renumbered = Array.isArray(sections) ? paperNeedsRenumber(sections) : false;
     const sequential = Array.isArray(sections) ? paperSourceNumbersSequential(sections) : false;
     return {
@@ -5201,15 +5338,32 @@
       return;
     }
     const button = document.querySelector(`.material-card[data-id="${material.id}"] [data-action="build-visuals"]`);
-    if (button) button.disabled = true;
+    if (button) {
+      button.disabled = true;
+      button.textContent = '正在切图… 0%';
+    }
     toast('正在按原文件生成题目图片，只在本机处理，请稍等…', 'ok', 7000);
     const result = await attachOriginalVisuals(
       { blob: material.originalBlob, extension },
-      items
+      items,
+      (message) => {
+        if (!message || !button) return;
+        if (typeof message === 'string') {
+          button.textContent = message;
+          return;
+        }
+        if (message.status) {
+          const percent = Math.round((Number(message.progress) || 0) * 100);
+          button.textContent = `${message.status} ${percent}%`;
+        }
+      }
     );
     const attached = result.attached || 0;
     if (!attached) {
-      if (button) button.disabled = false;
+      if (button) {
+        button.disabled = false;
+        button.textContent = '重新生成原题图片';
+      }
       toast(result.note || '没有生成原题图片，请确认原文件不是扫描版。', 'error', 8000);
       return;
     }
@@ -5371,7 +5525,7 @@
       section.items.forEach((item) => {
         item.numberMap = {};
         const questionNumbers = (item.questions || []).map((question) => Number(question.number)).filter(Number.isFinite);
-        const blankNumbers = collectBlankNumbers(item.content || '', { fillGaps: normalizeType(item.type) === 'grammar' });
+        const blankNumbers = collectBlankNumbers(item.content || '', { fillGaps: blankFillGaps(item.type) });
         const sourceNumbers = unique([...questionNumbers, ...blankNumbers]).sort((a, b) => a - b);
         const isWriting = normalizeType(section.type) === 'writing';
         if (isWriting) {
@@ -5817,7 +5971,7 @@
       } else if (section.type === 'writing') {
         count += 1;
       } else if (['grammar', 'shortblank', 'cloze', 'five'].includes(section.type)) {
-        count += collectBlankNumbers(item.content || '', { fillGaps: normalizeType(section.type) === 'grammar' }).length || 1;
+        count += collectBlankNumbers(item.content || '', { fillGaps: blankFillGaps(section.type) }).length || 1;
       } else {
         count += section.items.length ? 1 : 0;
       }
@@ -9636,6 +9790,97 @@
     node.classList.toggle('is-error', kind === 'error');
   }
 
+  const paperSplitProgressState = { startedAt: 0, timer: 0, percent: 0, label: '' };
+
+  function formatDuration(seconds) {
+    const value = Math.max(0, Math.round(Number(seconds) || 0));
+    if (value < 60) return `${value} 秒`;
+    const minutes = Math.floor(value / 60);
+    const rest = value % 60;
+    return rest ? `${minutes} 分 ${rest} 秒` : `${minutes} 分钟`;
+  }
+
+  function stopPaperSplitProgressTicker() {
+    if (paperSplitProgressState.timer) {
+      clearInterval(paperSplitProgressState.timer);
+      paperSplitProgressState.timer = 0;
+    }
+  }
+
+  function renderPaperSplitProgress(percent, label, force = false) {
+    const box = $('#paper-split-progress');
+    if (!box) return;
+    const value = clamp(Math.round(Number(percent) || 0), 0, 100);
+    // 进度只向前走；换阶段时由 resetPaperSplitProgress 明确归零，避免看起来倒退。
+    if (!force && value < paperSplitProgressState.percent) return;
+    paperSplitProgressState.percent = value;
+    paperSplitProgressState.label = String(label || '');
+    if (!paperSplitProgressState.startedAt) paperSplitProgressState.startedAt = Date.now();
+    box.hidden = false;
+    const bar = $('#paper-split-progress-bar');
+    const percentNode = $('#paper-split-progress-percent');
+    const labelNode = $('#paper-split-progress-label');
+    const etaNode = $('#paper-split-progress-eta');
+    if (bar) bar.style.width = `${value}%`;
+    if (percentNode) percentNode.textContent = `${value}%`;
+    if (labelNode) labelNode.textContent = paperSplitProgressState.label || '处理中…';
+    if (etaNode) {
+      if (value >= 100) {
+        etaNode.textContent = '已完成';
+      } else if (value > 3) {
+        const elapsed = (Date.now() - paperSplitProgressState.startedAt) / 1000;
+        const remaining = Math.max(0, elapsed / (value / 100) - elapsed);
+        etaNode.textContent = `已用 ${formatDuration(elapsed)}，按当前速度预计还要 ${formatDuration(remaining)}`;
+      } else {
+        etaNode.textContent = '正在估算剩余时间…';
+      }
+    }
+  }
+
+  function resetPaperSplitProgress(label = '准备中…') {
+    stopPaperSplitProgressTicker();
+    paperSplitProgressState.startedAt = Date.now();
+    paperSplitProgressState.percent = 0;
+    const box = $('#paper-split-progress');
+    if (box) box.hidden = false;
+    renderPaperSplitProgress(0, label, true);
+    const etaNode = $('#paper-split-progress-eta');
+    if (etaNode) etaNode.textContent = '正在估算剩余时间…';
+  }
+
+  function hidePaperSplitProgress() {
+    stopPaperSplitProgressTicker();
+    paperSplitProgressState.percent = 0;
+    paperSplitProgressState.startedAt = 0;
+    const box = $('#paper-split-progress');
+    if (box) box.hidden = true;
+    const bar = $('#paper-split-progress-bar');
+    if (bar) bar.style.width = '0%';
+  }
+
+  // AI 一次请求期间没有真实百分比，用一个“先快后慢”的计时器往前走，
+  // 让老师知道还在处理、大概还要多久；AI 返回后立刻跳到 100%。
+  function startPaperSplitProgressTicker(from, to, label, expectedSeconds = 20) {
+    stopPaperSplitProgressTicker();
+    const start = Date.now();
+    const fromValue = clamp(Number(from) || 0, 0, 100);
+    const toValue = clamp(Number(to) || 95, fromValue, 99);
+    paperSplitProgressState.percent = Math.max(paperSplitProgressState.percent, fromValue);
+    paperSplitProgressState.startedAt = start;
+    const tick = () => {
+      const ratio = Math.min(1, (Date.now() - start) / Math.max(4, expectedSeconds) / 1000);
+      const eased = 1 - Math.pow(1 - ratio, 2);
+      const value = fromValue + (toValue - fromValue) * eased;
+      renderPaperSplitProgress(value, label);
+      const etaNode = $('#paper-split-progress-eta');
+      if (etaNode && ratio >= 1) {
+        etaNode.textContent = `仍在处理，通常再等几秒；请不要关闭这个窗口`;
+      }
+    };
+    tick();
+    paperSplitProgressState.timer = setInterval(tick, 500);
+  }
+
   function preparePaperSplitText() {
     const raw = String(($('#paper-split-text') || {}).value || '');
     if (raw.trim().length < 8) {
@@ -9702,6 +9947,7 @@
       '正在读取文字，请稍等…'
     );
     setPaperSplitStatus(`正在读取「${file.name}」…`);
+    resetPaperSplitProgress(`正在读取「${file.name}」的文字…`);
     try {
       if (file.size > MAX_FILE_BYTES) {
         throw new Error(`文件超过 ${formatBytes(MAX_FILE_BYTES)}，请压缩或拆分后再上传。`);
@@ -9709,11 +9955,14 @@
       const material = await buildMaterialFromFile(file, (message) => {
         if (typeof message === 'string') {
           setPaperSplitStatus(message);
+          renderPaperSplitProgress(paperSplitProgressState.percent, message);
           return;
         }
         if (message && message.status) {
           const percent = Math.round((Number(message.progress) || 0) * 100);
           setPaperSplitStatus(`${message.status}${percent ? ` ${percent}%` : ''}`);
+          // 读文件/OCR 占总流程的前 30%，后面还有 AI 拆分和切原图。
+          renderPaperSplitProgress((Number(message.progress) || 0) * 30, message.status);
         }
       });
       if (!material.body || material.body.trim().length < 8) {
@@ -9751,11 +10000,13 @@
         notes
       );
       setPaperSplitPreparing(false);
+      renderPaperSplitProgress(32, '文字读取完成，正在拆题型…');
       smartRecognizePaper({ preferAi: true, fromFile: true });
     } catch (error) {
       console.error(error);
-      setPaperSplitFileInfo(file.name, error.message || String(error), 'error');
+      stopPaperSplitProgressTicker();
       setPaperSplitStatus(`「${file.name}」读取失败：${error.message || error}`, 'error');
+      renderPaperSplitProgress(paperSplitProgressState.percent, '已停止，请看上方提示');
       toast(`「${file.name}」没有读成：${error.message || error}`, 'error', 8000);
     } finally {
       setPaperSplitPreparing(false);
@@ -9829,7 +10080,7 @@
 
   function paperSplitItemQuestionCount(item) {
     const questions = (item.questions || []).length;
-    const blanks = collectBlankNumbers(item.content || '', { fillGaps: normalizeType(item.type) === 'grammar' }).length;
+    const blanks = collectBlankNumbers(item.content || '', { fillGaps: blankFillGaps(item.type) }).length;
     const answerKeys = Object.keys(item.blankAnswers || {}).length;
     return Math.max(questions, blanks, answerKeys, 1);
   }
@@ -10011,11 +10262,13 @@
     state.paperSplit = local.state;
     renderPaperSplitPreview();
     paperSplitRevealPreview();
+    renderPaperSplitProgress(35, '本机已拆出题型，正在准备下一步…');
     const tool = aiTool();
     const cfg = tool ? tool.config() : null;
     if (cfg && cfg.key) {
       if (state.paperSplitAiText && state.paperSplitAiText === prepared.body && state.paperSplit.source === 'ai') {
         setPaperSplitStatus(`这份已经是 AI 识别结果：${local.state.sections.length} 个题型。核对后可直接确认入库；改了原文再点会重新识别。`);
+        renderPaperSplitProgress(100, 'AI 识别完成，请核对后入库');
         return;
       }
       const head = local.uncertain
@@ -10031,6 +10284,7 @@
     }
     if (local.uncertain) {
       setPaperSplitStatus(`${local.reason}。已按本机规则先填好，请核对下拉框；到「设置 → AI 直连」保存 Key 后，可以让 AI 精准识别。`);
+      renderPaperSplitProgress(100, '本机识别完成，请核对后入库');
       return;
     }
     const ocrHint = state.paperSplitOcr
@@ -10041,6 +10295,7 @@
     } else {
       setPaperSplitStatus(`本机识别为「${typeLabel(local.state.sections[0].type)}」（未保存 AI Key）。请核对题型和题数，没问题就确认入库。${ocrHint}`);
     }
+    renderPaperSplitProgress(100, '本机识别完成，请核对后入库');
   }
 
   function paperSplitFindIndex(body, needle) {
@@ -10346,9 +10601,10 @@
     state.paperSplitBusy = true;
     const recognizeButton = $('#paper-split-recognize');
     const reflowButton = $('#paper-split-reflow');
+    const saveButton = $('#paper-split-save');
     const textarea = $('#paper-split-text');
     const pickButton = $('#paper-split-pick');
-    [recognizeButton, reflowButton, textarea, pickButton].forEach((node) => {
+    [recognizeButton, reflowButton, saveButton, textarea, pickButton].forEach((node) => {
       if (node) node.disabled = true;
     });
     setPaperSplitDialogLocked(true);
@@ -10359,6 +10615,7 @@
       const results = [];
       for (let index = 0; index < chunks.length; index += 1) {
         setPaperSplitStatus(`AI 正在重新编排第 ${index + 1}/${chunks.length} 段，请稍等…`);
+        renderPaperSplitProgress(5 + (index / chunks.length) * 90, `AI 正在重新编排第 ${index + 1}/${chunks.length} 段…`);
         const prompt = paperReflowPrompt(chunks[index], index + 1, chunks.length);
         const maxTokens = Math.min(REFLOW_MAX_OUTPUT, Math.max(900, Math.ceil(chunks[index].length / 1.4) + 400));
         const result = await tool.call([
@@ -10372,6 +10629,7 @@
         results.push(cleaned);
         tokens += Number(result.tokens) || 0;
         cost += Number(result.cost) || 0;
+        renderPaperSplitProgress(5 + ((index + 1) / chunks.length) * 90, `第 ${index + 1}/${chunks.length} 段已整理好…`);
       }
       const reflowed = toDisplayText(restoreListeningText(results.join('\n\n'), listeningExtras));
       if (textarea) textarea.value = [reflowed, prepared.answers].filter(Boolean).join('\n\n');
@@ -10386,12 +10644,14 @@
       const counts = local.state.sections.map((section) => `${typeShort(section.type)} ${section._questionCount || 0} 题`).join('、');
       const listeningNote = listeningExtras.length ? ' 听力原文留在本机，没有发给 AI。' : '';
       setPaperSplitStatus(`AI 重新编排完成：${local.state.sections.length} 个题型（${counts}）· 本次 ${tokens} tokens · 约 ${aiCostText(cost)}。${listeningNote}请核对后确认入库。`);
+      renderPaperSplitProgress(100, 'AI 重新编排完成，请核对后入库');
       toast('AI 重新编排完成，请核对题型和题数。', 'ok', 6500);
       renderAiSettings();
     } catch (error) {
       console.error(error);
       if (fallbackState) state.paperSplit = fallbackState;
       setPaperSplitStatus(`${error.message || 'AI 重新编排失败'} 已保留本机识别结果。`, 'error');
+      renderPaperSplitProgress(100, '已停止，已保留本机识别结果');
       toast(`AI 重新编排失败：${error.message || error}`, 'error', 9000);
       renderPaperSplitPreview();
     } finally {
@@ -10399,6 +10659,9 @@
       [recognizeButton, reflowButton, textarea, pickButton].forEach((node) => {
         if (node) node.disabled = false;
       });
+      if (saveButton) {
+        saveButton.disabled = !(state.paperSplit && state.paperSplit.sections.some((section) => section.selected));
+      }
       setPaperSplitDialogLocked(state.paperSplitPreparing);
       renderPaperSplitPreview();
     }
@@ -10452,11 +10715,14 @@
     const tool = aiTool();
     state.paperSplitBusy = true;
     const recognizeButton = $('#paper-split-recognize');
+    const reflowButton = $('#paper-split-reflow');
+    const saveButton = $('#paper-split-save');
     const textarea = $('#paper-split-text');
     const pickButton = $('#paper-split-pick');
-    if (recognizeButton) recognizeButton.disabled = true;
-    if (textarea) textarea.disabled = true;
-    if (pickButton) pickButton.disabled = true;
+    // AI 拆分期间锁住所有会改动或提前入库的按钮，避免两个流程互相覆盖。
+    [recognizeButton, reflowButton, saveButton, textarea, pickButton].forEach((node) => {
+      if (node) node.disabled = true;
+    });
     setPaperSplitDialogLocked(true);
     renderPaperSplitPreview();
     setPaperSplitStatus('AI 正在判断题型、找大题边界，请稍等…');
@@ -10490,18 +10756,26 @@
         : '';
       const listeningNote = listeningExtras.length ? ' 听力原文留在本机，没有发给 AI。' : '';
       setPaperSplitStatus(`AI 识别出 ${sections.length} 个题型 · 本次 ${result.tokens} tokens · 约 ${aiCostText(result.cost)}。请核对题型和题数。${listeningNote}${more}${ocrHint}`);
+      stopPaperSplitProgressTicker();
+      renderPaperSplitProgress(100, 'AI 识别完成，请核对后入库');
       toast('AI 识别完成，请核对预览后入库。', 'ok', 5000);
     } catch (error) {
       console.error(error);
       if (fallbackState) state.paperSplit = fallbackState;
       state.paperSplitAiText = '';
+      stopPaperSplitProgressTicker();
       setPaperSplitStatus(`${error.message || 'AI 识别失败'} 已保留本机识别结果。`, 'error');
+      renderPaperSplitProgress(100, 'AI 没成功，已保留本机识别结果');
       toast(`AI 识别失败：${error.message || error}`, 'error', 8000);
     } finally {
       state.paperSplitBusy = false;
-      if (recognizeButton) recognizeButton.disabled = false;
-      if (textarea) textarea.disabled = false;
-      if (pickButton) pickButton.disabled = false;
+      stopPaperSplitProgressTicker();
+      [recognizeButton, reflowButton, textarea, pickButton].forEach((node) => {
+        if (node) node.disabled = false;
+      });
+      if (saveButton) {
+        saveButton.disabled = !(state.paperSplit && state.paperSplit.sections.some((section) => section.selected));
+      }
       setPaperSplitDialogLocked(state.paperSplitPreparing);
       renderPaperSplitPreview();
     }
@@ -10514,6 +10788,7 @@
     const skip = textWithoutListeningForAi(prepared.body);
     if (!skip.text.split(AI_LISTENING_MARKER).join('').trim()) {
       setPaperSplitStatus(`这份资料只有听力原文（${skip.removedChars} 字），已经留在本机，不发送 AI；请直接核对本机识别结果。`);
+      renderPaperSplitProgress(100, '听力原文已保留，无需 AI');
       return;
     }
     const source = skip.text.slice(0, SPLIT_AI_MAX_CHARS);
@@ -10528,6 +10803,7 @@
       : '';
     if (options.auto) {
       setPaperSplitStatus(`正在用 AI 拆分${fileName}的题型${listeningNote}；预计最多约 ${estimate.inputTokens + estimate.maxOutputTokens} tokens，约 ${aiCostText(estimate.cost)}，实际按返回用量记账。`);
+      startPaperSplitProgressTicker(38, 88, 'AI 正在判断题型、找大题边界…', 20);
       runPaperSplitAi(prepared, prompt, fallbackState, skip.removed);
       return;
     }
@@ -10536,8 +10812,14 @@
       message: `会把${fileName}的题目正文约 ${source.length} 字发送给 DeepSeek（会先尽量剔除答案区${listeningNote}，不含学生信息）${truncated ? `；原文较长，只发送前 ${SPLIT_AI_MAX_CHARS} 字，后面的内容可能认不到` : ''}。预计最多约 ${estimate.inputTokens + estimate.maxOutputTokens} tokens，约 ${aiCostText(estimate.cost)}；实际按返回用量记账。点「取消」就继续用本机识别结果。`,
       confirmText: '用 AI 识别',
       danger: false,
-      onConfirm: () => runPaperSplitAi(prepared, prompt, fallbackState, skip.removed),
-      onCancel: () => setPaperSplitStatus('已保留本机识别结果；核对题型和题数后，可以直接确认入库。')
+      onConfirm: () => {
+        startPaperSplitProgressTicker(38, 88, 'AI 正在判断题型、找大题边界…', 20);
+        runPaperSplitAi(prepared, prompt, fallbackState, skip.removed);
+      },
+      onCancel: () => {
+        setPaperSplitStatus('已保留本机识别结果；核对题型和题数后，可以直接确认入库。');
+        renderPaperSplitProgress(100, '已保留本机识别结果');
+      }
     });
   }
 
@@ -10553,6 +10835,19 @@
       toast('至少勾选一个题型。', 'error');
       return;
     }
+    state.paperSplitBusy = true;
+    resetPaperSplitProgress('正在整理题目并准备入库…');
+    renderPaperSplitProgress(5, '正在整理题目…');
+    const recognizeButton = $('#paper-split-recognize');
+    const reflowButton = $('#paper-split-reflow');
+    const pickButton = $('#paper-split-pick');
+    const titleField = $('#paper-split-title');
+    const gradeField = $('#paper-split-grade');
+    const papersField = $('#paper-split-make-papers');
+    const originalField = $('#paper-split-keep-original');
+    [recognizeButton, reflowButton, pickButton, titleField, gradeField, papersField, originalField].forEach((node) => {
+      if (node) node.disabled = true;
+    });
     const titleInput = $('#paper-split-title');
     const gradeSelect = $('#paper-split-grade');
     const title = String((titleInput && titleInput.value.trim()) || split.title || detectExamTitle(split.body) || `智能识别 · ${todayCn()}`).slice(0, 80);
@@ -10610,6 +10905,14 @@
       const labels = unique(emptySections);
       setPaperSplitStatus(`勾选的题型都没有拆出题目${labels.length ? `（${labels.join('、')}）` : ''}，请检查原文，或手动改一下题型再试。`, 'error');
       toast('没有可入库的题目。', 'error', 7000);
+      // 这次没有题目可存，必须把识别 / 重排 / 题型按钮解锁，
+      // 否则页面会一直像“正在入库”一样点不动。
+      state.paperSplitBusy = false;
+      [recognizeButton, reflowButton, pickButton, titleField, gradeField, papersField, originalField].forEach((node) => {
+        if (node) node.disabled = false;
+      });
+      stopPaperSplitProgressTicker();
+      hidePaperSplitProgress();
       return;
     }
     const keepOriginal = $('#paper-split-keep-original')
@@ -10621,6 +10924,7 @@
       const visualButton = $('#paper-split-save');
       if (visualButton) visualButton.textContent = '正在生成原图…';
       setPaperSplitStatus('正在按原文件把题目切成图片（只在本机处理，不上传）…');
+      renderPaperSplitProgress(10, '正在按原文件切原题图片…');
       const visual = await attachOriginalVisuals({
         ...splitSource,
         ocrPages: state.paperSplitOcrPages || null
@@ -10628,11 +10932,14 @@
         if (!message) return;
         if (typeof message === 'string') {
           setPaperSplitStatus(message);
+          renderPaperSplitProgress(paperSplitProgressState.percent, message);
           return;
         }
         if (message.status) {
           const percent = Math.round((Number(message.progress) || 0) * 100);
           setPaperSplitStatus(`${message.status}${percent ? ` ${percent}%` : ''}`);
+          // 切原图占入库流程的 10%–85%，切完还要写资料库和练习卷。
+          renderPaperSplitProgress(10 + (Number(message.progress) || 0) * 75, message.status);
         }
       });
       visualCount = visual.attached || 0;
@@ -10642,6 +10949,7 @@
         visualNote = visual.note;
       }
     }
+    renderPaperSplitProgress(88, '原题图片处理完成，正在生成练习卷…');
     const usedTypes = Array.from(groups.keys());
     material.type = usedTypes.length === 1 ? usedTypes[0] : 'paper';
     material.sectionTypes = usedTypes;
@@ -10734,7 +11042,9 @@
     const usbReady = usbWanted ? await ensureClassificationUsbPermission() : false;
     try {
       // 资料、题组、练习卷一次性写入；中途失败就整体回滚，避免老师重试时出现半份数据。
+      renderPaperSplitProgress(92, '正在写入本机资料库…');
       await saveMaterialWithItems(material, allItems, paperRecords);
+      renderPaperSplitProgress(98, '资料已写入，正在收尾…');
       const paperCount = paperRecords.length;
       let usbNote = '';
       if (usbReady) {
@@ -10750,6 +11060,7 @@
       const doneNote = total > 1 ? `第 ${total - state.paperSplitQueue.length + 1}/${total} 份已入库：` : '已入库：';
       const emptyNote = emptySections.length ? `；${unique(emptySections).join('、')}没有拆出题目，已跳过` : '';
       const message = `${doneNote}${usedTypes.length} 个题型、${allItems.length} 组题${paperCount ? `；生成 ${paperCount} 份练习卷，可在教师端「发布中心 → 练习卷」布置` : ''}${usbNote}${emptyNote}。`;
+      renderPaperSplitProgress(100, '入库完成');
       state.paperSplit = null;
       state.paperSplitSource = null;
       state.paperSplitOcr = false;
@@ -10763,6 +11074,8 @@
         state.paperSplitQueue.shift();
         setPaperSplitStatus('上一份已入库，正在读取下一份…');
         toast(message, 'ok', 8000);
+        // 下一份读取会被 paperSplitBusy 拦住，先释放这一份的锁。
+        state.paperSplitBusy = false;
         await prepareNextPaperSplitFile();
         return;
       }
@@ -10774,8 +11087,13 @@
     } catch (error) {
       console.error(error);
       setPaperSplitStatus(`入库失败：${error.message || error}`, 'error');
+      renderPaperSplitProgress(paperSplitProgressState.percent, '入库失败，请看上方提示');
       toast(`入库失败：${error.message || error}`, 'error', 8000);
     } finally {
+      state.paperSplitBusy = false;
+      [recognizeButton, reflowButton, pickButton, titleField, gradeField, papersField, originalField].forEach((node) => {
+        if (node) node.disabled = false;
+      });
       if (splitTextarea) splitTextarea.disabled = false;
       setPaperSplitDialogLocked(state.paperSplitPreparing || state.paperSplitBusy);
       if (saveButton) {
@@ -11925,11 +12243,17 @@ Li Hua`,
     }
     const splitPaperRecognize = $('#paper-split-recognize');
     if (splitPaperRecognize) {
-      splitPaperRecognize.addEventListener('click', smartRecognizePaper);
+      splitPaperRecognize.addEventListener('click', () => {
+        resetPaperSplitProgress('正在准备识别…');
+        smartRecognizePaper();
+      });
     }
     const splitPaperReflow = $('#paper-split-reflow');
     if (splitPaperReflow) {
-      splitPaperReflow.addEventListener('click', offerPaperReflow);
+      splitPaperReflow.addEventListener('click', () => {
+        resetPaperSplitProgress('正在准备 AI 重新编排…');
+        offerPaperReflow();
+      });
     }
     const splitPaperSave = $('#paper-split-save');
     if (splitPaperSave) {

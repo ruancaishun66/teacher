@@ -245,6 +245,13 @@
       pendingWordBookPick = pick;
       return false;
     }
+    // 从周编排里打开书架时，选中的词直接填进“单词表”，接着排一周任务，
+    // 不再跳到单次单词打卡。
+    if (bookshelfPickMode === 'weekly' && fillWeeklyBookFromPick(pick)) {
+      const count = pick.count || pick.words.length;
+      S.toast(`已从《${pick.title || '词汇书'}》带入 ${count} 个词，核对任务栏后生成一人一码。`, 'ok', 7000);
+      return true;
+    }
     switchTab('book');
     window.setTimeout(() => {
       openWordDialog(null);
@@ -4254,10 +4261,13 @@
     box.innerHTML = students.map((student) => grammarProgressCard(student, grammarStatsForStudent(student))).join('');
   }
 
-  function openBookshelfDialog() {
+  let bookshelfPickMode = 'word';
+
+  function openBookshelfDialog(mode = 'word') {
     const dialog = $('#bookshelf-dialog');
     const frame = $('#bookshelf-frame');
     if (!dialog || !frame) return;
+    bookshelfPickMode = mode === 'weekly' ? 'weekly' : 'word';
     frame.src = 'library.html?embed=books&ts=' + Date.now();
     if (!dialog.open) dialog.showModal();
   }
@@ -4269,6 +4279,64 @@
     if (dialog && dialog.open) dialog.close();
     // 书架里可能刚导入或删除了书，关掉后重新读一遍再刷新进度。
     loadBookshelfData(true).then(() => renderWordBookProgress()).catch(() => {});
+  }
+
+  function bookShelfWordLines(words) {
+    return (words || []).map((word) => {
+      const parts = [word.w, word.zh || '', word.ex || '', word.exZh || ''];
+      while (parts.length > 2 && !parts[parts.length - 1]) parts.pop();
+      return parts.join(' | ');
+    }).filter(Boolean);
+  }
+
+  async function renderBookShelfPicker() {
+    const select = $('#book-shelf-select');
+    if (!select) return;
+    select.innerHTML = '<option value="">正在读取书架…</option>';
+    const { books } = await loadBookshelfData(true);
+    if (!books.length) {
+      select.innerHTML = '<option value="">书架还是空的，点右边「上传新词汇书」</option>';
+      return;
+    }
+    select.innerHTML = '<option value="">选择一本词汇书…</option>' + books.map((book) => {
+      const count = (bookshelfWordsByBook.get(book.id) || []).length;
+      return `<option value="${S.escapeHtml(book.id)}">${S.escapeHtml(book.title || '未命名词汇书')}（${count} 词）</option>`;
+    }).join('');
+  }
+
+  async function importBookFromShelf() {
+    const select = $('#book-shelf-select');
+    const bookId = select ? select.value : '';
+    const book = bookshelfBooks.find((item) => item.id === bookId);
+    const words = bookshelfWordsByBook.get(bookId) || [];
+    if (!book || !words.length) {
+      S.toast('先从下拉框选一本有词的词汇书。', 'error');
+      return;
+    }
+    const lines = bookShelfWordLines(words);
+    if (!lines.length) {
+      S.toast('这本书里没有可用的词，请重新上传。', 'error');
+      return;
+    }
+    const input = $('#book-input');
+    if (input) input.value = lines.join('\n');
+    const title = $('#book-title');
+    if (title && !title.value.trim()) title.value = `${book.title || '词汇书'} · 本周`;
+    await parseBookWords();
+    S.toast(`已把《${book.title}》的 ${lines.length} 个词导入周编排，核对任务栏后就能生成一人一码。`, 'ok', 7000);
+    renderBookSlots();
+  }
+
+  function fillWeeklyBookFromPick(pick) {
+    const input = $('#book-input');
+    if (!input) return false;
+    const lines = bookShelfWordLines(pick.words || []);
+    if (!lines.length) return false;
+    input.value = lines.join('\n');
+    const title = $('#book-title');
+    if (title && !title.value.trim()) title.value = `${pick.title || '词汇书'} · 本周`;
+    parseBookWords();
+    return true;
   }
 
   function assignWordsFromProgress(studentId) {
@@ -4540,8 +4608,18 @@
   }
 
   async function generateWordAssignment() {
+    const generateButton = $('#word-generate');
+    if (generateButton && generateButton.disabled) return;
+    if (generateButton) generateButton.disabled = true;
+    try {
     const students = $$('#word-students input[name="word-student"]:checked').map((input) => input.value);
     if (!students.length) { S.toast('至少勾选一位学生。', 'error'); return; }
+    // “生成任务码”可以直接点：还没点“生成预览”时先自动预览一次，
+    // 避免两个按钮互相依赖，老师以为按钮坏了。
+    if (!wordDraft.length) {
+      await buildWordPreview();
+      if (!wordDraft.length) return;
+    }
     if (wordDraft.length < 4) { S.toast('至少需要 4 个词，才能生成四选一选项。', 'error'); return; }
     const missing = wordDraft.filter((word) => !String(word.zh || '').trim());
     if (missing.length) {
@@ -4638,6 +4716,9 @@
     const grammarUsed = items.some((item) => item.grammarDays);
     S.toast(`本周任务已放进待发区：${words.length} 个单词 + ${grammarUsed ? '7 天语法' : '语法已学完'}。`, 'ok', 6000);
     await showBundleCodes(items, grammarUsed, { enqueue: true, label: '单词 + 语法' });
+    } finally {
+      if (generateButton) generateButton.disabled = false;
+    }
   }
 
   /* ------------------------------ 词汇书周编排 ------------------------------ */
@@ -4698,6 +4779,7 @@
     renderBookSlots();
     renderBookPreview();
     updateBookFoot();
+    renderBookShelfPicker();
     S.openDialog($('#book-dialog'));
     const previewStatus = $('#book-count');
     if (previewStatus) previewStatus.textContent = `${bookWords.length} 个词`;
@@ -5195,6 +5277,11 @@
   }
 
   async function generateBookAssignment() {
+    const generateButton = $('#book-generate');
+    // 连点两次会在 await 生成任务码期间重复建任务，先锁住按钮。
+    if (generateButton && generateButton.disabled) return;
+    if (generateButton) generateButton.disabled = true;
+    try {
     if (!bookWords.length) { S.toast('先点“解析词汇书”。', 'error'); return; }
     if (bookWords.length < 4) { S.toast('至少需要 4 个带释义的词。', 'error'); return; }
     if (!bookSlots.length) { S.toast('至少插入 1 个任务栏。', 'error'); return; }
@@ -5248,6 +5335,9 @@
     S.closeDialog($('#book-dialog'));
     S.toast(`词汇书周任务已生成：${plans.length} 位学生，${bookSlots.length} 个任务栏，已放进待发区。`, 'ok', 7000);
     await showPlanCodes(plans, { enqueue: true, label: '词汇书周任务' });
+    } finally {
+      if (generateButton) generateButton.disabled = false;
+    }
   }
 
   function openWordDetail(assignmentId) {
@@ -6755,7 +6845,9 @@
     $('#nav-assign').addEventListener('click', () => openAssign(null));
     $('#hero-words').addEventListener('click', () => {
       switchTab('publish');
-      setPublishSub('daily');
+      // 首页“发布任务”对应词汇书打卡；以前写 daily，setPublishSub 不认这个值，
+      // 会悄悄跳到“阅读联动”，和按钮文案对不上。
+      setPublishSub('book');
       const pane = $('.teacher-pane[data-pane="publish"]');
       if (pane) pane.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -6780,6 +6872,10 @@
     if (bookAdd) bookAdd.addEventListener('click', () => openBookDialog(''));
     const bookParse = $('#book-parse');
     if (bookParse) bookParse.addEventListener('click', parseBookWords);
+    const bookShelfImport = $('#book-shelf-import');
+    if (bookShelfImport) bookShelfImport.addEventListener('click', importBookFromShelf);
+    const bookShelfUpload = $('#book-shelf-upload');
+    if (bookShelfUpload) bookShelfUpload.addEventListener('click', () => openBookshelfDialog('weekly'));
     const bookAddSlot = $('#book-add-slot');
     if (bookAddSlot) bookAddSlot.addEventListener('click', addBookSlot);
     const bookAutoSlots = $('#book-auto-slots');
@@ -6904,6 +7000,27 @@
     if (publishBook) publishBook.addEventListener('click', () => openBookDialog(''));
     const publishBookMain = $('#publish-book-main');
     if (publishBookMain) publishBookMain.addEventListener('click', () => openBookDialog(''));
+    const publishBookUpload = $('#publish-book-upload');
+    if (publishBookUpload) {
+      publishBookUpload.addEventListener('click', () => {
+        const dialog = $('#book-dialog');
+        // 已经打开周编排时不要再重置，避免把排好的任务栏清掉。
+        if (!dialog || !dialog.open) openBookDialog('');
+        // 上传入口也留在教师端：周编排先打开，再叠上词汇书架的导入面板。
+        window.setTimeout(() => openBookshelfDialog('weekly'), 260);
+      });
+    }
+    const publishBookShelf = $('#publish-book-shelf');
+    if (publishBookShelf) {
+      publishBookShelf.addEventListener('click', () => {
+        const dialog = $('#book-dialog');
+        if (!dialog || !dialog.open) openBookDialog('');
+        window.setTimeout(() => {
+          const select = $('#book-shelf-select');
+          if (select) select.focus();
+        }, 300);
+      });
+    }
     const readingRefresh = $('#reading-refresh');
     if (readingRefresh) readingRefresh.addEventListener('click', () => {
       readingPapersLoaded = false;
@@ -7230,7 +7347,7 @@
     });
 
     const shelfOpen = $('#word-book-shelf-open');
-    if (shelfOpen) shelfOpen.addEventListener('click', openBookshelfDialog);
+    if (shelfOpen) shelfOpen.addEventListener('click', () => openBookshelfDialog('word'));
     const shelfRefresh = $('#word-book-stats-refresh');
     if (shelfRefresh) {
       shelfRefresh.addEventListener('click', () => {

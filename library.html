@@ -2007,6 +2007,56 @@
 
     .split-status.is-error { color: var(--red-deep); }
 
+    .split-progress {
+      display: grid;
+      gap: 5px;
+      margin-top: 8px;
+      padding: 9px 11px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    .split-progress[hidden] { display: none; }
+
+    .split-progress-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--ink-soft);
+      font-size: 0.68rem;
+      line-height: 1.5;
+    }
+
+    .split-progress-head b {
+      flex: none;
+      color: var(--blue-deep);
+      font-size: 0.78rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .split-progress-track {
+      height: 8px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(49, 95, 140, 0.14);
+    }
+
+    .split-progress-bar {
+      width: 0;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--blue), var(--sage));
+      transition: width 0.25s ease;
+    }
+
+    .split-progress-eta {
+      color: var(--ink-soft);
+      font-size: 0.62rem;
+      line-height: 1.5;
+    }
+
     .split-preview {
       display: grid;
       gap: 8px;
@@ -4655,7 +4705,7 @@
         <button class="dialog-close" type="submit" value="cancel" aria-label="关闭">×</button>
       </div>
       <div class="split-dialog-body">
-        <p class="split-lead">拖入 Word 或 PDF 后，会先读出文字，再分好题型和大题。已保存 Key 时，会先告诉你要花多少，你点了才调用 AI；没 Key 或 AI 失败，就用本机规则接着分。只发送题目文字，不含学生信息。PDF / Word 默认把每道题切成原样图片，字体、题号、选项和分栏都保留，切图只在这台电脑完成。</p>
+        <p class="split-lead">拖入 Word 或 PDF 后，会先在本机读出文字，再自动用已保存的 Key 让 AI 分好题型和大题；没 Key 或 AI 失败就用本机规则接着分。只发送题目文字，不含学生信息。PDF / Word 默认把每道题切成原样图片，字体、题号、选项、配图和分栏都保留，切图只在这台电脑完成。下方进度条会显示正在做什么、完成多少、还要多久。</p>
         <div class="split-file-zone" id="paper-split-file-drop">
           <span class="split-file-icon" aria-hidden="true">
             <svg class="icon"><use href="#i-upload"/></svg>
@@ -4704,6 +4754,14 @@
           <span class="split-ai-note" id="paper-split-ai-note">AI 需要先在「设置 → AI 直连」保存 Key，只在你确认后调用。</span>
         </div>
         <p class="split-status" id="paper-split-status"></p>
+        <div class="split-progress" id="paper-split-progress" hidden>
+          <div class="split-progress-head">
+            <span id="paper-split-progress-label">准备中…</span>
+            <b id="paper-split-progress-percent">0%</b>
+          </div>
+          <div class="split-progress-track"><div class="split-progress-bar" id="paper-split-progress-bar"></div></div>
+          <span class="split-progress-eta" id="paper-split-progress-eta"></span>
+        </div>
         <div class="split-preview" id="paper-split-preview"></div>
         <label class="split-options-line">
           <input type="checkbox" id="paper-split-make-papers" checked>
@@ -4931,8 +4989,8 @@
   <script src="vendor/jszip.min.js"></script>
   <script>window.SHUNSHI_TEACHER_AI = true;</script>
   <script src="portal.js?v=20261121d"></script>
-  <script src="question-visual.js?v=20261122a"></script>
-  <script src="library.js?v=20261122a"></script>
+  <script src="question-visual.js?v=20261122b"></script>
+  <script src="library.js?v=20261122b"></script>
 <script src="pwa.js?v=20261121b" defer></script>
 </body>
 </html>

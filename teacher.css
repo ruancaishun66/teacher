@@ -1524,6 +1524,17 @@
 
 /* 词汇书周编排 */
 .book-source { margin-top: 4px; }
+.book-shelf-picker {
+  margin: 0 0 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(79, 168, 179, 0.06);
+}
+.book-shelf-picker > label { display: block; margin-bottom: 7px; font-size: 0.8rem; font-weight: 600; }
+.book-shelf-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.book-shelf-row .select { flex: 1 1 220px; min-width: 0; }
+.book-shelf-row .p-btn { flex: none; }
 .book-slot-head, .book-preview-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin: 18px 0 10px; flex-wrap: wrap; }
 .book-slot-tools { display: flex; gap: 8px; flex-wrap: wrap; }
 .book-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 10px; }
@@ -1534,16 +1545,32 @@
   border-radius: 13px;
   background: var(--panel-soft, #fff);
 }
-.book-slot-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+.book-slot-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 9px; padding-right: 30px; }
 .book-slot-title b { font-size: 0.9rem; }
 .book-slot-title span { font-size: 0.72rem; color: var(--muted); }
-.book-slot-fields { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding-right: 20px; }
+.book-slot-fields { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .book-slot-fields .select { min-width: 92px; font-size: 0.8rem; padding: 7px 9px; }
 .book-slot-num { display: inline-flex; align-items: center; gap: 5px; font-size: 0.74rem; color: var(--muted); }
 .book-slot-num .input { width: 62px; padding: 6px 8px; }
 .book-slot-focus.is-hidden, .book-slot-num.is-hidden { display: none; }
 .book-slot-fixed { font-size: 0.74rem; color: var(--muted); }
-.book-slot-remove { position: absolute; right: 8px; top: 8px; }
+.book-slot-remove {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(180, 70, 60, 0.06);
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.book-slot-remove:hover { background: rgba(180, 70, 60, 0.14); color: var(--red-deep, #a4473c); }
 .book-student-preview { display: grid; gap: 10px; max-height: 320px; overflow: auto; padding-right: 3px; }
 .book-preview-row { padding: 11px 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-soft, #fff); }
 .book-preview-student { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
