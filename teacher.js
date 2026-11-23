@@ -1038,7 +1038,7 @@
 
   /* 纯码默认折叠：老师平时发“微信消息”里的链接即可，学生点开自动导入。 */
   function codeTextareaHtml(code) {
-    return `<p class="code-qr-tip">扫码导入：让学生用学生端的“扫码导入”扫这张图；码长时会自动轮播，扫完所有帧即可。</p>` +
+    return `<p class="code-qr-tip">下面每张二维码都能直接发微信：点图片或“复制这张图片”，到聊天框粘贴即可。图片下方自带“第几张”的提示，学生保存后一次选中多张，用“扫码导入”识别。</p>` +
       `<div class="code-qr" data-qr></div>` +
       `<details class="code-raw"><summary>纯码备用（一般不用复制）</summary>` +
       `<textarea class="code-text" readonly>${S.escapeHtml(code)}</textarea>` +
@@ -1055,7 +1055,9 @@
       if (!item || !item.code) return;
       const holder = container.querySelector(`.code-card[data-code-index="${index}"] [data-qr]`);
       if (!holder) return;
-      const mount = window.ShunshiQR.mount(holder, item.code, { size: 210 });
+      const mount = window.ShunshiQR.mountFrames
+        ? window.ShunshiQR.mountFrames(holder, item.code, { size: 340 })
+        : window.ShunshiQR.mount(holder, item.code, { size: 210 });
       codeQrMounts.push(mount);
     });
   }
@@ -7162,7 +7164,12 @@
     if (wordStats.length) {
       const wordWrong = wordStats.filter((word) => !word.ok);
       const topWrong = wordWrong.slice(-8).reverse().map((word) => S.escapeHtml(word.w)).join('、');
-      html += `<p>单词打卡累计 <strong>${wordStats.length}</strong> 词，一次答对 ${wordStats.length - wordWrong.length} 词，错词 ${wordWrong.length} 个${wordWrong.length ? `；最近错词：${topWrong}` : ''}。错词已在学生端重练，但得分只按第一次作答计算，避免“练完就算会”。</p>`;
+      const spellWords = wordStats.filter((word) => word.spellOk != null);
+      const contextWords = wordStats.filter((word) => word.contextAttempted);
+      const extra = [];
+      if (spellWords.length) extra.push(`错词拼写对 ${spellWords.filter((word) => word.spellOk).length}/${spellWords.length}`);
+      if (contextWords.length) extra.push(`语境选词对 ${contextWords.filter((word) => word.contextOk).length}/${contextWords.length}`);
+      html += `<p>单词打卡累计 <strong>${wordStats.length}</strong> 词，一次答对 ${wordStats.length - wordWrong.length} 词，错词 ${wordWrong.length} 个${wordWrong.length ? `；最近错词：${topWrong}` : ''}。${extra.length ? `学生端三轮练习：${extra.join('，')}。` : '错词已在学生端重练。'}得分只按第一次作答计算，避免“练完就算会”。</p>`;
     }
     html += `<p>任务结构：${S.escapeHtml(bloomLabel)}${bloomHighRatio == null ? '' : `（理解/分析/表达类约占 ${Math.round(bloomHighRatio * 100)}%）`}。这只能说明练了什么，不等于 cognitive level 的正式测评。</p>`;
 
@@ -7527,13 +7534,21 @@
     `</div>`;
 
     if (task.mode === 'words' && Array.isArray(task.wordStats) && task.wordStats.length) {
-      html += `<h3 class="dialog-subtitle">单词作答（第一次作答）</h3>` +
-        `<table class="history-table task-answer-table"><thead><tr><th>#</th><th>单词</th><th>释义</th><th>第一次</th><th>错词重练</th></tr></thead><tbody>` +
+      const threeRound = Number(task.wordFlow) >= 2
+        || task.wordStats.some((word) => word.spellOk != null || word.contextAttempted);
+      html += `<h3 class="dialog-subtitle">单词作答（得分只按第一次作答）</h3>` +
+        `<table class="history-table task-answer-table"><thead><tr><th>#</th><th>单词</th><th>释义</th><th>第一次</th>` +
+          (threeRound ? `<th>错词拼写</th><th>语境</th>` : `<th>错词重练</th>`) +
+        `</tr></thead><tbody>` +
         task.wordStats.map((word, index) => (
           `<tr><td>${index + 1}</td><td><strong>${S.escapeHtml(word.w || '')}</strong></td>` +
           `<td>${S.escapeHtml(word.zh || '—')}</td>` +
           `<td class="${word.ok ? 'answer-ok' : 'answer-wrong'}">${word.ok ? '答对' : '答错'}</td>` +
-          `<td>${word.reviewOk == null ? '—' : word.reviewOk ? '已订正' : '仍错'}</td></tr>`
+          (threeRound
+            ? `<td>${word.spellOk == null ? '—' : word.spellOk ? '<span class="answer-ok">拼对</span>' : `<span class="answer-wrong">拼错</span>${word.spellAnswer ? ` <small>${S.escapeHtml(word.spellAnswer)}</small>` : ''}`}</td>` +
+              `<td>${word.contextOk == null ? '—' : word.contextOk ? '<span class="answer-ok">答对</span>' : '<span class="answer-wrong">答错</span>'}</td>`
+            : `<td>${word.reviewOk == null ? '—' : word.reviewOk ? '已订正' : '仍错'}</td>`) +
+          `</tr>`
         )).join('') + `</tbody></table>`;
     }
 

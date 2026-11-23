@@ -3450,6 +3450,9 @@
   function ensureWordRun(task) {
     if (!task.wordRun || typeof task.wordRun !== 'object') {
       task.wordRun = {
+        /* flow 2 = 认词 → 错词拼写 → 语境运用；flow 1 = 旧版认词 → 错词重练。
+           复习站词多、以回想为主，保持旧版单轮节奏。 */
+        flow: task.reviewSession ? 1 : 2,
         i: 0,
         phase: 'main',
         results: {},
@@ -3458,21 +3461,72 @@
         reviewQueue: [],
         reviewI: 0,
         reviewResults: {},
+        spellQueue: [],
+        spellI: 0,
+        spellResults: {},
+        contextQueue: [],
+        contextI: 0,
+        contextResults: {},
         startedAt: Date.now()
       };
     }
     const run = task.wordRun;
+    /* 升级前已经开始的任务没有 flow，按旧版继续，避免突然跳到新的一轮。 */
+    if (!Number.isFinite(Number(run.flow))) run.flow = 1;
     if (!run.results || typeof run.results !== 'object') run.results = {};
     if (!Array.isArray(run.reviewQueue)) run.reviewQueue = [];
     if (!run.reviewResults || typeof run.reviewResults !== 'object') run.reviewResults = {};
+    if (!Array.isArray(run.spellQueue)) run.spellQueue = [];
+    if (!run.spellResults || typeof run.spellResults !== 'object') run.spellResults = {};
+    if (!Array.isArray(run.contextQueue)) run.contextQueue = [];
+    if (!run.contextResults || typeof run.contextResults !== 'object') run.contextResults = {};
     if (!Number.isFinite(Number(run.i))) run.i = 0;
     if (!Number.isFinite(Number(run.combo))) run.combo = 0;
     if (!Number.isFinite(Number(run.maxCombo))) run.maxCombo = 0;
     if (!Number.isFinite(Number(run.reviewI))) run.reviewI = 0;
-    if (!['main', 'review', 'done'].includes(run.phase)) run.phase = 'main';
+    if (!Number.isFinite(Number(run.spellI))) run.spellI = 0;
+    if (!Number.isFinite(Number(run.contextI))) run.contextI = 0;
+    if (!['main', 'review', 'spell', 'context', 'done'].includes(run.phase)) run.phase = 'main';
     /* 作答后的短暂反馈锁只在内存里有效；刷新页面后必须解锁，否则选项点不动。 */
     run.locked = false;
     return run;
+  }
+
+  function isThreeRoundWordTask(task, run) {
+    return !!task && !task.reviewSession && Number(run && run.flow) >= 2;
+  }
+
+  /* 主轮结束：新版先给错词排拼写，再让所有有例句的词过一遍语境；旧版仍进入中文选英文。 */
+  function advanceFromMain(task, run) {
+    if (isThreeRoundWordTask(task, run)) {
+      run.spellQueue = (task.words || [])
+        .map((word, index) => index)
+        .filter((index) => (
+          !(run.results[index] && run.results[index].firstOk)
+          && spellPuzzleFor(task, (task.words || [])[index], index)
+        ));
+      run.spellI = 0;
+      if (run.spellQueue.length) {
+        run.phase = 'spell';
+        return;
+      }
+      startContextRound(task, run);
+      return;
+    }
+    if (run.reviewQueue.length) {
+      run.phase = 'review';
+      run.reviewI = 0;
+    } else {
+      run.phase = 'done';
+    }
+  }
+
+  function startContextRound(task, run) {
+    run.contextQueue = (task.words || [])
+      .map((word, index) => index)
+      .filter((index) => contextSentenceFor((task.words || [])[index]));
+    run.contextI = 0;
+    run.phase = run.contextQueue.length ? 'context' : 'done';
   }
 
   function wordAccuracy(task, run) {
@@ -3521,6 +3575,55 @@
     const pattern = new RegExp(`\\b${escaped}\\b`, 'i');
     if (!pattern.test(sentence)) return '';
     return sentence.replace(pattern, '______');
+  }
+
+  /* 第二轮拼写：随机挖掉 1–3 个字母，保留首字母做锚点，再给一组字母块。
+     参考“逐渐减少提示的提取练习”（diminishing-cues retrieval practice）：
+     先给足线索让学生把词形提取出来，比单纯再认更容易记牢拼写。 */
+  function spellPuzzleFor(task, word, index) {
+    const raw = String((word && word.w) || '').trim();
+    const letters = Array.from(raw);
+    const alphaPositions = [];
+    letters.forEach((ch, i) => { if (/^[A-Za-z]$/.test(ch)) alphaPositions.push(i); });
+    if (alphaPositions.length < 2) return null;
+    const missingCount = alphaPositions.length <= 3 ? 1 : alphaPositions.length <= 6 ? 2 : 3;
+    /* 首字母留作锚点，不挖；其余字母都可以成为空。 */
+    const candidates = alphaPositions.slice(1);
+    if (!candidates.length) return null;
+    const seed = `${task.id || ''}|${word.w}|${index}|spell`;
+    const shuffled = seededShuffle(candidates.slice(), hashString(seed));
+    const picked = [];
+    /* 尽量让空格分开，不挤在一起，逼学生看整个词形。 */
+    shuffled.forEach((pos) => {
+      if (picked.length >= missingCount) return;
+      if (picked.some((p) => Math.abs(p - pos) <= 1)) return;
+      picked.push(pos);
+    });
+    shuffled.forEach((pos) => {
+      if (picked.length >= missingCount) return;
+      if (!picked.includes(pos)) picked.push(pos);
+    });
+    picked.sort((a, b) => a - b);
+    const missing = picked.map((pos) => letters[pos].toLowerCase());
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz'.split('');
+    const distractorPool = alphabet.filter((ch) => !missing.includes(ch));
+    const extraCount = missing.length <= 1 ? 2 : 3;
+    const distractors = seededShuffle(distractorPool, hashString(`${seed}|distractors`)).slice(0, extraCount);
+    const bank = seededShuffle(missing.concat(distractors), hashString(`${seed}|bank`));
+    return { raw, letters, slots: picked, missing, bank };
+  }
+
+  function spellPatternHtml(puzzle) {
+    let slotNo = 0;
+    return puzzle.letters.map((ch, i) => {
+      if (puzzle.slots.includes(i)) {
+        const n = slotNo;
+        slotNo += 1;
+        return `<span class="spell-slot" data-spell-slot="${n}" role="button" tabindex="0" aria-label="第 ${n + 1} 个空"></span>`;
+      }
+      if (ch === ' ') return '<span class="spell-space"></span>';
+      return `<span class="spell-fixed">${S.escapeHtml(ch)}</span>`;
+    }).join('');
   }
 
   function wordQuestionKind(task, word, index) {
@@ -3882,19 +3985,31 @@
 
   function wordResultTable(task, run) {
     const words = task.words || [];
-    return `<table class="word-result-table"><thead><tr><th>单词</th><th>释义</th><th>第一次</th><th>错词重练</th><th>下次复习</th></tr></thead><tbody>` +
+    const threeRound = isThreeRoundWordTask(task, run);
+    const head = threeRound
+      ? `<tr><th>单词</th><th>释义</th><th>第一轮</th><th>错词拼写</th><th>语境</th><th>下次复习</th></tr>`
+      : `<tr><th>单词</th><th>释义</th><th>第一次</th><th>错词重练</th><th>下次复习</th></tr>`;
+    return `<table class="word-result-table"><thead>${head}</thead><tbody>` +
       words.map((word, index) => {
         const result = run.results[index] || {};
-        const review = run.reviewResults[index] || {};
+        const review = threeRound ? (run.spellResults[index] || {}) : (run.reviewResults[index] || {});
+        const contextResult = threeRound ? run.contextResults[index] : null;
         const memory = (data.wordMemory || {})[wordMemoryKey(word)];
         const nextText = memory && memory.due
           ? `${S.fmtDate(memory.due)}<br><span class="hint">${wordMasteryLabel(memory)}</span>`
           : '—';
+        const spellCell = threeRound
+          ? (review.ok === true ? '<span class="ok">拼对</span>' : review.ok === false ? '<span class="no">已纠正</span>' : '—')
+          : (review.ok === true ? '<span class="ok">已订正</span>' : review.ok === false ? '<span class="no">仍错</span>' : '—');
+        const contextCell = threeRound
+          ? (contextResult ? `<span class="${contextResult.ok ? 'ok' : 'no'}">${contextResult.ok ? '答对' : '答错'}</span>` : '—')
+          : '';
         return `<tr>` +
           `<td><strong>${S.escapeHtml(word.w)}</strong>${result.kind === 'context' ? ' <span class="word-type-tag">语境</span>' : ''}${word.kk ? `<br><span class="hint">${S.escapeHtml(word.kk)}</span>` : ''}</td>` +
           `<td>${S.escapeHtml(word.zh || '—')}</td>` +
           `<td class="${result.firstOk ? 'ok' : 'no'}">${result.firstOk ? '答对' : '答错'}</td>` +
-          `<td>${review.ok === true ? '<span class="ok">已订正</span>' : review.ok === false ? '<span class="no">仍错</span>' : '—'}</td>` +
+          `<td>${spellCell}</td>` +
+          (threeRound ? `<td>${contextCell}</td>` : '') +
           `<td>${nextText}</td>` +
         `</tr>`;
       }).join('') +
@@ -3934,7 +4049,12 @@
       const score = Math.round(accuracy * 100);
       const firstCorrect = words.filter((word, index) => run.results[index] && run.results[index].firstOk).length;
       const wrong = words.filter((word, index) => !(run.results[index] && run.results[index].firstOk));
-      const reviewRight = Object.values(run.reviewResults || {}).filter((item) => item.ok).length;
+      const threeRound = isThreeRoundWordTask(task, run);
+      const spellRight = Object.values(run.spellResults || {}).filter((item) => item.ok).length;
+      const spellTotal = Object.keys(run.spellResults || {}).length;
+      const contextEntries = Object.values(run.contextResults || {});
+      const contextRight = contextEntries.filter((item) => item.ok).length;
+      const reviewRight = threeRound ? spellRight : Object.values(run.reviewResults || {}).filter((item) => item.ok).length;
       const xp = wordXp(task, run);
       $('#submit-task').hidden = false;
       $('#submit-task').textContent = '完成打卡';
@@ -3944,10 +4064,13 @@
         `<div class="word-run"><div class="word-summary">` +
           `<div class="word-summary-ring" style="--score:${score}%"><div><b>${score}</b><small>ACCURACY</small></div></div>` +
           `<h2>这一轮打卡完成</h2>` +
-          `<p>${score >= 90 ? '词感很稳，保持这个节奏。' : score >= 70 ? '大部分已经拿下，错词再看一遍就稳了。' : '错词已经重练过，睡前再回看一次会更牢。'}</p>` +
+          `<p>${score >= 90 ? '词感很稳，保持这个节奏。' : threeRound ? (score >= 70 ? '大部分已经拿下，错词再拼一遍就稳了。' : '错词已经拼写过，睡前再回看一次会更牢。') : (score >= 70 ? '大部分已经拿下，错词再认一遍就稳了。' : '错词已经重认过，睡前再回看一次会更牢。')}</p>` +
           `<div class="word-summary-stats">` +
             `<div><b>${firstCorrect} / ${total}</b><span>一次答对</span></div>` +
-            `<div><b>x${run.maxCombo || 0}</b><span>最高连击</span></div>` +
+            (threeRound
+              ? `<div><b>${spellTotal ? `${spellRight} / ${spellTotal}` : '✓'}</b><span>${spellTotal ? '错词拼对' : '无错词'}</span></div>` +
+                `<div><b>${contextEntries.length ? `${contextRight} / ${contextEntries.length}` : '—'}</b><span>${contextEntries.length ? '语境答对' : '暂无例句'}</span></div>`
+              : `<div><b>x${run.maxCombo || 0}</b><span>最高连击</span></div>`) +
             `<div><b>+${xp}</b><span>预计 EXP</span></div>` +
           `</div>` +
           `<div class="word-summary-pet">` +
@@ -3955,8 +4078,8 @@
             `<div><b>${petDisplay.name}陪你完成了这一轮</b><span>成长 +${task.petGain || 0} · 小鱼干 +${task.petSnacks || 0}</span></div>` +
           `</div>` +
           (wrong.length
-            ? `<p class="word-summary-wrong">错词 ${wrong.length} 个，重练答对 ${reviewRight} 个：${wrong.map((word) => `<span class="word-wrong-chip">${S.escapeHtml(word.w)}</span>`).join('')}</p>`
-            : `<p class="word-summary-wrong">全部一次答对，没有错词。</p>`) +
+            ? `<p class="word-summary-wrong">错词 ${wrong.length} 个，${threeRound ? '拼写订正' : '重练订正'} ${reviewRight} 个${threeRound ? `，语境答对 ${contextRight} 个` : ''}：${wrong.map((word) => `<span class="word-wrong-chip">${S.escapeHtml(word.w)}</span>`).join('')}</p>`
+            : `<p class="word-summary-wrong">全部一次答对，没有错词。${threeRound && contextEntries.length ? `语境答对 ${contextRight} / ${contextEntries.length}。` : ''}</p>`) +
           `<div class="word-summary-actions"><button class="p-btn" type="button" data-word-finish>完成打卡，交给老师</button></div>` +
           `<p class="word-review-note">点击后成绩会写进本机档案。回主界面生成“汇报码”，老师导入后才能看到这次记录。</p>` +
         `</div></div>`;
@@ -3964,21 +4087,36 @@
       return;
     }
 
-    /* 最后一题答完后刷新页面：主轮已结束，按错词队列决定进入重练还是收尾。 */
+    /* 一轮答完后刷新页面：按阶段自动进入下一轮，避免刷新后卡在旧阶段。 */
     if (run.phase === 'main' && Number(run.i) >= total) {
-      if (run.reviewQueue.length) {
-        run.phase = 'review';
-        run.reviewI = 0;
-      } else {
-        run.phase = 'done';
-      }
+      advanceFromMain(task, run);
+      save();
+      renderWordRunner(task);
+      return;
+    }
+    if (run.phase === 'spell' && Number(run.spellI) >= run.spellQueue.length) {
+      startContextRound(task, run);
+      save();
+      renderWordRunner(task);
+      return;
+    }
+    if (run.phase === 'context' && Number(run.contextI) >= run.contextQueue.length) {
+      run.phase = 'done';
       save();
       renderWordRunner(task);
       return;
     }
 
+    const spellMode = run.phase === 'spell';
+    const contextMode = run.phase === 'context';
     const reviewMode = run.phase === 'review';
-    const index = reviewMode ? Number(run.reviewQueue[run.reviewI]) : Number(run.i);
+    const index = spellMode
+      ? Number(run.spellQueue[run.spellI])
+      : contextMode
+        ? Number(run.contextQueue[run.contextI])
+        : reviewMode
+          ? Number(run.reviewQueue[run.reviewI])
+          : Number(run.i);
     const word = words[index];
     if (!word) {
       run.phase = 'done';
@@ -3987,17 +4125,38 @@
       return;
     }
     const isReview = reviewMode;
-    const kind = isReview ? 'review' : wordQuestionKind(task, word, index);
+    const puzzle = spellMode ? spellPuzzleFor(task, word, index) : null;
+    if (spellMode && !puzzle) {
+      run.spellI = Number(run.spellI) + 1;
+      save();
+      renderWordRunner(task);
+      return;
+    }
+    const kind = spellMode
+      ? 'spell'
+      : contextMode
+        ? 'context'
+        : isReview
+          ? 'review'
+          : isThreeRoundWordTask(task, run)
+            ? 'meaning'
+            : wordQuestionKind(task, word, index);
     const contextText = kind === 'context' ? contextSentenceFor(word) : '';
     const options = kind === 'review'
       ? reviewOptionsFor(task, word)
       : kind === 'context'
         ? contextOptionsFor(task, word, index)
-        : wordOptionsFor(task, word, index);
+        : kind === 'spell'
+          ? []
+          : wordOptionsFor(task, word, index);
     const correctText = kind === 'meaning' ? S.meaningLabel(word.w, word.zh, word.pos) : word.w;
-    const progress = isReview
-      ? (run.reviewQueue.length ? run.reviewI / run.reviewQueue.length : 1)
-      : (total ? index / total : 0);
+    const progress = spellMode
+      ? (run.spellQueue.length ? run.spellI / run.spellQueue.length : 1)
+      : contextMode
+        ? (run.contextQueue.length ? run.contextI / run.contextQueue.length : 1)
+        : isReview
+          ? (run.reviewQueue.length ? run.reviewI / run.reviewQueue.length : 1)
+          : (total ? index / total : 0);
     const combo = Number(run.combo) || 0;
     const speechText = kind === 'context'
       ? contextText.replace(/______/g, 'blank')
@@ -4006,63 +4165,157 @@
     $('#submit-task').hidden = true;
     $('#submit-task').textContent = '完成打卡';
     $('#runner-fill').style.width = `${Math.round(progress * 100)}%`;
-    $('#runner-count').textContent = isReview
-      ? `错词重练 ${Math.min(run.reviewI + 1, run.reviewQueue.length)} / ${run.reviewQueue.length}`
-      : `${Math.min(index + 1, total)} / ${total}`;
+    $('#runner-count').textContent = spellMode
+      ? `拼写 ${Math.min(Number(run.spellI) + 1, run.spellQueue.length)} / ${run.spellQueue.length}`
+      : contextMode
+        ? `语境 ${Math.min(Number(run.contextI) + 1, run.contextQueue.length)} / ${run.contextQueue.length}`
+        : isReview
+          ? `错词重练 ${Math.min(run.reviewI + 1, run.reviewQueue.length)} / ${run.reviewQueue.length}`
+          : `${Math.min(index + 1, total)} / ${total}`;
 
     const autoLabel = autoSpeakEnabled() ? '🔊 自动读音：开' : '🔇 自动读音：关';
     const autoButton = `<button class="word-auto-speak" type="button" data-word-autospeak="${autoSpeakEnabled() ? 'on' : 'off'}" title="新词出现时自动读一遍">${autoLabel}</button>`;
-    const stage = kind === 'review'
-      ? `<div class="word-stage review">` +
-          `<div class="word-stage-label"><span>错词回炉 · ${word.w}</span><span class="word-phase">中 → 英</span></div>` +
-          `<div class="word-main"><p class="word-big cn">${S.escapeHtml(S.meaningLabel(word.w, word.zh, word.pos))}</p>` +
-          `<p class="word-phon">选回对应的英文单词</p></div>` +
+    const stage = spellMode
+      ? `<div class="word-stage spell">` +
+          `<div class="word-stage-label"><span>错词拼写 · 第 ${Number(run.spellI) + 1} 题</span><span class="word-phase">中 → 拼</span></div>` +
+          `<div class="word-main spell-main">` +
+            `<p class="word-big cn">${S.escapeHtml(S.meaningLabel(word.w, word.zh, word.pos))}</p>` +
+            `<p class="word-phon">${word.kk ? S.escapeHtml(word.kk) : '把缺少的字母补回来'}</p>` +
+            `<button class="word-speak" type="button" data-word-speak="${S.escapeHtml(word.w)}">🔊 听读音</button>` +
+          `</div>` +
+          `<div class="spell-word" id="spell-slots" aria-label="拼写空格">${spellPatternHtml(puzzle)}</div>` +
+          `<div class="spell-bank" id="spell-bank" aria-label="字母块">` +
+            puzzle.bank.map((letter, tileIndex) => (
+              `<button class="spell-tile" type="button" data-spell-tile="${tileIndex}" data-letter="${S.escapeHtml(letter)}">${S.escapeHtml(letter)}</button>`
+            )).join('') +
+          `</div>` +
         `</div>`
-      : kind === 'context'
-        ? `<div class="word-stage context">` +
-            `<div class="word-stage-label"><span>语境推词 · 第 ${index + 1} 题</span><span class="word-phase">读句选词</span></div>` +
-            `<p class="word-context-kicker">读句子，选出最符合语境的一个词</p>` +
-            `<p class="word-context-sentence" data-word-speak="${S.escapeHtml(speechText)}" role="button" tabindex="0" title="点句子听读音">${S.escapeHtml(contextText).replace(/______/g, '<span class="word-blank">______</span>')}</p>` +
-            `<button class="word-speak" type="button" data-word-speak="${S.escapeHtml(speechText)}">🔊 读句子</button>` +
+      : kind === 'review'
+        ? `<div class="word-stage review">` +
+            `<div class="word-stage-label"><span>错词回炉 · ${word.w}</span><span class="word-phase">中 → 英</span></div>` +
+            `<div class="word-main"><p class="word-big cn">${S.escapeHtml(S.meaningLabel(word.w, word.zh, word.pos))}</p>` +
+            `<p class="word-phon">选回对应的英文单词</p></div>` +
           `</div>`
-        : `<div class="word-stage">` +
-            `<div class="word-stage-label"><span>${task.title || '单词打卡'}</span><span class="word-phase">英 → 中</span></div>` +
-            `<div class="word-main"><p class="word-big" data-word-speak="${S.escapeHtml(word.w)}" role="button" tabindex="0" title="点单词听读音">${S.escapeHtml(word.w)}</p>` +
-            `<p class="word-phon">${S.escapeHtml(word.kk || '')}${word.pos ? `<span class="word-pos">${S.escapeHtml(word.pos)}</span>` : ''}</p>` +
-            `<button class="word-speak" type="button" data-word-speak="${S.escapeHtml(word.w)}">🔊 听读音</button></div>` +
-          `</div>`;
+        : kind === 'context'
+          ? `<div class="word-stage context">` +
+              `<div class="word-stage-label"><span>${contextMode ? '第三轮 · 语境运用' : `语境推词 · 第 ${index + 1} 题`}</span><span class="word-phase">读句选词</span></div>` +
+              `<p class="word-context-kicker">读句子，选出最符合语境的一个词</p>` +
+              `<p class="word-context-sentence" data-word-speak="${S.escapeHtml(speechText)}" role="button" tabindex="0" title="点句子听读音">${S.escapeHtml(contextText).replace(/______/g, '<span class="word-blank">______</span>')}</p>` +
+              `<button class="word-speak" type="button" data-word-speak="${S.escapeHtml(speechText)}">🔊 读句子</button>` +
+            `</div>`
+          : `<div class="word-stage">` +
+              `<div class="word-stage-label"><span>${isThreeRoundWordTask(task, run) ? '第一轮 · 认词' : (task.title || '单词打卡')}</span><span class="word-phase">英 → 中</span></div>` +
+              `<div class="word-main"><p class="word-big" data-word-speak="${S.escapeHtml(word.w)}" role="button" tabindex="0" title="点单词听读音">${S.escapeHtml(word.w)}</p>` +
+              `<p class="word-phon">${S.escapeHtml(word.kk || '')}${word.pos ? `<span class="word-pos">${S.escapeHtml(word.pos)}</span>` : ''}</p>` +
+              `<button class="word-speak" type="button" data-word-speak="${S.escapeHtml(word.w)}">🔊 听读音</button></div>` +
+            `</div>`;
 
-    const questionText = kind === 'review'
-      ? '选出正确英文'
-      : kind === 'context'
-        ? '选出最符合句意的英文单词'
-        : '选出正确的中文意思';
+    const questionText = spellMode
+      ? '点下面的字母补全空格，再点“检查拼写”'
+      : kind === 'review'
+        ? '选出正确英文'
+        : kind === 'context'
+          ? '选出最符合句意的英文单词'
+          : '选出正确的中文意思';
+
+    const answerArea = spellMode
+      ? `<div class="spell-check-row"><button class="p-btn spell-check" type="button" data-spell-check disabled>检查拼写</button></div>`
+      : `<div class="word-options" id="word-options">` +
+          options.map((option) => `<button class="word-option" type="button" data-word-option="${S.escapeHtml(option)}">${S.escapeHtml(option)}</button>`).join('') +
+        `</div>`;
+
+    const kicker = spellMode
+      ? 'SPELLING · 第二轮'
+      : contextMode
+        ? 'CONTEXT · 第三轮'
+        : task.reviewSession
+          ? 'MEMORY REVIEW · 记忆复习'
+          : isReview
+            ? 'REVIEW · 错词重练'
+            : isThreeRoundWordTask(task, run)
+              ? 'WORD QUEST · 第一轮'
+              : kind === 'context'
+                ? `CONTEXT QUEST · 第 ${index + 1} 题`
+                : 'WORD QUEST · 第一轮';
+
+    const note = task.reviewSession
+      ? '这是今日复习站：都是按记忆排期今天该回想的词。答对后间隔会变成 2、4、7、15、30 天；答错明天再来。'
+      : spellMode
+        ? '这一轮只拼第一次答错的词。拼错会立刻显示正确拼写，先看清再继续。'
+        : contextMode
+          ? '第三轮在句子里用一次：读完整句，注意词义、搭配和句意。'
+          : isReview
+            ? '这次答对会记为“已订正”，但得分仍按第一次作答计算。'
+            : isThreeRoundWordTask(task, run)
+              ? '第一轮先认词，选错不影响继续闯关；答错的词会自动进入第二轮拼写。'
+              : kind === 'context'
+                ? '先理解整句意思，再选词；选错会自动进入最后的错词回炉。'
+                : '选错会自动进入最后的错词回炉，不影响你继续闯关。';
 
     $('#runner-body').innerHTML = `<div class="word-run">` +
       `<div class="word-run-top">` +
-        `<span class="word-run-kicker">${task.reviewSession ? 'MEMORY REVIEW · 记忆复习' : isReview ? 'REVIEW' : kind === 'context' ? 'CONTEXT QUEST' : 'WORD QUEST'} · ${run.phase === 'review' ? '错词重练' : kind === 'context' ? '语境推词' : task.reviewSession ? '到期复习' : '第一轮'}</span>` +
+        `<span class="word-run-kicker">${kicker}</span>` +
         `<span class="word-run-tools">${autoButton}<span class="word-combo ${combo >= 3 ? 'hot' : ''}" id="word-combo">${combo >= 3 ? '🔥' : '⚡'} 连击 x${combo}</span></span>` +
       `</div>` +
       `<div class="word-progress-game"><i id="word-progress-fill" style="width:${Math.round(progress * 100)}%"></i></div>` +
       stage +
       `<p class="word-question">${questionText}</p>` +
-      `<div class="word-options" id="word-options">` +
-        options.map((option) => `<button class="word-option" type="button" data-word-option="${S.escapeHtml(option)}">${S.escapeHtml(option)}</button>`).join('') +
-      `</div>` +
+      answerArea +
       `<div class="word-pet-row" id="word-pet-row">` +
         `<div class="word-pet" id="word-pet">${petSVG(petInfo.stage, petDisplay.id, petDisplay.fused, { thumb: true })}</div>` +
         `<div class="word-pet-copy"><b>${petDisplay.name} · ${petInfo.name}</b><span id="word-pet-say">答对一题，就喂我 2 点成长。</span></div>` +
         `<span class="word-pet-gain" id="word-pet-gain" aria-live="polite"></span>` +
       `</div>` +
       `<div class="word-feedback" id="word-feedback" hidden></div>` +
-      `<p class="word-review-note">${task.reviewSession ? '这是今日复习站：都是按记忆排期今天该回想的词。答对后间隔会变成 2、4、7、15、30 天；答错明天再来。' : isReview ? '这次答对会记为“已订正”，但得分仍按第一次作答计算。' : kind === 'context' ? '先理解整句意思，再选词；选错会自动进入最后的错词回炉。' : '选错会自动进入最后的错词回炉，不影响你继续闯关。'}</p>` +
+      `<p class="word-review-note">${note}</p>` +
     `</div>`;
 
     run.questionShownAt = Date.now();
-    const context = { index, word, correctText, isReview, kind, contextText, speechText };
+    const context = { index, word, correctText, isReview, kind, contextText, speechText, puzzle, spellMode, contextMode };
     bindWordClicks(task, run, context);
     if (!done) startTimer();
-    if (!isReview) autoSpeakQuestion(task, run, context, speechText);
+    if (!isReview && !spellMode) autoSpeakQuestion(task, run, context, speechText);
+  }
+
+  function spellUpdateCheck() {
+    const button = $('[data-spell-check]');
+    if (!button) return;
+    const slots = $$('#spell-slots .spell-slot');
+    button.disabled = slots.some((slot) => !slot.dataset.letter);
+  }
+
+  function spellUseTile(tile) {
+    if (!tile || tile.disabled) return;
+    const slot = $$('#spell-slots .spell-slot').find((item) => !item.dataset.letter);
+    if (!slot) return;
+    slot.dataset.letter = tile.dataset.letter;
+    slot.dataset.tile = tile.dataset.spellTile;
+    slot.textContent = tile.dataset.letter;
+    slot.classList.add('is-filled');
+    tile.disabled = true;
+    tile.classList.add('is-used');
+    spellUpdateCheck();
+  }
+
+  function spellClearSlot(slot) {
+    if (!slot || !slot.dataset.letter) return;
+    const tile = $(`#spell-bank .spell-tile[data-spell-tile="${slot.dataset.tile}"]`);
+    if (tile) {
+      tile.disabled = false;
+      tile.classList.remove('is-used');
+    }
+    slot.textContent = '';
+    slot.classList.remove('is-filled');
+    delete slot.dataset.letter;
+    delete slot.dataset.tile;
+    spellUpdateCheck();
+  }
+
+  function spellKeyboardLetter(letter) {
+    const tile = $$('#spell-bank .spell-tile').find((item) => (
+      !item.disabled && String(item.dataset.letter || '').toLowerCase() === String(letter || '').toLowerCase()
+    ));
+    if (tile) spellUseTile(tile);
   }
 
   function bindWordClicks(task, run, context) {
@@ -4070,6 +4323,28 @@
     body.onchange = null;
     body.oninput = null;
     body.onkeydown = (event) => {
+      if (context && context.spellMode) {
+        if (context.spellAnswered) return;
+        if (/^[a-zA-Z]$/.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          event.preventDefault();
+          spellKeyboardLetter(event.key);
+          return;
+        }
+        if (event.key === 'Backspace') {
+          event.preventDefault();
+          const filled = $$('#spell-slots .spell-slot').filter((slot) => slot.dataset.letter);
+          spellClearSlot(filled[filled.length - 1]);
+          return;
+        }
+        if (event.key === 'Enter') {
+          const button = $('[data-spell-check]');
+          if (button && !button.disabled) {
+            event.preventDefault();
+            answerSpell(task, run, context);
+          }
+          return;
+        }
+      }
       const word = event.target.closest('.word-big[data-word-speak]');
       if (word && (event.key === 'Enter' || event.key === ' ')) {
         event.preventDefault();
@@ -4096,10 +4371,112 @@
         submitWordTask();
         return;
       }
+      if (context && context.spellMode) {
+        const tile = event.target.closest('[data-spell-tile]');
+        if (tile) {
+          if (context.spellAnswered) return;
+          spellUseTile(tile);
+          return;
+        }
+        const slot = event.target.closest('[data-spell-slot]');
+        if (slot) {
+          if (context.spellAnswered) return;
+          spellClearSlot(slot);
+          return;
+        }
+        if (event.target.closest('[data-spell-check]')) {
+          if (context.spellAnswered) return;
+          answerSpell(task, run, context);
+          return;
+        }
+        if (event.target.closest('[data-spell-next]')) {
+          run.locked = false;
+          save();
+          if (activeTaskId === task.id) renderWordRunner(task);
+          return;
+        }
+        return;
+      }
       const option = event.target.closest('[data-word-option]');
       if (!option || !context || run.locked) return;
       answerWordOption(task, run, context, option);
     };
+  }
+
+  function answerSpell(task, run, context) {
+    if (!context || !context.puzzle || context.spellAnswered || run.locked) return;
+    const puzzle = context.puzzle;
+    const slotEls = $$('#spell-slots .spell-slot');
+    const attempt = slotEls.map((slot) => String(slot.dataset.letter || '')).join('');
+    const expected = puzzle.missing.join('');
+    const ok = attempt.toLowerCase() === expected.toLowerCase();
+    let answerSeconds = 0;
+    if (run.questionShownAt) {
+      answerSeconds = Math.round(Math.max(0, (Date.now() - run.questionShownAt) / 1000) * 100) / 100;
+      run.questionShownAt = 0;
+    }
+    context.spellAnswered = true;
+    run.locked = true;
+
+    slotEls.forEach((slot, i) => {
+      slot.classList.remove('is-filled');
+      if (slot.dataset.letter && slot.dataset.letter.toLowerCase() === expected[i]) slot.classList.add('is-correct');
+      else slot.classList.add('is-wrong');
+      slot.tabIndex = -1;
+    });
+    $$('#spell-bank .spell-tile').forEach((tile) => { tile.disabled = true; });
+    const checkBtn = $('[data-spell-check]');
+    if (checkBtn) checkBtn.disabled = true;
+
+    if (ok) {
+      addPetXp(2);
+      run.combo = Number(run.combo) + 1;
+      run.maxCombo = Math.max(Number(run.maxCombo) || 0, run.combo);
+    } else {
+      run.combo = 0;
+      /* 错就马上把正确拼写补进去，让学生看到完整词形再继续。 */
+      slotEls.forEach((slot, i) => {
+        slot.textContent = puzzle.missing[i];
+        slot.classList.remove('is-wrong');
+        slot.classList.add('is-correct');
+      });
+    }
+    run.spellResults[context.index] = { ok, answer: attempt, seconds: answerSeconds, kind: 'spell' };
+    run.spellI = Number(run.spellI) + 1;
+
+    const petEl = $('#word-pet');
+    if (petEl) petEl.classList.add(ok ? 'is-happy' : 'is-sad');
+    const petSay = $('#word-pet-say');
+    if (petSay) petSay.textContent = ok ? '拼对了！词形记得很准。' : '看清正确拼写，下次就能拼回来。';
+    const petGainEl = $('#word-pet-gain');
+    if (petGainEl) {
+      petGainEl.textContent = ok ? '+2 成长' : '';
+      petGainEl.classList.toggle('show', ok);
+    }
+    const feedback = $('#word-feedback');
+    if (feedback) {
+      feedback.hidden = false;
+      feedback.className = `word-feedback ${ok ? 'ok' : 'no'}`;
+      feedback.innerHTML = ok
+        ? `<b>拼对了 · 连击 x${run.combo}</b>` +
+          `<div class="word-answer-line"><strong>${S.escapeHtml(context.word.w)}</strong> · ${S.escapeHtml(S.meaningLabel(context.word.w, context.word.zh, context.word.pos))}　已记入第二轮</div>`
+        : `<b>这次差一点，先看清正确拼写</b>` +
+          `<div class="word-answer-line"><strong>${S.escapeHtml(context.word.w)}</strong> · ${S.escapeHtml(S.meaningLabel(context.word.w, context.word.zh, context.word.pos))}</div>` +
+          `<button class="p-btn small spell-next" type="button" data-spell-next>看明白了，继续</button>`;
+    }
+    const comboEl = $('#word-combo');
+    if (comboEl) {
+      comboEl.classList.toggle('hot', Number(run.combo) >= 3);
+      comboEl.textContent = `${Number(run.combo) >= 3 ? '🔥' : '⚡'} 连击 x${run.combo}`;
+    }
+    save();
+    if (ok) {
+      setTimeout(() => {
+        run.locked = false;
+        save();
+        if (activeTaskId === task.id) renderWordRunner(task);
+      }, 950);
+    }
   }
 
   function answerWordOption(task, run, context, option) {
@@ -4110,7 +4487,7 @@
     if (run.questionShownAt) {
       const seconds = Math.max(0, (Date.now() - run.questionShownAt) / 1000);
       answerSeconds = Math.round(seconds * 100) / 100;
-      if (!context.isReview) behavior.wordTimes.push(answerSeconds);
+      if (!context.isReview && !context.contextMode) behavior.wordTimes.push(answerSeconds);
       run.questionShownAt = 0;
     }
     run.locked = true;
@@ -4136,7 +4513,16 @@
       petGainEl.classList.toggle('show', ok);
     }
 
-    if (context.isReview) {
+    if (context.contextMode) {
+      run.contextResults[context.index] = { ok, answer: picked, seconds: answerSeconds, optionIndex, optionCount };
+      run.contextI = Number(run.contextI) + 1;
+      if (ok) {
+        run.combo = Number(run.combo) + 1;
+        run.maxCombo = Math.max(Number(run.maxCombo) || 0, run.combo);
+      } else {
+        run.combo = 0;
+      }
+    } else if (context.isReview) {
       run.reviewResults[context.index] = { ok, answer: picked, seconds: answerSeconds, optionIndex, optionCount };
       run.reviewI = Number(run.reviewI) + 1;
     } else {
@@ -4166,14 +4552,22 @@
         ? `<div class="word-answer-context">${S.escapeHtml(context.contextText).replace(/______/g, `<b>${S.escapeHtml(context.word.w)}</b>`)}` +
           `${context.word.exZh ? `<small>${S.escapeHtml(context.word.exZh)}</small>` : ''}</div>`
         : '';
+      const okTitle = context.contextMode ? '语境选对了' : context.isReview ? '订正成功' : '答对了';
+      const wrongTitle = context.contextMode ? '语境里还没选准' : context.isReview ? '这次还没记住' : '先记一下';
+      const scoreNote = context.isReview || context.contextMode ? '' : '　已记入本轮成绩';
+      const wrongNote = context.contextMode
+        ? '第三轮已完成，记住它在句子里的用法。'
+        : context.isReview
+          ? '下一轮再遇到它，试着先回想发音。'
+          : '这个词会在第二轮再拼一次，最后还会在语境里出现。';
       feedback.innerHTML = ok
-        ? `<b>${context.isReview ? '订正成功' : '答对了'} · 连击 x${run.combo}</b>` +
-          `<div class="word-answer-line">${S.escapeHtml(context.word.w)} · ${S.escapeHtml(S.meaningLabel(context.word.w, context.word.zh, context.word.pos))}${context.isReview ? '' : '　已记入本轮成绩'}</div>` +
+        ? `<b>${okTitle} · 连击 x${run.combo}</b>` +
+          `<div class="word-answer-line">${S.escapeHtml(context.word.w)} · ${S.escapeHtml(S.meaningLabel(context.word.w, context.word.zh, context.word.pos))}${scoreNote}</div>` +
           contextAnswer
-        : `<b>${context.isReview ? '这次还没记住' : '先记一下'}</b>` +
+        : `<b>${wrongTitle}</b>` +
           `<div class="word-answer-line"><strong>${S.escapeHtml(context.word.w)}</strong> · ${S.escapeHtml(S.meaningLabel(context.word.w, context.word.zh, context.word.pos))}${context.word.kk ? ` · ${S.escapeHtml(context.word.kk)}` : ''}</div>` +
           contextAnswer +
-          `<div class="word-answer-line">${context.isReview ? '下一轮再遇到它，试着先回想发音。' : '这个词会在最后再考一次。'}</div>`;
+          `<div class="word-answer-line">${wrongNote}</div>`;
     }
     const comboEl = $('#word-combo');
     if (comboEl) {
@@ -4186,13 +4580,10 @@
     setTimeout(() => {
       run.locked = false;
       if (activeTaskId !== task.id) return;
-      if (!context.isReview && Number(run.i) >= (task.words || []).length) {
-        if (run.reviewQueue.length) {
-          run.phase = 'review';
-          run.reviewI = 0;
-        } else {
-          run.phase = 'done';
-        }
+      if (context.contextMode) {
+        if (Number(run.contextI) >= run.contextQueue.length) run.phase = 'done';
+      } else if (!context.isReview && Number(run.i) >= (task.words || []).length) {
+        advanceFromMain(task, run);
       } else if (context.isReview && Number(run.reviewI) >= run.reviewQueue.length) {
         run.phase = 'done';
       }
@@ -4214,15 +4605,28 @@
     const xpEarned = wordXp(task, run);
     const petGain = Math.max(8, Math.round(xpEarned * 0.6));
     const petSnacks = Math.max(1, Math.round(total / 5)) + (accuracy >= 0.9 ? 1 : 0);
-    const wordStats = words.map((word, index) => ({
-      w: word.w,
-      zh: word.zh || '',
-      kk: word.kk || '',
-      ok: !!(run.results[index] && run.results[index].firstOk),
-      reviewOk: run.reviewResults[index] ? !!run.reviewResults[index].ok : null,
-      kind: (run.results[index] && run.results[index].kind) || 'meaning',
-      attempts: 1 + (run.results[index] && run.results[index].firstOk ? 0 : 1)
-    }));
+    const threeRound = isThreeRoundWordTask(task, run);
+    const wordStats = words.map((word, index) => {
+      const spell = threeRound ? run.spellResults[index] : null;
+      const contextResult = threeRound ? run.contextResults[index] : null;
+      return {
+        w: word.w,
+        zh: word.zh || '',
+        kk: word.kk || '',
+        ok: !!(run.results[index] && run.results[index].firstOk),
+        reviewOk: threeRound
+          ? (spell ? !!spell.ok : null)
+          : (run.reviewResults[index] ? !!run.reviewResults[index].ok : null),
+        spellOk: spell ? !!spell.ok : null,
+        spellAnswer: spell ? spell.answer : '',
+        contextOk: contextResult ? !!contextResult.ok : null,
+        contextAttempted: !!contextResult,
+        kind: (run.results[index] && run.results[index].kind) || 'meaning',
+        attempts: 1 + (threeRound
+          ? (spell ? 1 : 0) + (contextResult ? 1 : 0)
+          : (run.results[index] && run.results[index].firstOk ? 0 : 1))
+      };
+    });
     const review = wordStats.map((word, index) => ({
       n: index + 1,
       stem: word.kind === 'context' && words[index] && words[index].ex ? words[index].ex : word.w,
@@ -4244,6 +4648,7 @@
     task.petGain = petGain;
     task.petSnacks = petSnacks;
     task.wordStats = wordStats;
+    task.wordFlow = Number(run.flow) || 1;
     /* 更新每个词的记忆排期：新词明天复习，答对后间隔逐档拉长，答错回到明天。 */
     updateWordMemoryFromTask(task);
     task.integrity = computeIntegrity(task);
@@ -4717,6 +5122,7 @@
         avgDifficulty: taskAvgDifficulty(task),
         mode: task.mode || '',
         wordTotal: task.wordTotal || (task.words || []).length || 0,
+        wordFlow: Number(task.wordFlow) || 0,
         wordStats: task.wordStats || [],
         maxCombo: task.wordRun ? Number(task.wordRun.maxCombo) || 0 : 0,
         blockStats: task.blockStats || [],
